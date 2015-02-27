@@ -16,95 +16,126 @@
 # You should have received a copy of the GNU General Public License
 # along with ec2deprecateimg. If not, see <http://www.gnu.org/licenses/>.
 
-import ConfigParser
-import optparse
+import boto
+import boto.ec2
+import argparse
 import os
 import sys
 
-import ec2deprecateimg.ec2deprecateimg
+#import ec2deprecateimg.ec2deprecateimg
 
 # Set up command line argument parsing
-argparse = optparse.OptionParser()
-argparse.add_option(
+argparse = argparse.ArgumentParser(description='Deprecate images in EC2')
+argparse.add_argument(
     '-a', '--account',
+    dest='accountName',
     help='Account to use',
-    dest='accountName'
+    metavar='ACCOUNT_NAME',
+    required=True
 )
 hlpMsg = 'The deprecation period, image will be tagged for removal '
 hlpMsg += 'on "now + deprecation perion", specified in months, default '
 hlpMsg += ' is 6 month (Optional)'
-argparse.add_option(
+argparse.add_argument(
     '-d', '--deprecation-period',
+    default=6,
+    dest='depTime',
     help=hlpMsg,
-    dest='depTime'
+    metavar='NUMBER_OF_MONTHS',
+    type=int
 )
 hlpMsg = 'Do not perform any action, print information about actions that '
 hlpMsg += 'would be performed instared (Optional)'
-argparse.add_option(
+argparse.add_argument(
     '-n', '--dry-run',
-    help=hlpMsg,
     dest='dryRun',
-    action='store_true'
+    help=hlpMsg,
+    action='store_false'
 )
-argparse.add_option(
+argparse.add_argument(
     '-f', '--file',
+    dest='confFile',
     help='Path to configuration file, default ~/.ec2utils.conf (Optional)',
-    dest='confFile'
+    metavar='CONFIG_FILE'
 )
-argparse.add_option(
-    '', '--image-id',
+argparse.add_argument(
+    '--image-id',
+    dest='depImgID',
     help='The AMI ID of the image to be deprecated (Optional)',
-    dest='depImgID'
+    metavar='AMI_ID'
 )
-argparse.add_option(
-    '', '--image-name',
+argparse.add_argument(
+    '--image-name',
+    dest='depImgName',
     help='The image name of the image to be deprecated (Optional)',
-    dest='depImgName'
+    metavar='IMAGE_NAME'
 )
 hlpMsg = 'An image name fragment to match the image name of the image to be '
 hlpMsg += 'deprecated (Optional)'
-argparse.add_option(
-    '', '--image-name-frag',
+argparse.add_argument(
+    '--image-name-frag',
+    dest='depImgNameFrag',
     help=hlpMsg,
-    dest='depImgNameFrag'
+    metavar='IMAGE_NAME_FRAGMENT'
 )
 hlpMsg = 'A regular expression to match the image name of the image to be '
 hlpMsg += 'deprecated (Optional)'
-argparse.add_option(
-    '', '--image-name-match',
+argparse.add_argument(
+    '--image-name-match',
+    dest='depImgNameMatch',
     help=hlpMsg,
-    dest='depImgNameMatch'
+    metavar='REGEX'
 )
-argparse.add_option(
-    '', '--image-virt-type',
+argparse.add_argument(
+    '--image-virt-type',
+    choices=['hvm','para'],
+    dest='virtType',
     help='The virtualization type of the image to be deprecated (Optional)',
-    dest='virtType'
+    metavar='VIRT_TYPE'
 )
 hlpMsg = 'The AMI ID of the image used as a replacement for the image(s) '
 hlpMsg += 'being deprecated (Optional), one of --replacement-id or '
 hlpMsg += '--replacement-name is required'
-argparse.add_option(
-    '', '--replacement-id',
+argparse.add_argument(
+    '--replacement-id',
+    dest='replID',
     help=hlpMsg,
-    dest='replID'
+    metavar='AMI_ID'
 )
 hlpMsg = 'The name of the image used as a replacement for the image(s) '
 hlpMsg += 'being deprecated (Optional), one of --replacement-id or '
 hlpMsg += '--replacement-name is required'
-argparse.add_option(
-    '', '--replacement-name',
+argparse.add_argument(
+    '--replacement-name',
+    dest='replName',
     help=hlpMsg,
-    dest='replName'
+    metavar='IMAGE_NAME'
 )
 hlpMsg = 'Comma separated list of regions for publishing, all integrated '
 hlpMsg += 'region sif not given (Optional)'
-argparse.add_option(
+argparse.add_argument(
     '-r', '--regions',
+    dest='regions',
     help=hlpMsg,
-    dest='regions'
+    metavar='EC2_REGIONS'
+)
+argparse.add_argument(
+    '--version',
+    dest='version',
+    help='Program version'
 )
 
 options, args = argparse.parse_args()
+
+# check mutually exclusive
+depImgID        = options.depImgID
+depImgName      = options.depImgName
+depImgNameFrag  = options.depImgNameFrag
+depImgNameMatch = options.depImgNameMatch
+exclusiveOpts = [depImgID, depImgName, depImgNameFrag, depImgNameMatch]
+cnt = 0
+for entry in exclusiveOpts:
+    pass
 
 regions = None
 if options.regions:
@@ -119,37 +150,10 @@ else:
 
 configFile = options.confFile
 if not configFile:
-    configFile = os.path.expanduser('~') + os.sep + '.ec2imgupload.conf'
+    configFile = os.path.expanduser('~') + os.sep + '.ec2utils.conf'
 
 if not os.path.isfile(configFile):
     print 'Configuration file "%s" not found.' %configFile
     sys.exit(1)
 
-config = ConfigParser.RawConfigParser()
-parsed = None
-try:
-    parsed = config.read(configFile)
-except:
-    print 'Could not parse configuration file ', configFile
-    type, value, tb = sys.exec_info()
-    print value.message
-    sys.exit(1)
-
-if not parsed:
-    print 'Error parsing config file: %s' %regionInfoCfg 
-    sys.exit(1) 
-
-accountName = 'account-' + options.accountName
-if not config.has_section(accountName):
-    print 'Could not find account specification for ', accountName,
-    print ' in config file ', configFile
-    sys.exit(1)
-if not config.has_option(accountName, 'access_key_id'):
-    print 'No access_key_id option found for ', accountName
-    sys.exit(1)
-if not config.has_option(accountName, 'secret_access_key'):
-    print 'No secret_access_key option found for ', acountName
-    sys.exit(1)
-accessKey = config.get(accountName, 'access_key_id')
-secretKey = config.get(accountName, 'secret_access_key')
 
