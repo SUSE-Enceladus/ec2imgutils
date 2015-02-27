@@ -64,7 +64,8 @@ argparse.add_argument(
     help='The AMI ID of the image to be deprecated (Optional)',
     metavar='AMI_ID'
 )
-argparse.add_argument(
+depImgIdentifier = argparse.add_mutually_exclusive_group()
+depImgIdentifier.add_argument(
     '--image-name',
     dest='depImgName',
     help='The image name of the image to be deprecated (Optional)',
@@ -72,7 +73,7 @@ argparse.add_argument(
 )
 hlpMsg = 'An image name fragment to match the image name of the image to be '
 hlpMsg += 'deprecated (Optional)'
-argparse.add_argument(
+depImgIdentifier.add_argument(
     '--image-name-frag',
     dest='depImgNameFrag',
     help=hlpMsg,
@@ -80,7 +81,7 @@ argparse.add_argument(
 )
 hlpMsg = 'A regular expression to match the image name of the image to be '
 hlpMsg += 'deprecated (Optional)'
-argparse.add_argument(
+depImgIdentifier.add_argument(
     '--image-name-match',
     dest='depImgNameMatch',
     help=hlpMsg,
@@ -93,10 +94,11 @@ argparse.add_argument(
     help='The virtualization type of the image to be deprecated (Optional)',
     metavar='VIRT_TYPE'
 )
+replImgIdentifier = argparse.add_mutually_exclusive_group(required=True)
 hlpMsg = 'The AMI ID of the image used as a replacement for the image(s) '
 hlpMsg += 'being deprecated (Optional), one of --replacement-id or '
 hlpMsg += '--replacement-name is required'
-argparse.add_argument(
+replImgIdentifier.add_argument(
     '--replacement-id',
     dest='replID',
     help=hlpMsg,
@@ -105,7 +107,7 @@ argparse.add_argument(
 hlpMsg = 'The name of the image used as a replacement for the image(s) '
 hlpMsg += 'being deprecated (Optional), one of --replacement-id or '
 hlpMsg += '--replacement-name is required'
-argparse.add_argument(
+replImgIdentifier.add_argument(
     '--replacement-name',
     dest='replName',
     help=hlpMsg,
@@ -125,21 +127,12 @@ argparse.add_argument(
     help='Program version'
 )
 
-options, args = argparse.parse_args()
+args = argparse.parse_args()
 
-# check mutually exclusive
-depImgID        = options.depImgID
-depImgName      = options.depImgName
-depImgNameFrag  = options.depImgNameFrag
-depImgNameMatch = options.depImgNameMatch
-exclusiveOpts = [depImgID, depImgName, depImgNameFrag, depImgNameMatch]
-cnt = 0
-for entry in exclusiveOpts:
-    pass
 
 regions = None
-if options.regions:
-    regions = options.regions.split()
+if args.regions:
+    regions = args.regions.split()
 else:
     regions = []
     regs = boto.ec2.regions()
@@ -148,7 +141,7 @@ else:
             continue
         regions.append(reg.name)
 
-configFile = options.confFile
+configFile = args.confFile
 if not configFile:
     configFile = os.path.expanduser('~') + os.sep + '.ec2utils.conf'
 
