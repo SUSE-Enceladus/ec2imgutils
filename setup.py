@@ -1,11 +1,11 @@
 #!/usr/bin/env python
-"""Setup module for ec2utilsbase"""
+"""Setup module for ec2imgutils"""
 
-# Copyright (c) 2017 SUSE LLC
+# Copyright (c) 2018 SUSE LLC
 #
-# This file is part of ec2utilsbase.
+# This file is part of ec2imgutils.
 #
-# ec2utilsbase is free software: you can redistribute it and/or modify
+# ec2imgutils is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
 # the Free Software Foundation, either version 3 of the License, or
 # (at your option) any later version.
@@ -26,15 +26,16 @@ except ImportError:
     sys.stderr.write('Python setuptools required, please install.')
     sys.exit(1)
 
+
 version = open('lib/ec2utils/base_VERSION').read().strip()
 
 if __name__ == '__main__':
     setuptools.setup(
-        name='ec2utilsbase',
+        name='ec2imgutils',
         description=(
-            'Command-line tool to upload EC2 images'),
+            'Command-line tools to manage images in AWS EC2'),
         long_description=open('README.md').read(),
-        url='https://github.com/SUSE/Enceladus/tree/master/ec2utils',
+        url='https://github.com/SUSE-Enceladus/tree/master/ec2imgutils',
         license='GPLv3+',
         install_requires=[ 'boto3>=1.3.0' ],
         author='SUSE Public Cloud Team',
@@ -45,7 +46,7 @@ if __name__ == '__main__':
         package_dir={
             '': 'lib',
         },
-        namespace_packages = ['ec2utils'],
+        scripts=['ec2deprecateimg']
         classifiers=[
             'Development Status :: 5 - Production/Stable',
             'Intended Audience :: Developers',

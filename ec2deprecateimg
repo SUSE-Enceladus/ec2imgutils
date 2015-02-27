@@ -1,0 +1,155 @@
+#!/usr/bin/python
+
+# Copyright 2015 SUSE LLC, Robert Schweikert
+#
+# This file is part of ec2deprecateimg.
+# ec2deprecateimg is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+# 
+# ec2deprecateimg is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+# 
+# You should have received a copy of the GNU General Public License
+# along with ec2deprecateimg. If not, see <http://www.gnu.org/licenses/>.
+
+import ConfigParser
+import optparse
+import os
+import sys
+
+import ec2deprecateimg.ec2deprecateimg
+
+# Set up command line argument parsing
+argparse = optparse.OptionParser()
+argparse.add_option(
+    '-a', '--account',
+    help='Account to use',
+    dest='accountName'
+)
+hlpMsg = 'The deprecation period, image will be tagged for removal '
+hlpMsg += 'on "now + deprecation perion", specified in months, default '
+hlpMsg += ' is 6 month (Optional)'
+argparse.add_option(
+    '-d', '--deprecation-period',
+    help=hlpMsg,
+    dest='depTime'
+)
+hlpMsg = 'Do not perform any action, print information about actions that '
+hlpMsg += 'would be performed instared (Optional)'
+argparse.add_option(
+    '-n', '--dry-run',
+    help=hlpMsg,
+    dest='dryRun',
+    action='store_true'
+)
+argparse.add_option(
+    '-f', '--file',
+    help='Path to configuration file, default ~/.ec2utils.conf (Optional)',
+    dest='confFile'
+)
+argparse.add_option(
+    '', '--image-id',
+    help='The AMI ID of the image to be deprecated (Optional)',
+    dest='depImgID'
+)
+argparse.add_option(
+    '', '--image-name',
+    help='The image name of the image to be deprecated (Optional)',
+    dest='depImgName'
+)
+hlpMsg = 'An image name fragment to match the image name of the image to be '
+hlpMsg += 'deprecated (Optional)'
+argparse.add_option(
+    '', '--image-name-frag',
+    help=hlpMsg,
+    dest='depImgNameFrag'
+)
+hlpMsg = 'A regular expression to match the image name of the image to be '
+hlpMsg += 'deprecated (Optional)'
+argparse.add_option(
+    '', '--image-name-match',
+    help=hlpMsg,
+    dest='depImgNameMatch'
+)
+argparse.add_option(
+    '', '--image-virt-type',
+    help='The virtualization type of the image to be deprecated (Optional)',
+    dest='virtType'
+)
+hlpMsg = 'The AMI ID of the image used as a replacement for the image(s) '
+hlpMsg += 'being deprecated (Optional), one of --replacement-id or '
+hlpMsg += '--replacement-name is required'
+argparse.add_option(
+    '', '--replacement-id',
+    help=hlpMsg,
+    dest='replID'
+)
+hlpMsg = 'The name of the image used as a replacement for the image(s) '
+hlpMsg += 'being deprecated (Optional), one of --replacement-id or '
+hlpMsg += '--replacement-name is required'
+argparse.add_option(
+    '', '--replacement-name',
+    help=hlpMsg,
+    dest='replName'
+)
+hlpMsg = 'Comma separated list of regions for publishing, all integrated '
+hlpMsg += 'region sif not given (Optional)'
+argparse.add_option(
+    '-r', '--regions',
+    help=hlpMsg,
+    dest='regions'
+)
+
+options, args = argparse.parse_args()
+
+regions = None
+if options.regions:
+    regions = options.regions.split()
+else:
+    regions = []
+    regs = boto.ec2.regions()
+    for reg in regs:
+        if reg.name in ['us-gov-west-1', 'cn-north-1']:
+            continue
+        regions.append(reg.name)
+
+configFile = options.confFile
+if not configFile:
+    configFile = os.path.expanduser('~') + os.sep + '.ec2imgupload.conf'
+
+if not os.path.isfile(configFile):
+    print 'Configuration file "%s" not found.' %configFile
+    sys.exit(1)
+
+config = ConfigParser.RawConfigParser()
+parsed = None
+try:
+    parsed = config.read(configFile)
+except:
+    print 'Could not parse configuration file ', configFile
+    type, value, tb = sys.exec_info()
+    print value.message
+    sys.exit(1)
+
+if not parsed:
+    print 'Error parsing config file: %s' %regionInfoCfg 
+    sys.exit(1) 
+
+accountName = 'account-' + options.accountName
+if not config.has_section(accountName):
+    print 'Could not find account specification for ', accountName,
+    print ' in config file ', configFile
+    sys.exit(1)
+if not config.has_option(accountName, 'access_key_id'):
+    print 'No access_key_id option found for ', accountName
+    sys.exit(1)
+if not config.has_option(accountName, 'secret_access_key'):
+    print 'No secret_access_key option found for ', acountName
+    sys.exit(1)
+accessKey = config.get(accountName, 'access_key_id')
+secretKey = config.get(accountName, 'secret_access_key')
+

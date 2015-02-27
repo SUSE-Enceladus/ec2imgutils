@@ -1,0 +1,136 @@
+.\" Process this file with
+.\" groff -man -Tascii ec2deprecateimg.1
+.\"
+.TH ec2deprecateimg 1
+.SH NAME
+ec2deprecateimg \- Deprecate images in EC2 by adding tags
+.SH SYNOPSIS
+.B ec2deprecateimg [option]
+.SH DESCRIPTION
+.B ec2deprecateimg
+Deprecate images in EC2 by adding tags to an image. The EC2 platform does
+not support a formal deprecation mechanism. The mechanism implemented by this
+tool is a convention. Unfortunately the tags are not sticky, i.e. not visible
+to others if the image is shared.
+
+Images are tagged with:
+- Deprecated on     -> today's date in YYYYMMDD format
+- Removal date      -> today's date plus the deprecation period specified
+- Replacement image -> The AMI ID and name of the replacement image
+.SH OPTIONS
+.IP "-a --account ACCOUNT_NAME"
+Specifies the account to use to connect to EC2. The account is specified
+in the config file
+.I ~/.ec2utils.conf.
+The account is specified as a section with [account-ACCOUNT_NAME] delimiter.
+The options of the sections are
+.I access_key_id
+.I secret_access_key
+.I ssh_key_name
+.I ssh_private_key
+this allows the program to connect to EC2.
+.IP "-d --deprecation-period NUMBER_OF_MONTHS"
+Specifies the number of months this image will be considered deprecated. After
+the deprecation period expires the image may be removed. The deprecation time
+is added to the date on which the program is executed and forms the value for
+the
+.I Removal date
+tag in the format
+.I YYYYMMDD.
+The default deprecation period is 6 months. 
+.IP "n --dry-run"
+The program will not perform any action. It will provide information on
+.I stdout
+about the action sit would perform.
+.IP "-f --file CONFIG_FILE"
+Specifies the configuration file to use. The default is
+.I ~/.ec2utils.conf
+.IP "--image-id AMI_ID"
+Specify the AMI ID of the image to be marked as deprecated.
+.IP "--image-name IMAGE_NAME"
+Specify the name of the image to be deprecated. The program will look for
+an exact match of the name. This option is mutually exclusive with the
+.I --image-name-frag
+and
+.I --image-name-match
+options. The option is additive to the
+.I --image-id
+option. If both options are specified both conditions must match or an
+image will not be marked as deprecated.
+.IP "--image-name-frag IMAGE_NAME_FRAGMENT"
+Specify a section of an image name for the image(s) to be deprecated. Every
+image that matches the name fragment will be marked as deprecated. The
+program will look for an exact match of the name. This option is mutually
+exclusive with the
+.I --image-name-name
+and
+.I --image-name-match
+options. The option is additive to the
+.I --image-id
+option. If both options are specified both conditions must match or an
+image will not be marked as deprecated.
+.IP "--image-name-match REGEX"
+Specify a regular expression to match an image name. Every image matching the
+regular expression will be deprecated. This option is mutually
+exclusive with the
+.I --image-name-name
+and
+.I --image-name-frag
+options. The option is additive to the
+.I --image-id
+option. If both options are specified both conditions must match or an
+image will not be marked as deprecated.
+.IP "--image-virt-type PARA|HVM"
+Specify the virtualization type of the image to be deprecated. This option
+works in addition to
+.I --image-id,
+.I --image-name,
+.I --image-name-frag,
+.I --image-name-match.
+Every specified condition must be satisfied in order to deprecate the image.
+.IP "--replacement-id AMI_ID"
+Specify the AMI ID of the image considered to be the replacement for the
+image(s) that are being deprecated. The option is mutually exclusive
+with the
+.I --replacement-name
+option. The AMI ID and the dynamically determined image name are used in
+combination to form the value for the
+.I Replacement image
+tag in the form
+.I AMI_ID -- IMAGE_NAME.
+One of
+.I --replacement-id
+or
+.I --replacement-name
+must be specified.
+.IP "--replacement-name IMAGE_NAME"
+Specify the name of the image considered to be the replacement for the
+image(s) that are being deprecated. The option is mutually exclusive
+with the
+.I --replacement-id
+option. The image name and the dynamically determined AMI ID are used in
+combination to form the value for the
+.I Replacement image
+tag in the form
+.I AMI_ID -- IMAGE_NAME.
+One of
+.I --replacement-id
+or
+.I --replacement-name
+must be specified.
+.IP "-r --regions EC2_REGIONS"
+A comma separated list of Amazon EC2 regions, or a single region. If no
+region argument is specified all EC2 connected regions will be processed.
+.SH EXAMPLE
+ec2deprecateimg --account example --image-name-match v15 --image-virt-type hvm --replacement-name exampleimage_v16
+
+Will mark all image in all connected regions that have the
+.I HVM
+virtualization type and match the
+.I v15
+regular expression as deprecated. The replacement image will be set to the
+AMI ID found in the region being processed that matches the
+.I exampleimage_v16
+name exactly.
+.SH AUTHOR
+Robert Schweikert (rjschwei@suse.com)
