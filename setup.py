@@ -26,7 +26,6 @@ except ImportError:
     sys.stderr.write('Python setuptools required, please install.')
     sys.exit(1)
 
-
 version = open('lib/ec2utils/base_VERSION').read().strip()
 
 if __name__ == '__main__':

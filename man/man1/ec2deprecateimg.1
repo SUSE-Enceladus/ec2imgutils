@@ -17,6 +17,14 @@ Images are tagged with:
 - Deprecated on     -> today's date in YYYYMMDD format
 - Removal date      -> today's date plus the deprecation period specified
 - Replacement image -> The AMI ID and name of the replacement image
+
+The image set as the replacement is removed from the list of potential images
+to be deprecated before any matching takes place. Therefore, the deprecation
+serch criteria specified with
+.I --image-name-frag
+or
+.I --image-name-match
+cannot match the replacement image.
 .SH OPTIONS
 .IP "-a --account ACCOUNT_NAME"
 Specifies the account to use to connect to EC2. The account is specified
@@ -46,40 +54,39 @@ about the action sit would perform.
 Specifies the configuration file to use. The default is
 .I ~/.ec2utils.conf
 .IP "--image-id AMI_ID"
-Specify the AMI ID of the image to be marked as deprecated.
+Specify the AMI ID of the image to be marked as deprecated. This option is
+mutually exclusive with the
+.I --image-name,
+.I --image-name-frag,
+and
+.I --image-name-match
 .IP "--image-name IMAGE_NAME"
 Specify the name of the image to be deprecated. The program will look for
 an exact match of the name. This option is mutually exclusive with the
-.I --image-name-frag
+.I --image-id,
+.I --image-name-frag,
 and
 .I --image-name-match
-options. The option is additive to the
-.I --image-id
-option. If both options are specified both conditions must match or an
-image will not be marked as deprecated.
+options.
 .IP "--image-name-frag IMAGE_NAME_FRAGMENT"
 Specify a section of an image name for the image(s) to be deprecated. Every
 image that matches the name fragment will be marked as deprecated. The
 program will look for an exact match of the name. This option is mutually
 exclusive with the
-.I --image-name-name
+.I --image-id,
+.I --image-name-name,
 and
 .I --image-name-match
-options. The option is additive to the
-.I --image-id
-option. If both options are specified both conditions must match or an
-image will not be marked as deprecated.
+options.
 .IP "--image-name-match REGEX"
 Specify a regular expression to match an image name. Every image matching the
 regular expression will be deprecated. This option is mutually
 exclusive with the
-.I --image-name-name
+.I --image-id,
+.I --image-name-name,
 and
 .I --image-name-frag
-options. The option is additive to the
-.I --image-id
-option. If both options are specified both conditions must match or an
-image will not be marked as deprecated.
+options.
 .IP "--image-virt-type hvm|para"
 Specify the virtualization type of the image to be deprecated. This option
 works in addition to
@@ -88,20 +95,28 @@ works in addition to
 .I --image-name-frag,
 .I --image-name-match.
 Every specified condition must be satisfied in order to deprecate the image.
+.IP "--public-only"
+Consider only images that are public as a replacement or for deprecation
+purposes.
 .IP "--replacement-id AMI_ID"
 Specify the AMI ID of the image considered to be the replacement for the
 image(s) that are being deprecated. The option is mutually exclusive
 with the
-.I --replacement-name
-option. The AMI ID and the dynamically determined image name are used in
+.I --replacement-name,
+.I --replacement-name-frag,
+and 
+.I --replacement-name-match
+options. The AMI ID and the dynamically determined image name are used in
 combination to form the value for the
 .I Replacement image
 tag in the form
 .I AMI_ID -- IMAGE_NAME.
 One of
-.I --replacement-id
+.I --replacement-id,
+.I --replacement-name,
+.I --replacement-name-frag,
 or
-.I --replacement-name
+.I --replacement-name-match,
 must be specified.
 .IP "--replacement-name IMAGE_NAME"
 Specify the name of the image considered to be the replacement for the
@@ -114,9 +129,50 @@ combination to form the value for the
 tag in the form
 .I AMI_ID -- IMAGE_NAME.
 One of
-.I --replacement-id
+.I --replacement-id,
+.I --replacement-name,
+.I --replacement-name-frag,
 or
-.I --replacement-name
+.I --replacement-name-match,
+must be specified.
+.IP "--replacement-name-frag IMAGE_NAME_FRAGMENT"
+Specify a section of an image name to be considered for the replacement
+image. This option is mutually
+exclusive with the
+.I --replacement-id,
+.I --replacement-name,
+and 
+.I --replacement-name-match
+options. The dynamically determined AMI ID and the dynamically determined
+image name are used in combination to form the value for the
+.I Replacement image
+tag in the form
+.I AMI_ID -- IMAGE_NAME.
+One of
+.I --replacement-id,
+.I --replacement-name,
+.I --replacement-name-frag,
+or
+.I --replacement-name-match,
+must be specified.
+.IP "--replacement-name-match REGEX"
+Specify a regular expression to match an image name to be considered for
+the replacement image. This option is mutually exclusive with the
+.I --replacement-id,
+.I --replacement-name,
+and
+.I --replacement-name-frag
+ The dynamically determined AMI ID and the dynamically determined image name
+are used in combination to form the value for the
+.I Replacement image
+tag in the form
+.I AMI_ID -- IMAGE_NAME.
+One of
+.I --replacement-id,
+.I --replacement-name,
+.I --replacement-name-frag,
+or
+.I --replacement-name-match,
 must be specified.
 .IP "-r --regions EC2_REGIONS"
 A comma separated list of Amazon EC2 regions, or a single region. If no

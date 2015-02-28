@@ -22,7 +22,12 @@ import argparse
 import os
 import sys
 
-#import ec2deprecateimg.ec2deprecateimg
+#DEBUG -- Local test REMOVE
+sys.path.append('/work/rjschwei/devel/Enceladus/ec2utils/ec2deprecateimg/lib')
+
+import ec2utils.ec2deprecateimg as ec2depimg
+from ec2utils.ec2DepImgExceptions import *
+
 
 # Set up command line argument parsing
 argparse = argparse.ArgumentParser(description='Deprecate images in EC2')
@@ -48,23 +53,25 @@ hlpMsg = 'Do not perform any action, print information about actions that '
 hlpMsg += 'would be performed instared (Optional)'
 argparse.add_argument(
     '-n', '--dry-run',
+    action='store_true',
+    default=False,
     dest='dryRun',
-    help=hlpMsg,
-    action='store_false'
+    help=hlpMsg
 )
 argparse.add_argument(
     '-f', '--file',
+    default = os.path.expanduser('~') + os.sep + '.ec2utils.conf',
     dest='confFile',
     help='Path to configuration file, default ~/.ec2utils.conf (Optional)',
     metavar='CONFIG_FILE'
 )
-argparse.add_argument(
+depImgIdentifier = argparse.add_mutually_exclusive_group(required=True)
+depImgIdentifier.add_argument(
     '--image-id',
     dest='depImgID',
     help='The AMI ID of the image to be deprecated (Optional)',
     metavar='AMI_ID'
 )
-depImgIdentifier = argparse.add_mutually_exclusive_group()
 depImgIdentifier.add_argument(
     '--image-name',
     dest='depImgName',
@@ -94,13 +101,20 @@ argparse.add_argument(
     help='The virtualization type of the image to be deprecated (Optional)',
     metavar='VIRT_TYPE'
 )
+argparse.add_argument(
+    '--public-only',
+    action='store_true',
+    default=False,
+    dest='publicOnly',
+    help='Only consider images that are public (Optional)'
+)
 replImgIdentifier = argparse.add_mutually_exclusive_group(required=True)
 hlpMsg = 'The AMI ID of the image used as a replacement for the image(s) '
 hlpMsg += 'being deprecated (Optional), one of --replacement-id or '
 hlpMsg += '--replacement-name is required'
 replImgIdentifier.add_argument(
     '--replacement-id',
-    dest='replID',
+    dest='replImgID',
     help=hlpMsg,
     metavar='AMI_ID'
 )
@@ -109,9 +123,25 @@ hlpMsg += 'being deprecated (Optional), one of --replacement-id or '
 hlpMsg += '--replacement-name is required'
 replImgIdentifier.add_argument(
     '--replacement-name',
-    dest='replName',
+    dest='replImgName',
     help=hlpMsg,
     metavar='IMAGE_NAME'
+)
+hlpMsg = 'An image name fragment to match the image name of the image to be '
+hlpMsg += 'deprecated (Optional)'
+replImgIdentifier.add_argument(
+    '--replacement-name-frag',
+    dest='replImgNameFrag',
+    help=hlpMsg,
+    metavar='IMAGE_NAME_FRAGMENT'
+)
+hlpMsg = 'A regular expression to match the image name of the image to be '
+hlpMsg += 'deprecated (Optional)'
+replImgIdentifier.add_argument(
+    '--replacement-name-match',
+    dest='replImgNameMatch',
+    help=hlpMsg,
+    metavar='REGEX'
 )
 hlpMsg = 'Comma separated list of regions for publishing, all integrated '
 hlpMsg += 'region sif not given (Optional)'
@@ -122,13 +152,17 @@ argparse.add_argument(
     metavar='EC2_REGIONS'
 )
 argparse.add_argument(
+    '--verbose',
+    dest='verbose',
+    help='Enable on verbose output'
+)
+argparse.add_argument(
     '--version',
     dest='version',
     help='Program version'
 )
 
 args = argparse.parse_args()
-
 
 regions = None
 if args.regions:
@@ -142,11 +176,33 @@ else:
         regions.append(reg.name)
 
 configFile = args.confFile
-if not configFile:
-    configFile = os.path.expanduser('~') + os.sep + '.ec2utils.conf'
-
 if not os.path.isfile(configFile):
     print 'Configuration file "%s" not found.' %configFile
     sys.exit(1)
 
+try:
+    imgDeprecator = ec2depimg.EC2DeprecateImg(
+                                account=args.accountName,
+                                depPeriod=args.depTime,
+                                config=args.confFile,
+                                depImgID=args.depImgID,
+                                depImgName=args.depImgName,
+                                depImgNameFrag=args.depImgNameFrag,
+                                depImgNameMatch=args.depImgNameMatch,
+                                publicOnly=args.publicOnly,
+                                replImgID=args.replImgID,
+                                replImgName=args.replImgName,
+                                replImgNameFrag=args.replImgNameFrag,
+                                replImgNameMatch=args.replImgNameMatch,
+                                verbose=args.verbose,
+                                virtType=args.virtType)
 
+    for region in regions:
+        imgDeprecator.setRegion(region)
+        if args.dryRun:
+            imgDeprecator.printDeprecationInfo()
+        else:
+            imgDeprecator.deprecate()
+except EC2DeprecateImgException, e:
+    print >> sys.stderr, e
+    sys.exit(1)
