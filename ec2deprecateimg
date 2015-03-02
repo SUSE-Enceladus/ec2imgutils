@@ -58,7 +58,7 @@ argparse.add_argument(
 argparse.add_argument(
     '-f', '--file',
     default = os.path.expanduser('~') + os.sep + '.ec2utils.conf',
-    dest='confFile',
+    dest='configFilePath',
     help='Path to configuration file, default ~/.ec2utils.conf (Optional)',
     metavar='CONFIG_FILE'
 )
@@ -172,7 +172,7 @@ else:
             continue
         regions.append(reg.name)
 
-configFile = args.confFile
+configFile = args.configFilePath
 if not os.path.isfile(configFile):
     print 'Configuration file "%s" not found.' %configFile
     sys.exit(1)
@@ -181,7 +181,7 @@ try:
     imgDeprecator = ec2depimg.EC2DeprecateImg(
                                 account=args.accountName,
                                 depPeriod=args.depTime,
-                                config=args.confFile,
+                                config=args.configFilePath,
                                 depImgID=args.depImgID,
                                 depImgName=args.depImgName,
                                 depImgNameFrag=args.depImgNameFrag,
