@@ -38,8 +38,8 @@ BuildArch:      noarch
 %endif
 
 %description
-Deprecate images own by the account by adding tag named "Deprecated on",
-"Removal date", and "Replacement image"
+Deprecate images owned by the specified account by adding tags named
+"Deprecated on", "Removal date", and "Replacement image"
 
 %prep
 %setup -q -n %{upstream_name}-%{version}
