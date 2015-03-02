@@ -22,9 +22,6 @@ import argparse
 import os
 import sys
 
-#DEBUG -- Local test REMOVE
-sys.path.append('/work/rjschwei/devel/Enceladus/ec2utils/ec2deprecateimg/lib')
-
 import ec2utils.ec2deprecateimg as ec2depimg
 from ec2utils.ec2DepImgExceptions import *
 
