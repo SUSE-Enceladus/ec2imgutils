@@ -49,7 +49,7 @@ The default deprecation period is 6 months.
 .IP "n --dry-run"
 The program will not perform any action. It will provide information on
 .I stdout
-about the action sit would perform.
+about the actions it would perform.
 .IP "-f --file CONFIG_FILE"
 Specifies the configuration file to use. The default is
 .I ~/.ec2utils.conf
@@ -70,9 +70,8 @@ and
 options.
 .IP "--image-name-frag IMAGE_NAME_FRAGMENT"
 Specify a section of an image name for the image(s) to be deprecated. Every
-image that matches the name fragment will be marked as deprecated. The
-program will look for an exact match of the name. This option is mutually
-exclusive with the
+image that matches the name fragment will be marked as deprecated. This
+option is mutually exclusive with the
 .I --image-id,
 .I --image-name-name,
 and
