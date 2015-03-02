@@ -20,7 +20,7 @@ Images are tagged with:
 
 The image set as the replacement is removed from the list of potential images
 to be deprecated before any matching takes place. Therefore, the deprecation
-serch criteria specified with
+search criteria specified with
 .I --image-name-frag
 or
 .I --image-name-match
@@ -177,6 +177,12 @@ must be specified.
 .IP "-r --regions EC2_REGIONS"
 A comma separated list of Amazon EC2 regions, or a single region. If no
 region argument is specified all EC2 connected regions will be processed.
+EC2 disconnected regions have different API keys and thus the specified
+.I account
+would not work with the disconnected regions. If a disconnected region is to
+be processed specify the region explicitly on the command line, and only the
+region of interest along with the matching
+.I account.
 .SH EXAMPLE
 ec2deprecateimg --account example --image-name-match v15 --image-virt-type hvm --replacement-name exampleimage_v16
 

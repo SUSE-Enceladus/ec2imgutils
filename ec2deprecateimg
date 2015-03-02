@@ -169,6 +169,8 @@ else:
     regs = boto.ec2.regions()
     for reg in regs:
         if reg.name in ['us-gov-west-1', 'cn-north-1']:
+            if args.verbose:
+                print 'Not processing disconnected region: %s' %reg.name
             continue
         regions.append(reg.name)
 
