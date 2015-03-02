@@ -30,7 +30,7 @@ class EC2DeprecateImg:
 
     def __init__(self,account,
                  depPeriod=6,
-                 config=None,
+                 configFilePath=None,
                  depImgID=None,
                  depImgName=None,
                  depImgNameFrag=None,
@@ -44,10 +44,10 @@ class EC2DeprecateImg:
                  verbose=None,
                  virtType=None):
 
-        self.account    = 'account-' + account
-        self.depPeriod  = depPeriod
-        self.configFile = config
-        self.config     = self._getConfig()
+        self.account        = 'account-' + account
+        self.depPeriod      = depPeriod
+        self.configFilePath = configFilePath
+        self.config         = self._getConfig()
 
         self._verifyAccount()
 
@@ -214,15 +214,15 @@ class EC2DeprecateImg:
         config = ConfigParser.RawConfigParser()
         parsed = None
         try:
-            parsed = config.read(self.configFile)
+            parsed = config.read(self.configFilePath)
         except:
-            msg = 'Could not parse configuration file %s' %self.configFile
+            msg = 'Could not parse configuration file %s' %self.configFilePath
             type, value, tb = sys.exec_info()
             msg += '\n%s' %value.message
             raise EC2DeprecateImgException(msg)
 		
         if not parsed:
-            msg = 'Error parsing config file: %s' %self.configFile
+            msg = 'Error parsing config file: %s' %self.configFilePath
             raise EC2DeprecateImgException(msg)
 
         return config
@@ -335,7 +335,7 @@ class EC2DeprecateImg:
 	    msg = 'Could not find account specification for '
             msg += self.account.split('account')[-1][1:]
 	    msg += ' in config file '
-            msg += self.configFile
+            msg += self.configFilePath
 	    raise EC2DeprecateImgException(msg)
 
     #----------------------------------------------------------------------
