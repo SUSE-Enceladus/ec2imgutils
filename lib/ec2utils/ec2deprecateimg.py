@@ -352,6 +352,10 @@ class EC2DeprecateImg:
             print 'Removal date', self.delDate
             print 'Replacement image', self.replacementImageTag
         for img in images:
+            if img.tags.get('Deprecated on', None):
+                if self.verbose:
+                    print '\t\tImage %s already tagged, skipping' %img.id
+                continue
             img.add_tag('Deprecated on', self.depDate)
             img.add_tag('Removal date', self.delDate)
             img.add_tag('Replacement image', self.replacementImageTag)
