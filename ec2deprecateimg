@@ -184,7 +184,7 @@ try:
     imgDeprecator = ec2depimg.EC2DeprecateImg(
                                 account=args.accountName,
                                 depPeriod=args.depTime,
-                                config=args.configFilePath,
+                                configFilePath=args.configFilePath,
                                 depImgID=args.depImgID,
                                 depImgName=args.depImgName,
                                 depImgNameFrag=args.depImgNameFrag,

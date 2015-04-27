@@ -319,6 +319,11 @@ class EC2DeprecateImg:
             msg += 'this point.'
             raise EC2DeprecateImgException(msg)
 
+        if not images:
+            msg = 'Replacement image not found, "%s" ' %condition
+            msg += 'did not match any image.'
+            raise EC2DeprecateImgException(msg)
+        
         if len(images) > 1:
             msg = 'Replacement image ambiguity, the specified condition '
             msg += '"%s" return multiple replacement image options' %condition
