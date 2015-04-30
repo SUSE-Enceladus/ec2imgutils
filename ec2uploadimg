@@ -1,0 +1,161 @@
+#!/usr/bin/python
+
+# Copyright 2015 SUSE LLC, Robert Schweikert
+#
+# This file is part of ec2uploadimg.
+#
+# ec2uploadimg is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+# 
+# ec2uploadimg is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+# 
+# You should have received a copy of the GNU General Public License
+# along with ec2uploadimg. If not, see <http://www.gnu.org/licenses/>.
+
+import ConfigParser
+import argparse
+import boto
+import boto.ec2
+import os
+import sys
+
+import ec2utils.ec2utilsbase as base
+import ec2utils.ec2uploadimg as ec2upimg
+from ec2utils.ec2UtilsExceptions import *
+from ec2utils.ec2UploadImgExceptions import *
+
+# Set up command line argument parsing
+argparse = argparse.ArgumentParser(description='Upload image to Amazon EC2')
+argparse.add_argument(
+    '-a', '--account',
+    dest='accountName',
+    help='Account to use (Optional)',
+    metavar='ACCOUNT_NAME'
+)
+argparse.add_argument(
+    '--access-id',
+    dest='accessKey',
+    help='AWS access key (Optional)',
+    metavar='AWS_ACCESS_KEY'
+)
+argparse.add_argument(
+    '-B', '--backing-store',
+    default='ssd',
+    dest='backingStore',
+    help='The backing store type, (mag|ssd|mag,ssd) (Optional)',
+    metavar='EC2_BACKING_STORE'
+)
+argparse.add_argument(
+    '--boot-kernel',
+    dest='akiID',
+    help='AWS kernel ID (aki) to boot the new image (Optional)',
+    metavar='AWS_AKI_ID'
+)
+argparse.add_argument(
+    '-d', '--description',
+    dest='descript',
+    help='Image description, will also be used for the snapshot',
+    metavar='IMAGE_DESCRIPTION',
+    required=True
+)
+argparse.add_argument(
+    '-e', '--ec2-ami',
+    dest='amiID',
+    help='AWS AMI id for the image to use to upload (Optional)',
+    metavar='AWS_AMI_ID',
+)
+argparse.add_argument(
+    '-f', '--file',
+    default = os.path.expanduser('~') + os.sep + '.ec2utils.conf',
+    dest='configFilePath',
+    help='Path to configuration file, default ~/.ec2utils.conf (Optional)',
+    metavar='CONFIG_FILE'
+)
+argparse.add_argument(
+    '--grub2',
+    action='store_true',
+    default=False,
+    dest='grub2',
+)
+argparse.add_argument(
+    '-m', '--machine',
+    dest='arch',
+    help='Machine architecture i386|x86_64 for the uploaded image',
+    metavar='ARCH',
+    required=True
+)
+argparse.add_argument(
+    '-n', '--name',
+    dest='imgName',
+    help='Image name',
+    metavar='IMAGE_NAME',
+    required=True
+)
+argparse.add_argument(
+    '-p', '--private-key-file',
+    dest='privateKey',
+    help='Private SSH key file (Optional)',
+    metavar='PRIVATE_KEY'
+)
+argparse.add_argument(
+    '-r', '--regions',
+    dest='regions',
+    help='Comma separated list of regions to upload to (Required)',
+    metavar='EC2_REGIONS',
+    required=True
+)
+argparse.add_argument(
+    '--ssh-key-pair',
+    dest='sshName',
+    help='AWS SSH key pair name (Optional)',
+    metavar='AWS_KEY_PAIR_NAME'
+)
+argparse.add_argument(
+    '-s', '--secret-key',
+    dest='secretKey',
+    help='AWS secret access key (Optional)',
+    metavar='AWS_SECRET_KEY'
+)
+argparse.add_argument(
+    '--snaponly',
+    action='store_true',
+    default=False,
+    dest='snapOnly',
+)
+argparse.add_argument(
+    '-T', '--timeout',
+    default=300,
+    dest='timeout',
+    help='Timeout value to wait for AWS operations, default 300 s (Optional)',
+    metavar='WAIT_TIME'
+)
+argparse.add_argument(
+    '-t', '--type',
+    dest='instType',
+    help='Instance type to use to upload image (Optional)',
+    metavar='AWS_UPLOAD_INST_TYPE'
+)
+argparse.add_argument(
+    '-u', '--user',
+    dest='sshUser',
+    help='The user for the ssh connection to the instance (Optional)',
+    metavar='AWS_INSTANCE_USER'
+)
+argparse.add_argument(
+    '-V', '--virt-type',
+    default='para',
+    dest='virtType',
+    help='The virtualization type, (para)virtual or (hvm)',
+    metavar='AWS_VIRT_TYPE'
+)
+
+args = argparse.parse_args()
+configFile = args.configFilePath
+if not os.path.isfile(configFile):
+    print 'Configuration file "%s" not found.' %configFile
+    sys.exit(1)

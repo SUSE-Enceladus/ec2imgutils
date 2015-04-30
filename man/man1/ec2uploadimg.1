@@ -1,0 +1,150 @@
+.\" Process this file with
+.\" groff -man -Tascii ec2uploadimg.1
+.\"
+.TH ec2uploadimg.1
+.SH NAME
+ec2uploadimg \- Upload a compressed raw image file to Amazon EC2 and create
+a snapshot or an AMI
+.SH SYNOPSIS
+.B ec2uploadimg [option] PATH_TO_FILE
+.SH DESCRIPTION
+.B ec2uploadimg
+Upload a compressed raw image to Amazon EC2 using an existing EC2 AMI
+and create a snapshot or register a new AMI from the image. The apparent
+size of the raw image must be 10 GB or less. It is expected that the
+raw image has 1 partition, i.e. the root partition is
+.I /dev/sda1.
+The process of creating the image is as follows:
+- start an instance
+- create a storage volume and attach it to the running instance
+- create volume that will be the new root and attach it to the running instance
+- upload the image
+- unpack the image and dump it to the new root volume
+- detach the new root volume and create a snapshot
+- register a new AMI
+- clean up
+.SH OPTIONS
+.IP "-a --account ACCOUNT_NAME"
+Specifies the account to use to connect to EC2. The account is specified
+in the config file
+.I ~/.ec2utils.conf.
+The account is specified as a section with [account-ACCOUNT_NAME] delimiter.
+The options of the sections are
+.I access_key_id
+.I secret_access_key
+.I ssh_key_name
+.I ssh_private_key
+this allows the program to connect to EC2.
+.IP "--access-id AWS_ACCESS_KEY"
+Specifies the AWS access key and overrides the value given for the
+.I account
+with the
+.I access_key_id
+in the configuration file.
+.IP "-B --backing-store EC2_BACKING_STORE"
+Specifies the backing store type for the AMI to be created. The uploaded
+image is an EBS (Elastic Block Store) image and my be registered as using
+.I SSD
+or
+.I Magnetic
+media as the backing store when being launched. Possible values are
+.I ssd,
+.I mag,
+or
+.I ssd,mag.
+.IP "--boot-kernel AWS_AKI_ID"
+Specifies the
+.I aki_id
+of the boot kernel that should be used when registering a Para-virtual
+image. This option overrides the
+.I aki_i386,
+.I aki_x86_64,
+or
+.I g2_aki_x86_64
+value in the configuration file.
+.IP "-d --description IMAGE_DESCRIPTION"
+Specifies a description for the image. The description will also be used for
+the snapshot.
+.IP "-e --ec2-ami AWS_AMI_ID"
+Specify the AMI ID of the image to launch that will be used to perform
+the upload operation. This value overrides the value given with the
+.I ami
+option for a given region in the configuration file.
+.IP "-f --file CONFIG_FILE"
+Specifies the configuration file to use. The default is
+.I ~/.ec2utils.conf
+.IP "--grub2"
+Specifies if the image being uploaded and registered as AMI uses the
+.I GRUB2
+bootloader. In some cases
+.I GRUB2
+is referred to as
+.I GRUB
+and the first incarnation of GRUB is referred to as
+.I GRUB-Legacy.
+Setting this switch will select the
+.I g2_aki_x86_64
+value from the configuration file or will use the value given with
+.I --boot-kernel
+as the aki ID when a para virtual image is being registered.
+.IP "-m --machine ARCH"
+Specifies the architecture for the VM to be created. Supported values
+are
+.I i386
+or
+.I x86_64
+.IP "-n --name IMAGE_NAME"
+Specifies the name of the AMI to be registered.
+.IP "-p --private-key-file PRIVATE_KEY"
+Specifies the path to the private ssh key file to use to connect with the
+instance that is being used to upload the raw image. This option overrides
+the value of the
+.I ssh_private_key
+in the configuration file.
+.IP "-r --regions EC2_REGIONS"
+A comma separated list of Amazon EC2 regions, or a single region.
+.IP "--ssh-key-pair AWS_KEY_PAIR_NAME"
+Specifies the key-pair name to use when launching the instance that is used
+to upload the raw image. The specified private key file must correlate
+to the key pair name given with this argument. This value overrides the
+value given for the
+.I account
+with the
+.I ssh_key_name
+in the configuration file.
+.IP "-s --secret-key AWS_SECRET_KEY"
+Specifies the AWS secret access key and overrides the value given for the
+.I account
+with the
+.I secret_access_key
+in the configuration file.
+.IP "--snaponly"
+When this argument is set only a snapshot of the uploaded image will be
+created. The snapshot may then be used in a separate operation to register
+an AMI.
+.IP "-T --timeout WAIT_TIME"
+Specifies the amount of tie to wait in seconds for operations in Amazon EC2
+to complete before aborting the attempt to upload the image.
+.IP "-t --type AWS_UPLOAD_INST_TYPE"
+Specifies the instance type to launch for the instance being used to upload
+the image. This value overrides the value given with the
+.I instance_type
+option for a given region in the configuration file.
+.IP "-u --user AWS_INSTANCE_USER"
+Specifies the user to use to connect to the instance being used to upload
+the image. This value overrides the value given with the
+.I user
+option for a given region in the configuration file.
+.IP "-V --virt-type AWS_VIRT_TYPE"
+Specifies the virtualization type to use for the image to be registered.
+.SH EXAMPLE
+ec2uploadimg --account example -d "My first image" -m x86_64 -n my_linux_image -r us-east-1 PATH_TO_COMPRESSED_FILE
+
+Will upload the raw disk image contained in the PATH_TO_COMPRESSED_FILE and
+will register a new AMI from the image.
+.SH AUTHOR
+Robert Schweikert (rjschwei@suse.com)
+
+
+
+

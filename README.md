@@ -57,3 +57,11 @@ See the [man page](man/man1/ec2publishimg.1) for more information.
 man ec2deprecateimg
 man ec2publishimg
 ```
+
+ec2uploadimg
+============
+
+A command line utility to upload a compressed raw image file, as created by
+KIWI for example to Amazon EC2 and create a snapshot or register an EBS
+backed AMI.
+
