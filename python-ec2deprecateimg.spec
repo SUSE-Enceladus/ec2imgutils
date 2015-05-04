@@ -18,7 +18,7 @@
 
 %define upstream_name ec2deprecateimg
 Name:           python-ec2deprecateimg
-Version:        1.0.0
+Version:        1.1.0
 Release:        0
 Summary:        Tag image as deprected in EC2
 License:        GPL-3.0+
@@ -28,6 +28,7 @@ Source0:        %{upstream_name}-%{version}.tar.bz2
 Requires:       python
 Requires:       python-boto
 Requires:       python-dateutil
+Requires:       python-ec2utilsbase >= 0.1.0
 BuildRequires:  python-setuptools
 BuildRoot:      %{_tmppath}/%{name}-%{version}-build
 
@@ -49,6 +50,9 @@ python setup.py build
 
 %install
 python setup.py install --prefix=%{_prefix} --root=%{buildroot}
+# __init__.py is supplied by the base package, remove it to avoid
+# file conflicts during install
+rm %{buildroot}/%{python_sitelib}/ec2utils/__init__.*
 install -d -m 755 %{buildroot}/%{_mandir}/man1
 install -m 644 man/man1/ec2deprecateimg.1 %{buildroot}/%{_mandir}/man1
 gzip %{buildroot}/%{_mandir}/man1/ec2deprecateimg.1

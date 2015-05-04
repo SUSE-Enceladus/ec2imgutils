@@ -24,7 +24,7 @@ import os
 import sys
 
 import ec2utils.ec2deprecateimg as ec2depimg
-from ec2utils.ec2DepImgExceptions import *
+from ec2utils.ec2UtilsExceptions import *
 
 
 # Set up command line argument parsing

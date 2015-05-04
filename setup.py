@@ -41,7 +41,7 @@ if __name__ == '__main__':
         author_email='public-cloud-dev@susecloud.net',
         version=version,
         packages=setuptools.find_packages('lib'),
-        package_data={'ec2utils': ['base_VERSION']},
+        package_data={'ec2utils': ['base_VERSION', 'deprecate_VERSION']},
         package_dir={
             '': 'lib',
         },

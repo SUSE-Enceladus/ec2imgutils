@@ -22,7 +22,8 @@ import datetime
 import dateutil.relativedelta
 import re
 
-from ec2utils.ec2DepImgExceptions import *
+import ec2utils.ec2utilsbase as base
+from ec2utils.ec2UtilsExceptions import *
 
 class EC2DeprecateImg:
     """Deprecate EC2 image(s) by tagging the image with 3 tags, Deprecated on,
@@ -47,7 +48,7 @@ class EC2DeprecateImg:
         self.account        = 'account-' + account
         self.depPeriod      = depPeriod
         self.configFilePath = configFilePath
-        self.config         = self._getConfig()
+        self.config         = base.getConfig(self.configFilePath)
 
         self._verifyAccount()
 
@@ -208,25 +209,6 @@ class EC2DeprecateImg:
 
         return accessKey, secretKey
         
-    #----------------------------------------------------------------------
-    def _getConfig(self):
-        """Read the configuration file"""
-        config = ConfigParser.RawConfigParser()
-        parsed = None
-        try:
-            parsed = config.read(self.configFilePath)
-        except:
-            msg = 'Could not parse configuration file %s' %self.configFilePath
-            type, value, tb = sys.exec_info()
-            msg += '\n%s' %value.message
-            raise EC2DeprecateImgException(msg)
-		
-        if not parsed:
-            msg = 'Error parsing config file: %s' %self.configFilePath
-            raise EC2DeprecateImgException(msg)
-
-        return config
-
     #----------------------------------------------------------------------
     def _getAllTypeMatchImages(self, filterReplImg=None):
         """Get all images that match thespecified virtualization type.
