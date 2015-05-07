@@ -1,7 +1,7 @@
 #
 # spec file for package python-ec2deprecateimg
 #
-# Copyright (c) 2015 SUSE LINUX Products GmbH, Nuernberg, Germany.
+# Copyright (c) 2015 SUSE Linux GmbH, Nuernberg, Germany.
 #
 # All modifications and additions to the file contributed by third parties
 # remain the property of their copyright owners, unless otherwise agreed
@@ -60,10 +60,9 @@ gzip %{buildroot}/%{_mandir}/man1/ec2deprecateimg.1
 %files
 %defattr(-,root,root,-)
 %doc LICENSE
-%doc %{_mandir}/*
-%dir %{python_sitelib}/ec2utils
-%dir %{python_sitelib}/%{upstream_name}-%{version}-py%{py_ver}.egg-info
-%{python_sitelib}/*
+%{_mandir}/man*/*
+%{python_sitelib}/ec2utils
+%{python_sitelib}/%{upstream_name}-%{version}-py%{py_ver}.egg-info
 %{_bindir}/*
 
 %changelog
