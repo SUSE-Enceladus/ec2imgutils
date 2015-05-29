@@ -335,7 +335,7 @@ class EC2DeprecateImg:
                 print 'No images to deprecate found'
             return False
         if self.verbose:
-            print 'Deprecating images in regin: ', self.region
+            print 'Deprecating images in region: ', self.region
             print '\tDeprecated on', self.depDate
             print 'Removal date', self.delDate
             print 'Replacement image', self.replacementImageTag
