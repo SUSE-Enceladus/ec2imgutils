@@ -15,8 +15,22 @@
 # You should have received a copy of the GNU General Public License
 # along with ec2utilsbase.  If not, see <http://www.gnu.org/licenses/>.
 
+
+class EC2AccountException(Exception):
+    pass
+
+
+class EC2ConnectionException(Exception):
+    pass
+
+
 class EC2DeprecateImgException(Exception):
     pass
+
+
+class EC2UploadImgException(Exception):
+    pass
+
 
 class EC2UtilsConfigFileParseException(Exception):
     pass
