@@ -27,6 +27,7 @@ Url:            https://github.com/SUSE/Enceladus
 Source0:        %{upstream_name}-%{version}.tar.bz2
 Requires:       python
 Requires:       python-boto
+Requires:       python-ec2utilsbase >= 0.2.0
 BuildRequires:  python-setuptools
 BuildRoot:      %{_tmppath}/%{name}-%{version}-build
 
@@ -51,6 +52,8 @@ python setup.py install --prefix=%{_prefix} --root=%{buildroot}
 install -d -m 755 %{buildroot}/%{_mandir}/man1
 install -m 644 man/man1/ec2uploadimg.1 %{buildroot}/%{_mandir}/man1
 gzip %{buildroot}/%{_mandir}/man1/ec2uploadimg.1
+# __init__ provided by ec2utilsbase
+rm %{buildroot}/%{python_sitelib}/ec2utils/__init__.*
 
 %files
 %defattr(-,root,root,-)
