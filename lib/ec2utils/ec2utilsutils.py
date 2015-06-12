@@ -136,7 +136,7 @@ def get_from_config(account, config, region, entry):
         region_name = generate_config_region_name(region)
         # Region config over rides default account configuration
         if config.has_option(region_name, entry):
-            value = config.get_option(regio_name, entry)
+            value = config.get(region_name, entry)
 
     if not value:
         if not account:
@@ -144,7 +144,11 @@ def get_from_config(account, config, region, entry):
             raise EC2AccountException(msg)
 
         account_name = generate_config_account_name(account)
-        value = config.get_option(account_name, entry)
+        try:
+            value = config.get(account_name, entry)
+        except:
+            msg = 'Unable to get %s value from account section %s'
+            raise EC2AccountException(msg % (entry, account))
 
     return value
 

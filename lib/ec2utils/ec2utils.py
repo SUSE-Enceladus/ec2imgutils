@@ -79,7 +79,7 @@ class EC2Utils:
         if self.region and self.region == region:
             return True
 
-        self._disconnect()
+        self._disconnect_from_ec2()
         self.region = region
 
         return True
