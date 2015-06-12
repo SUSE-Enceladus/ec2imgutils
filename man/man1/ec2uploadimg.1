@@ -122,6 +122,9 @@ in the configuration file.
 When this argument is set only a snapshot of the uploaded image will be
 created. The snapshot may then be used in a separate operation to register
 an AMI.
+.IP "--sriov-support"
+Enable SRIOV support for HVM images. This implies that the appropriate
+driver has to be included in the image.
 .IP "-T --timeout WAIT_TIME"
 Specifies the amount of tie to wait in seconds for operations in Amazon EC2
 to complete before aborting the attempt to upload the image.

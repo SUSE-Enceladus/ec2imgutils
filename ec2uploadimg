@@ -132,7 +132,13 @@ argparse.add_argument(
     '--snaponly',
     action='store_true',
     default=False,
-    dest='snapOnly',
+    dest='snapOnly'
+)
+argparse.add_argument(
+    '--sriov-support',
+    action='store_true',
+    default=False,
+    dest='sriov'
 )
 argparse.add_argument(
     'source',
@@ -181,91 +187,114 @@ if not os.path.isfile(configFile):
 try:
     config = utils.get_config(configFile)
 except Exception as e:
-    print e.value
-    sys.exit(1)
-
-try:
-    utils.check_ssh_present(config, args)
-except Exception as e:
-    print e.value
-    sys.exit(1)
-
-try:
-    utils.check_account_keys(config, args)
-except Exception as e:
-    print e.value
+    print >> sys.stderr, e.message
     sys.exit(1)
 
 access_key = args.accessKey
 if not access_key:
-    access_key = utils.get_from_config(args.account,
+    access_key = utils.get_from_config(args.accountName,
                                        config,
                                        None,
                                        'access_key_id')
+if not access_key:
+    print >> sys.stderr, 'Could not determine account access key'
+    sys.exit(1)
 
 secret_key = args.secretKey
 if not secret_key:
-    secret_key = utils.get_from_config(args.account,
+    secret_key = utils.get_from_config(args.accountName,
                                        config,
                                        None,
                                        'secret_access_key')
+if not secret_key:
+    print >> sys.stderr, 'Could not determine account secret access key'
+    sys.exit(1)
+
+sriov_type = args.sriov
+if sriov_type:
+    sriov_type = 'simple'
+
+virtualization_type = args.virtType
+if virtualization_type == 'para':
+    virtualization_type = 'paravirtual'
+
+if sriov_type and virtualization_type != 'hvm':
+    print >> sys.sdterr, 'SRIOV support is only possible with HVM images'
+    sys.exit(1)
+
 try:
-    for region in regions:
+    for region in args.regions.split(','):
         ami_id = args.amiID
         if not ami_id:
-            ami_id = utils.get_from_config(args.account,
+            ami_id = utils.get_from_config(args.accountName,
                                            config,
                                            region,
                                            'ami')
         bootkernel = args.akiID
         if not bootkernel:
             if args.grub2:
-                bootkernel = utils.get_from_config(args.account,
+                bootkernel = utils.get_from_config(args.accountName,
                                                    config,
                                                    region,
                                                    'g2_aki_x86_64')
             elif args.arch == 'x86_64':
-                bootkernel = utils.get_from_config(args.account,
+                bootkernel = utils.get_from_config(args.accountName,
                                                    config,
                                                    region,
                                                    'aki_x86_64')
             elif args.arch == 'i386':
-                bootkernel = utils.get_from_config(args.account,
+                bootkernel = utils.get_from_config(args.accountName,
                                                    config,
                                                    region,
                                                    'aki_i386')
             elif args.virtType == 'hvm':
                 bootkernel = None
             else:
-                print 'Could not reliable determine the bootkernel to use '
-                print 'must specify bootkernel, arch (x86_64|i386) or hvm'
+                print >> sys.stderr, 'Could not reliable determine the ',
+                print >> sys.stderr, 'bootkernel to use '
+                print >> sys.stderr, 'must specify bootkernel, ',
+                print >> sys.stderr, 'arch (x86_64|i386) or hvm'
                 sys.exit(1)
 
         inst_type = args.instType
         if not inst_type:
-            inst_type = utils.get_from_config(args.account,
+            inst_type = utils.get_from_config(args.accountName,
                                               config,
                                               region,
                                               'instance_type')
 
         key_pair_name = args.sshName
         if not key_pair_name:
-            key_pair_name = utils.get_from_config(args.account,
+            key_pair_name = utils.get_from_config(args.accountName,
                                                   config,
                                                   region,
-                                                  'ssk_key_name')
+                                                  'ssh_key_name')
+        if not key_pair_name:
+            print >> sys.stderr, 'Could not determine key pair name'
+            sys.exit(1)
+
         ssh_private_key_file = args.privateKey
         if not ssh_private_key_file:
-            ssh_private_key_file = utils.get_from_config(args.account,
+            ssh_private_key_file = utils.get_from_config(args.accountName,
                                                          config,
                                                          region,
                                                          'ssh_private_key')
+        if not ssh_private_key_file:
+            print >> sys.stderr, 'Could not determine the private ssh key file'
+            sys.exit(1)
+        if not os.path.exists(ssh_private_key_file):
+            print >> sys.stderr, ('SSH private key file "%s" does not exist'
+                                  % ssh_private_key_file)
+
         ssh_user = args.sshUser
         if not ssh_user:
-            ssh_user = utils.get_from_config(args.account,
+            ssh_user = utils.get_from_config(args.accountName,
                                              config,
                                              region,
                                              'user')
+        if not ssh_user:
+            print >> sys.stderr, 'Could not determin ssh user to use'
+            sys.exit(1)
 
         uploader = ec2upimg.EC2ImageUploader(
                           access_key=access_key,
@@ -274,24 +303,25 @@ try:
                           image_arch=args.arch,
                           image_description=args.descript,
                           image_name=args.imgName,
-                          image_virt_type=args.virtType,
+                          image_virt_type=virtualization_type,
                           inst_user_name=ssh_user,
                           launch_ami=ami_id,
                           launch_inst_type=inst_type,
                           operation_timeout=args.timeout,
                           secret_key=secret_key,
+                          sriov_type=sriov_type,
                           ssh_key_pair_name=key_pair_name,
                           ssh_key_private_key_file=ssh_private_key_file,
                           use_grub2=args.grub2,
                           verbose=args.verbose)
 
         uploader.set_region(region)
-        if args.snapshotOnly:
-            snapshot = uploader.create_snapshot(source)
+        if args.snapOnly:
+            snapshot = uploader.create_snapshot(args.source)
             print 'Created snapshot: ', snapshot.id
         else:
-            ami = uploader.create_image(source)
-            print 'Created image: ', ami.id
+            ami = uploader.create_image(args.source)
+            print 'Created image: ', ami
 except EC2UploadImgException, e:
     print >> sys.stderr, e
     sys.exit(1)
