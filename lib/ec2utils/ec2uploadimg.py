@@ -598,7 +598,7 @@ class EC2ImageUploader(EC2Utils):
         self._change_mount_point_permissions(mount_point, '777')
         image_filename = self._upload_image(mount_point, source)
         raw_image_filename = self._unpack_image(mount_point, image_filename)
-        self._dump_root_fs(mount_point, raw_image_filename, target_root_volume)
+        self._dump_root_fs(mount_point, raw_image_filename, root_device_id)
         self._end_ssh_session()
         self._detach_volume(target_root_volume)
         snapshot = self._create_snapshot(target_root_volume)
