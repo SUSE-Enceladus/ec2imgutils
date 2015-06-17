@@ -8,12 +8,12 @@
 # it under the terms of the GNU General Public License as published by
 # the Free Software Foundation, either version 3 of the License, or
 # (at your option) any later version.
-# 
+#
 # ec2deprecateimg is distributed in the hope that it will be useful,
 # but WITHOUT ANY WARRANTY; without even the implied warranty of
 # MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 # GNU General Public License for more details.
-# 
+#
 # You should have received a copy of the GNU General Public License
 # along with ec2deprecateimg. If not, see <http://www.gnu.org/licenses/>.
 
@@ -58,7 +58,7 @@ argparse.add_argument(
 )
 argparse.add_argument(
     '-f', '--file',
-    default = os.path.expanduser('~') + os.sep + '.ec2utils.conf',
+    default=os.path.expanduser('~') + os.sep + '.ec2utils.conf',
     dest='configFilePath',
     help='Path to configuration file, default ~/.ec2utils.conf (Optional)',
     metavar='CONFIG_FILE'
@@ -94,7 +94,7 @@ depImgIdentifier.add_argument(
 )
 argparse.add_argument(
     '--image-virt-type',
-    choices=['hvm','para'],
+    choices=['hvm', 'para'],
     dest='virtType',
     help='The virtualization type of the image to be deprecated (Optional)',
     metavar='VIRT_TYPE'
@@ -171,38 +171,38 @@ else:
     for reg in regs:
         if reg.name in ['us-gov-west-1', 'cn-north-1']:
             if args.verbose:
-                print 'Not processing disconnected region: %s' %reg.name
+                print 'Not processing disconnected region: %s' % reg.name
             continue
         regions.append(reg.name)
 
 configFile = args.configFilePath
 if not os.path.isfile(configFile):
-    print 'Configuration file "%s" not found.' %configFile
+    print 'Configuration file "%s" not found.' % configFile
     sys.exit(1)
 
 try:
-    imgDeprecator = ec2depimg.EC2DeprecateImg(
-                                account=args.accountName,
-                                depPeriod=args.depTime,
-                                configFilePath=args.configFilePath,
-                                depImgID=args.depImgID,
-                                depImgName=args.depImgName,
-                                depImgNameFrag=args.depImgNameFrag,
-                                depImgNameMatch=args.depImgNameMatch,
-                                publicOnly=args.publicOnly,
-                                replImgID=args.replImgID,
-                                replImgName=args.replImgName,
-                                replImgNameFrag=args.replImgNameFrag,
-                                replImgNameMatch=args.replImgNameMatch,
-                                verbose=args.verbose,
-                                virtType=args.virtType)
+    deprecator = ec2depimg.EC2DeprecateImg(
+        account=args.accountName,
+        config_file_path=args.configFilePath,
+        deprecation_period=args.depTime,
+        deprecation_image_id=args.depImgID,
+        deprecation_image_name=args.depImgName,
+        deprecation_image_name_fragment=args.depImgNameFrag,
+        deprecation_image_name_match=args.depImgNameMatch,
+        image_virt_type=args.virtType,
+        public_only=args.publicOnly,
+        replacement_image_id=args.replImgID,
+        replacement_image_name=args.replImgName,
+        replacement_image_name_fragment=args.replImgNameFrag,
+        replacement_image_name_match=args.replImgNameMatch,
+        verbose=args.verbose)
 
     for region in regions:
-        imgDeprecator.setRegion(region)
+        deprecator.set_region(region)
         if args.dryRun:
-            imgDeprecator.printDeprecationInfo()
+            deprecator.print_deprecation_info()
         else:
-            imgDeprecator.deprecate()
+            deprecator.deprecate_images()
 except EC2DeprecateImgException, e:
     print >> sys.stderr, e
     sys.exit(1)
