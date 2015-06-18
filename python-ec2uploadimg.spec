@@ -27,7 +27,7 @@ Url:            https://github.com/SUSE/Enceladus
 Source0:        %{upstream_name}-%{version}.tar.bz2
 Requires:       python
 Requires:       python-boto
-Requires:       python-ec2utilsbase >= 0.2.0
+Requires:       python-ec2utilsbase >= 0.2.1
 BuildRequires:  python-setuptools
 BuildRoot:      %{_tmppath}/%{name}-%{version}-build
 
