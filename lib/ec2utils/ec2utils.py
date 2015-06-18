@@ -41,8 +41,8 @@ class EC2Utils:
         if self.region:
             self.ec2 = boto.ec2.connect_to_region(
                 self.region,
-                aws_access_key_id=self.accessKey,
-                aws_secret_access_key=self.secretKey
+                aws_access_key_id=self.access_key,
+                aws_secret_access_key=self.secret_key
             )
         else:
             self.region = 'UNKNOWN'

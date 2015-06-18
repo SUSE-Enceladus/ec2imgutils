@@ -24,23 +24,23 @@ from .ec2UtilsExceptions import *
 
 
 # -----------------------------------------------------------------------------
-def check_account_keys(config, cmdArgs):
+def check_account_keys(config, command_args):
     """Verify that API access keys are available"""
-    if (cmdArgs.accessKey and cmdArgs.secretKey):
+    if (command_args.accessKey and command_args.secretKey):
         # All data specified on the command line nothing to do
         return 1
-    _basic_account_check(cmdArgs)
-    account = cmdArgs.accountName
+    _basic_account_check(command_args)
+    account = command_args.accountName
     acctName = generateConfigAccountName(account)
     accessKey = config.get_option(acctName, 'access_key_id')
     secretKey = config.get_option(acctName, 'secret_access_key')
     if accessKey and secretKey:
         # All data specified on the command line nothing to do
         return 1
-    if cmdArgs.accessKey and secretKey:
+    if command_args.accessKey and secretKey:
         # Combination of config and command line
         return 1
-    if accessKey and cmdArgs.secretKey:
+    if accessKey and command_args.secretKey:
         # Combination of config and command line
         return 1
     msg = 'Could not determine the access keys from data on command line '
@@ -49,32 +49,32 @@ def check_account_keys(config, cmdArgs):
 
 
 # -----------------------------------------------------------------------------
-def check_ssh_resent(config, cmdArgs):
+def check_ssh_resent(config, command_args):
     """Verify that an ssh key exists"""
     if (
-            cmdArgs.sshName and
-            cmdArgs.privateKey and
-            os.path.exists(cmdArgs.privateKey)):
+            command_args.sshName and
+            command_args.privateKey and
+            os.path.exists(command_args.privateKey)):
         # All data specified on the command line nothing to do
         return 1
-    _basicAccountCheck(cmdArgs)
-    account = cmdArgs.accountName
+    _basicAccountCheck(command_args)
+    account = command_args.accountName
     acctName = generateConfigAccountName(account)
     sshKeyName = config.get_option(acctName, 'ssh_key_name')
     sshPrivateKey = config.get_option(acctName, 'ssh_private_key')
     if sshKeyName and sshPrivateKey and os.path.exists(sshPrivateKey):
         # All the data is available from the specified account
         return 1
-    if cmdArgs.sshName and sshPrivateKey and os.path.exists(sshPrivateKey):
+    if command_args.sshName and sshPrivateKey and os.path.exists(sshPrivateKey):
         # Key name from command line and private key from config
         return 1
     if (
             sshKeyName and
-            cmdArgs.privateKey and
-            os.path.exists(cmdArgs.privateKey)):
+            command_args.privateKey and
+            os.path.exists(command_args.privateKey)):
         # Key name from config private key from command line
         return 1
-    regions = get_regions(cmdArgs)
+    regions = get_regions(command_args)
     for region in regions:
         if not config.has_section(region):
             msg = 'Could not find region %s in configuration file' % region
@@ -84,13 +84,13 @@ def check_ssh_resent(config, cmdArgs):
         if sshKeyName and sshPrivateKey and os.path.exists(sshPrivateKey):
             # All the data is available from the specified account
             return 1
-        if cmdArgs.sshName and sshPrivateKey and os.path.exists(sshPrivateKey):
+        if command_args.sshName and sshPrivateKey and os.path.exists(sshPrivateKey):
             # Key name from command line and private key from config
             return 1
         if (
                 sshKeyName and
-                cmdArgs.privateKey and
-                os.path.exists(cmdArgs.privateKey)):
+                command_args.privateKey and
+                os.path.exists(command_args.privateKey)):
             # Key name from config private key from command line
             return 1
 
@@ -154,18 +154,18 @@ def get_from_config(account, config, region, entry):
 
 
 # -----------------------------------------------------------------------------
-def get_regions(cmdArgs):
+def get_regions(command_args):
     """Return a list of connected regions if no regions are specified
        on the command line"""
     regions = None
-    if args.regions:
-        regions = args.regions.split(',')
+    if command_args.regions:
+        regions = command_args.regions.split(',')
     else:
         regions = []
         regs = boto.ec2.regions()
         for reg in regs:
             if reg.name in ['us-gov-west-1', 'cn-north-1']:
-                if cmdArgs.verbose:
+                if command_args.verbose:
                     print 'Not processing disconnected region: %s' % reg.name
                 continue
             regions.append(reg.name)
@@ -173,9 +173,9 @@ def get_regions(cmdArgs):
 
 
 # -----------------------------------------------------------------------------
-def _basic_ccount_check(cmdArgs):
+def _basic_ccount_check(command_args):
     """Basic check for account presense."""
-    account = cmdArgs.accountName
+    account = command_args.accountName
     if not account:
         msg = 'Cannot determine ssh key, no account given and not specified '
         msg += 'on command line'
