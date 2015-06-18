@@ -37,6 +37,12 @@ The options of the sections are
 .I ssh_key_name
 .I ssh_private_key
 this allows the program to connect to EC2.
+.IP "--access-id AWS_ACCESS_KEY"
+Specifies the AWS access key and overrides the value given for the
+.I account
+with the
+.I access_key_id
+in the configuration file.
 .IP "-d --deprecation-period NUMBER_OF_MONTHS"
 Specifies the number of months this image will be considered deprecated. After
 the deprecation period expires the image may be removed. The deprecation time
@@ -46,6 +52,10 @@ the
 tag in the format
 .I YYYYMMDD.
 The default deprecation period is 6 months. 
+.IP "--force"
+Specify that any images that have already been tagged as deprecated should be
+tagged again with the new deprecation information. This overwrites the
+previous information and the old data is lost.
 .IP "-n --dry-run"
 The program will not perform any action. It will provide information on
 .I stdout
@@ -182,6 +192,12 @@ would not work with the disconnected regions. If a disconnected region is to
 be processed specify the region explicitly on the command line, and only the
 region of interest along with the matching
 .I account.
+.IP "-s --secret-key AWS_SECRET_KEY"
+Specifies the AWS secret access key and overrides the value given for the
+.I account
+with the
+.I secret_access_key
+in the configuration file.
 .SH EXAMPLE
 ec2deprecateimg --account example --image-name-match v15 --image-virt-type hvm --replacement-name exampleimage_v16
 

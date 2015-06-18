@@ -38,6 +38,7 @@ class EC2DeprecateImg(EC2Utils):
             deprecation_image_name=None,
             deprecation_image_name_fragment=None,
             deprecation_image_name_match=None,
+            force=None,
             image_virt_type=None,
             public_only=None,
             replacement_image_id=None,
@@ -54,6 +55,7 @@ class EC2DeprecateImg(EC2Utils):
         self.deprecation_image_name = deprecation_image_name
         self.deprecation_image_name_fragment = deprecation_image_name_fragment
         self.deprecation_image_name_match = deprecation_image_name_match
+        self.force = force
         self.image_virt_type = image_virt_type
         self.public_only = public_only
         self.replacement_image_id = replacement_image_id
@@ -276,7 +278,7 @@ class EC2DeprecateImg(EC2Utils):
             print 'Removal date', self.deletion_date
             print 'Replacement image', self.replacement_image_tag
         for image in images:
-            if image.tags.get('Deprecated on', None):
+            if not self.force and image.tags.get('Deprecated on', None):
                 if self.verbose:
                     print '\t\tImage %s already tagged, skipping' % image.id
                 continue

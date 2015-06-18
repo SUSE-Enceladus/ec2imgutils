@@ -69,6 +69,13 @@ argparse.add_argument(
     help='Path to configuration file, default ~/.ec2utils.conf (Optional)',
     metavar='CONFIG_FILE'
 )
+argparse.add_argument(
+    '--force',
+    action='store_true',
+    default=False,
+    dest='force',
+    help='Overwrite existing deprecation tags (Optionsl)',
+)
 # Note, one of the arguments in the group is required if --version is
 # not specified. However setting this behavior through the parser
 # also requiers one argument to be specified even if --version is specified
@@ -262,6 +269,7 @@ try:
         deprecation_image_name=args.depImgName,
         deprecation_image_name_fragment=args.depImgNameFrag,
         deprecation_image_name_match=args.depImgNameMatch,
+        force=args.force,
         image_virt_type=args.virtType,
         public_only=args.publicOnly,
         replacement_image_id=args.replImgID,
