@@ -23,6 +23,7 @@ import argparse
 import os
 import sys
 
+import ec2utils.ec2utilsutils as utils
 import ec2utils.ec2deprecateimg as ec2depimg
 from ec2utils.ec2UtilsExceptions import *
 
@@ -34,27 +35,32 @@ argparse.add_argument(
     dest='accountName',
     help='Account to use',
     metavar='ACCOUNT_NAME',
-    required=True
 )
-hlpMsg = 'The deprecation period, image will be tagged for removal '
-hlpMsg += 'on "now + deprecation perion", specified in months, default '
-hlpMsg += ' is 6 month (Optional)'
+argparse.add_argument(
+    '--access-id',
+    dest='accessKey',
+    help='AWS access key (Optional)',
+    metavar='AWS_ACCESS_KEY'
+)
+help_msg = 'The deprecation period, image will be tagged for removal '
+help_msg += 'on "now + deprecation perion", specified in months, default '
+help_msg += ' is 6 month (Optional)'
 argparse.add_argument(
     '-d', '--deprecation-period',
     default=6,
     dest='depTime',
-    help=hlpMsg,
+    help=help_msg,
     metavar='NUMBER_OF_MONTHS',
     type=int
 )
-hlpMsg = 'Do not perform any action, print information about actions that '
-hlpMsg += 'would be performed instared (Optional)'
+help_msg = 'Do not perform any action, print information about actions that '
+help_msg += 'would be performed instared (Optional)'
 argparse.add_argument(
     '-n', '--dry-run',
     action='store_true',
     default=False,
     dest='dryRun',
-    help=hlpMsg
+    help=help_msg
 )
 argparse.add_argument(
     '-f', '--file',
@@ -63,33 +69,38 @@ argparse.add_argument(
     help='Path to configuration file, default ~/.ec2utils.conf (Optional)',
     metavar='CONFIG_FILE'
 )
-depImgIdentifier = argparse.add_mutually_exclusive_group(required=True)
-depImgIdentifier.add_argument(
+# Note, one of the arguments in the group is required if --version is
+# not specified. However setting this behavior through the parser
+# also requiers one argument to be specified even if --version is specified
+# This parser behavior is true even if --version and the group are part of the
+# same subgroup
+deprecation_image_id = argparse.add_mutually_exclusive_group()
+deprecation_image_id.add_argument(
     '--image-id',
     dest='depImgID',
     help='The AMI ID of the image to be deprecated (Optional)',
     metavar='AMI_ID'
 )
-depImgIdentifier.add_argument(
+deprecation_image_id.add_argument(
     '--image-name',
     dest='depImgName',
     help='The image name of the image to be deprecated (Optional)',
     metavar='IMAGE_NAME'
 )
-hlpMsg = 'An image name fragment to match the image name of the image to be '
-hlpMsg += 'deprecated (Optional)'
-depImgIdentifier.add_argument(
+help_msg = 'An image name fragment to match the image name of the image to be '
+help_msg += 'deprecated (Optional)'
+deprecation_image_id.add_argument(
     '--image-name-frag',
     dest='depImgNameFrag',
-    help=hlpMsg,
+    help=help_msg,
     metavar='IMAGE_NAME_FRAGMENT'
 )
-hlpMsg = 'A regular expression to match the image name of the image to be '
-hlpMsg += 'deprecated (Optional)'
-depImgIdentifier.add_argument(
+help_msg = 'A regular expression to match the image name of the image to be '
+help_msg += 'deprecated (Optional)'
+deprecation_image_id.add_argument(
     '--image-name-match',
     dest='depImgNameMatch',
-    help=hlpMsg,
+    help=help_msg,
     metavar='REGEX'
 )
 argparse.add_argument(
@@ -106,84 +117,146 @@ argparse.add_argument(
     dest='publicOnly',
     help='Only consider images that are public (Optional)'
 )
-replImgIdentifier = argparse.add_mutually_exclusive_group(required=True)
-hlpMsg = 'The AMI ID of the image used as a replacement for the image(s) '
-hlpMsg += 'being deprecated (Optional), one of --replacement-id or '
-hlpMsg += '--replacement-name is required'
-replImgIdentifier.add_argument(
+# Note, one of the arguments in the group is required if --version is
+# not specified. However setting this behavior through the parser
+# also requiers one argument to be specified even if --version is specified
+# This parser behavior is true even if --version and the group are part of the
+# same subgroup
+replacement_image_id = argparse.add_mutually_exclusive_group()
+help_msg = 'The AMI ID of the image used as a replacement for the image(s) '
+help_msg += 'being deprecated (Optional), one of --replacement-id or '
+help_msg += '--replacement-name is required'
+replacement_image_id.add_argument(
     '--replacement-id',
     dest='replImgID',
-    help=hlpMsg,
+    help=help_msg,
     metavar='AMI_ID'
 )
-hlpMsg = 'The name of the image used as a replacement for the image(s) '
-hlpMsg += 'being deprecated (Optional), one of --replacement-id or '
-hlpMsg += '--replacement-name is required'
-replImgIdentifier.add_argument(
+help_msg = 'The name of the image used as a replacement for the image(s) '
+help_msg += 'being deprecated (Optional), one of --replacement-id or '
+help_msg += '--replacement-name is required'
+replacement_image_id.add_argument(
     '--replacement-name',
     dest='replImgName',
-    help=hlpMsg,
+    help=help_msg,
     metavar='IMAGE_NAME'
 )
-hlpMsg = 'An image name fragment to match the image name of the image to be '
-hlpMsg += 'deprecated (Optional)'
-replImgIdentifier.add_argument(
+help_msg = 'An image name fragment to match the image name of the image to be '
+help_msg += 'deprecated (Optional)'
+replacement_image_id.add_argument(
     '--replacement-name-frag',
     dest='replImgNameFrag',
-    help=hlpMsg,
+    help=help_msg,
     metavar='IMAGE_NAME_FRAGMENT'
 )
-hlpMsg = 'A regular expression to match the image name of the image to be '
-hlpMsg += 'deprecated (Optional)'
-replImgIdentifier.add_argument(
+help_msg = 'A regular expression to match the image name of the image to be '
+help_msg += 'deprecated (Optional)'
+replacement_image_id.add_argument(
     '--replacement-name-match',
     dest='replImgNameMatch',
-    help=hlpMsg,
+    help=help_msg,
     metavar='REGEX'
 )
-hlpMsg = 'Comma separated list of regions for publishing, all integrated '
-hlpMsg += 'region sif not given (Optional)'
+help_msg = 'Comma separated list of regions for publishing, all integrated '
+help_msg += 'region sif not given (Optional)'
 argparse.add_argument(
     '-r', '--regions',
     dest='regions',
-    help=hlpMsg,
+    help=help_msg,
     metavar='EC2_REGIONS'
 )
 argparse.add_argument(
+    '-s', '--secret-key',
+    dest='secretKey',
+    help='AWS secret access key (Optional)',
+    metavar='AWS_SECRET_KEY'
+)
+argparse.add_argument(
     '--verbose',
+    action='store_true',
+    default=False,
     dest='verbose',
     help='Enable on verbose output'
 )
 argparse.add_argument(
     '--version',
+    action='store_true',
+    default=False,
     dest='version',
     help='Program version'
 )
 
 args = argparse.parse_args()
 
-regions = None
-if args.regions:
-    regions = args.regions.split()
-else:
-    regions = []
-    regs = boto.ec2.regions()
-    for reg in regs:
-        if reg.name in ['us-gov-west-1', 'cn-north-1']:
-            if args.verbose:
-                print 'Not processing disconnected region: %s' % reg.name
-            continue
-        regions.append(reg.name)
+if args.version:
+    import ec2utils
+    version_file_name = 'deprecate_VERSION'
+    base_path = os.path.dirname(ec2utils.__file__)
+    version = open(base_path + os.sep + version_file_name, 'r').read()
+    print version
+    sys.exit(0)
 
-configFile = args.configFilePath
-if not os.path.isfile(configFile):
-    print 'Configuration file "%s" not found.' % configFile
+# Explicit check required to to the group issue, see comment above
+if (
+        not args.depImgID
+        and not args.depImgName
+        and not args.depImgNameFrag
+        and not args.depImgNameMatch):
+    error_msg = 'ec2deprecateimg: error: one of the arguments '
+    error_msg += '--image-id --image-name --image-name-frag '
+    error_msg += '--image-name-match is required'
+    print error_msg
+    sys.exit(1)
+
+# Explicit check required to to the group issue, see comment above
+if (
+        not args.replImgID
+        and not args.replImgName
+        and not args.replImgNameFrag
+        and not args.replImgNameMatch):
+    error_msg = 'ec2deprecateimg: error: one of the arguments '
+    error_msg += '--replacement-id --replacement-name '
+    error_msg += '--replacement-name-frag --replacement-name-match is required'
+    print error_msg
+    sys.exit(1)
+
+
+config_file = args.configFilePath
+config = None
+if not os.path.isfile(config_file):
+    print 'Configuration file "%s" not found.' % config_file
+    sys.exit(1)
+try:
+    config = utils.get_config(config_file)
+except Exception as e:
+    print >> sys.stderr, e.message
+    sys.exit(1)
+
+regions = utils.get_regions(args)
+
+access_key = args.accessKey
+if not access_key:
+    access_key = utils.get_from_config(args.accountName,
+                                       config,
+                                       None,
+                                       'access_key_id')
+if not access_key:
+    print >> sys.stderr, 'Could not determine account access key'
+    sys.exit(1)
+
+secret_key = args.secretKey
+if not secret_key:
+    secret_key = utils.get_from_config(args.accountName,
+                                       config,
+                                       None,
+                                       'secret_access_key')
+if not secret_key:
+    print >> sys.stderr, 'Could not determine account secret access key'
     sys.exit(1)
 
 try:
     deprecator = ec2depimg.EC2DeprecateImg(
-        account=args.accountName,
-        config_file_path=args.configFilePath,
+        access_key=access_key,
         deprecation_period=args.depTime,
         deprecation_image_id=args.depImgID,
         deprecation_image_name=args.depImgName,
@@ -195,6 +268,7 @@ try:
         replacement_image_name=args.replImgName,
         replacement_image_name_fragment=args.replImgNameFrag,
         replacement_image_name_match=args.replImgNameMatch,
+        secret_key=secret_key,
         verbose=args.verbose)
 
     for region in regions:
@@ -204,5 +278,8 @@ try:
         else:
             deprecator.deprecate_images()
 except EC2DeprecateImgException, e:
+    print >> sys.stderr, e
+    sys.exit(1)
+except Exception, e:
     print >> sys.stderr, e
     sys.exit(1)
