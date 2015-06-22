@@ -138,6 +138,13 @@ Specifies the user to use to connect to the instance being used to upload
 the image. This value overrides the value given with the
 .I user
 option for a given region in the configuration file.
+.IP "--use-root-swap"
+Create the bew image using the root swap method. The helper instance used
+to upload the image will be stopped and the created image volume will be
+attached to the helper instance. A new image is registered from the
+helper instance. This method of image creation is useful when meta data
+associated with the image used to launch the helper instance needs to
+be transferred to the new image.
 .IP "-V --virt-type AWS_VIRT_TYPE"
 Specifies the virtualization type to use for the image to be registered.
 .SH EXAMPLE

@@ -164,6 +164,13 @@ argparse.add_argument(
     metavar='AWS_INSTANCE_USER'
 )
 argparse.add_argument(
+    '--use-root-swap',
+    action='store_true',
+    default=False,
+    dest='rootSwapMethod',
+    help='Use the root swap method to create the new image'
+)
+argparse.add_argument(
     '-V', '--virt-type',
     default='para',
     dest='virtType',
@@ -319,6 +326,9 @@ try:
         if args.snapOnly:
             snapshot = uploader.create_snapshot(args.source)
             print 'Created snapshot: ', snapshot.id
+        elif args.rootSwapMethod:
+            ami = uploader.create_image_use_root_swap(args.source)
+            print 'Created image: ', ami
         else:
             ami = uploader.create_image(args.source)
             print 'Created image: ', ami
