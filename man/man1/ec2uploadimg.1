@@ -11,8 +11,8 @@ a snapshot or an AMI
 .B ec2uploadimg
 Upload a compressed raw image to Amazon EC2 using an existing EC2 AMI
 and create a snapshot or register a new AMI from the image. The apparent
-size of the raw image must be 10 GB or less. It is expected that the
-raw image has 1 partition, i.e. the root partition is
+size of the raw image is recommended to be 10 GB or less. It is expected
+that the raw image has 1 partition, i.e. the root partition is
 .I /dev/sda1.
 The process of creating the image is as follows:
 - start an instance
@@ -103,6 +103,9 @@ the value of the
 in the configuration file.
 .IP "-r --regions EC2_REGIONS"
 A comma separated list of Amazon EC2 regions, or a single region.
+.IP "--root-volume-size"
+Specify the size in GB of the new root volume for the AMI being created. It
+is recommended to keep the root volume size to 10GB or less.
 .IP "--ssh-key-pair AWS_KEY_PAIR_NAME"
 Specifies the key-pair name to use when launching the instance that is used
 to upload the raw image. The specified private key file must correlate
@@ -139,12 +142,15 @@ the image. This value overrides the value given with the
 .I user
 option for a given region in the configuration file.
 .IP "--use-root-swap"
-Create the bew image using the root swap method. The helper instance used
+Create the new image using the root swap method. The helper instance used
 to upload the image will be stopped and the created image volume will be
 attached to the helper instance. A new image is registered from the
 helper instance. This method of image creation is useful when meta data
 associated with the image used to launch the helper instance needs to
-be transferred to the new image.
+be transferred to the new image. The new image creation may time out as
+a copy of the complete image disk needs to be made. The code will then skip
+the clean up and a storage volume, a target root volume and a stopped
+instance will remain in the users account.
 .IP "-V --virt-type AWS_VIRT_TYPE"
 Specifies the virtualization type to use for the image to be registered.
 .SH EXAMPLE

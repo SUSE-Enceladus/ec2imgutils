@@ -117,6 +117,12 @@ argparse.add_argument(
     required=True
 )
 argparse.add_argument(
+    '--root-volume-size',
+    dest='rootVolSize',
+    help='Size of root volume for new image (Optional)',
+    metavar='ROOT_VOLUME_SIZE',
+)
+argparse.add_argument(
     '--ssh-key-pair',
     dest='sshName',
     help='AWS SSH key pair name (Optional)',
@@ -246,6 +252,10 @@ if sriov_type and virtualization_type != 'hvm':
     print >> sys.sdterr, 'SRIOV support is only possible with HVM images'
     sys.exit(1)
 
+root_volume_size = 10
+if args.rootVolSize:
+    root_volume_size = args.rootVolSize
+    
 try:
     for region in args.regions.split(','):
         ami_id = args.amiID
@@ -332,6 +342,7 @@ try:
                           launch_ami=ami_id,
                           launch_inst_type=inst_type,
                           operation_timeout=args.timeout,
+                          root_volume_size=root_volume_size,
                           secret_key=secret_key,
                           sriov_type=sriov_type,
                           ssh_key_pair_name=key_pair_name,

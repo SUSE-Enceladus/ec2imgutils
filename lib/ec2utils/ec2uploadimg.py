@@ -43,6 +43,7 @@ class EC2ImageUploader(EC2Utils):
                  launch_ami=None,
                  launch_inst_type='m1.small',
                  operation_timeout=300,
+                 root_volume_size=10,
                  secret_key=None,
                  sriov_type=None,
                  ssh_key_pair_name=None,
@@ -62,6 +63,7 @@ class EC2ImageUploader(EC2Utils):
         self.launch_ami = launch_ami
         self.launch_ins_type = launch_inst_type
         self.operation_timeout = operation_timeout
+        self.root_volume_size=int(root_volume_size)
         self.secret_key = secret_key
         self.sriov_type = sriov_type
         self.ssh_key_pair_name = ssh_key_pair_name
@@ -77,6 +79,7 @@ class EC2ImageUploader(EC2Utils):
         self.percent_transferred = 0
         self.region = None
         self.ssh_client = None
+        self.storage_volume_size = 2 * self.root_volume_size
 
     # ---------------------------------------------------------------------
     def _attach_volume(self, instance, volume, device=None):
@@ -155,7 +158,7 @@ class EC2ImageUploader(EC2Utils):
         block_device_type = boto.ec2.blockdevicemapping.EBSBlockDeviceType(
             delete_on_termination=True,
             snapshot_id=snapshot.id,
-            size=10,  # 10 GB root device
+            size=self.root_device_size,
             volume_type=backing_store
         )
         block_device_map = boto.ec2.blockdevicemapping.BlockDeviceMapping()
@@ -173,7 +176,7 @@ class EC2ImageUploader(EC2Utils):
         store_volume = self._create_storge_volume()
         store_device_id = self._attach_volume(helper_instance, store_volume)
         target_root_volume = self._create_target_root_volume()
-        root_device_id = self._attach_volume(helper_instance,
+        target_root_device_id = self._attach_volume(helper_instance,
                                              target_root_volume)
         self._establish_ssh_connection(helper_instance)
         self._format_storage_volume(store_device_id)
@@ -182,7 +185,8 @@ class EC2ImageUploader(EC2Utils):
         self._change_mount_point_permissions(mount_point, '777')
         image_filename = self._upload_image(mount_point, source)
         raw_image_filename = self._unpack_image(mount_point, image_filename)
-        self._dump_root_fs(mount_point, raw_image_filename, root_device_id)
+        self._dump_root_fs(mount_point, raw_image_filename,
+                           target_root_device_id)
         self._end_ssh_session()
         self._detach_volume(target_root_volume)
 
@@ -222,13 +226,13 @@ class EC2ImageUploader(EC2Utils):
     def _create_storge_volume(self):
         """Create the volume that will be used to store the image before
            dumping it to the new root volume"""
-        return self._create_volume('20')
+        return self._create_volume('%s' % self.storage_volume_size)
 
     # ---------------------------------------------------------------------
     def _create_target_root_volume(self):
         """Create the volume that will be used as the root volume for
            the image we are creating."""
-        return self._create_volume('10')
+        return self._create_volume('%s' % self.root_volume_size)
 
     # ---------------------------------------------------------------------
     def _create_volume(self, size):
@@ -613,7 +617,7 @@ class EC2ImageUploader(EC2Utils):
         """Creae an AMI (Amazon Machine Image) from the given source using
            the root swap method"""
 
-        root_volume = self._create_image_root_volume(source)
+        target_root_volume = self._create_image_root_volume(source)
         self.ec2.stop_instances(instance_ids=self.instance_ids)
         if self.verbose:
             print 'Waiting for helper instance to stop'
@@ -635,7 +639,7 @@ class EC2ImageUploader(EC2Utils):
                 break
 
         self._detach_volume(current_root_volume)
-        self._attach_volume(self.helper_instance, root_volume, device_id)
+        self._attach_volume(self.helper_instance, target_root_volume, device_id)
         if self.verbose:
             print 'Creating new image'
         ami = self.helper_instance.create_image(
