@@ -184,8 +184,25 @@ argparse.add_argument(
     dest='verbose',
     help='Enable verbose output'
 )
+argparse.add_argument(
+    '--version',
+    action='store_true',
+    default=False,
+    dest='version',
+    help='Program version'
+)
 
-args = argparse.parse_args()
+
+
+if '--version' in sys.argv:
+    import ec2utils
+    version_file_name = 'upload_VERSION'
+    base_path = os.path.dirname(ec2utils.__file__)
+    version = open(base_path + os.sep + version_file_name, 'r').read()
+    print version
+    sys.exit(0)
+    
+args = argparse.parse_args()    
 config_file = args.configFilePath
 config = None
 if not os.path.isfile(config_file):
