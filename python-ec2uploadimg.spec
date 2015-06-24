@@ -58,7 +58,7 @@ rm %{buildroot}/%{python_sitelib}/ec2utils/__init__.*
 %files
 %defattr(-,root,root,-)
 %doc LICENSE
-%{_mandir}/*
+%{_mandir}/man*/*
 %dir %{python_sitelib}/ec2utils
 %dir %{python_sitelib}/%{upstream_name}-%{version}-py%{py_ver}.egg-info
 %{python_sitelib}/*
