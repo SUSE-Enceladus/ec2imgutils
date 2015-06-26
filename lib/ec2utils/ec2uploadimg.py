@@ -158,7 +158,7 @@ class EC2ImageUploader(EC2Utils):
         block_device_type = boto.ec2.blockdevicemapping.EBSBlockDeviceType(
             delete_on_termination=True,
             snapshot_id=snapshot.id,
-            size=self.root_device_size,
+            size=self.root_volume_size,
             volume_type=backing_store
         )
         block_device_map = boto.ec2.blockdevicemapping.BlockDeviceMapping()
@@ -552,13 +552,10 @@ class EC2ImageUploader(EC2Utils):
             command = 'tar -C %s -xvf %s/%s' % (image_dir,
                                                 image_dir,
                                                 image_filename)
-            files = self._execute_ssh_command(command)
+            files = self._execute_ssh_command(command).split('\r\n')
         elif image_filename[-2:] == 'xz':
             files = [image_filename]
 
-        if type(files) == type(' '):
-            files = [files]
-            
         raw_image_file = None
         if files:
             # Find the disk image
