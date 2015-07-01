@@ -187,8 +187,10 @@ class EC2ImageUploader(EC2Utils):
         raw_image_filename = self._unpack_image(mount_point, image_filename)
         self._dump_root_fs(mount_point, raw_image_filename,
                            target_root_device_id)
+        self._execute_ssh_command('umount %s' %mount_point)
         self._end_ssh_session()
         self._detach_volume(target_root_volume)
+        self._detach_volume(store_volume)
 
         return target_root_volume
     
