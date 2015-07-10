@@ -411,7 +411,8 @@ class EC2ImageUploader(EC2Utils):
         if parted:
             command = '%s -s %s mklabel gpt' % (parted, device_id)
             result = self._execute_ssh_command(command)
-            command = 'blockdev --getsize %s' % device_id
+            blockdev = self._get_command_from_instance('blockdev')
+            command = '%s --getsize %s' % (blockdev, device_id)
             size = self._execute_ssh_command(command)
             command = ('%s -s %s unit s mkpart primary 2048 %d' %
                        (parted, device_id, int(size)-100))
