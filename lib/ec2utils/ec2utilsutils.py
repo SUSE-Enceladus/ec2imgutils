@@ -19,6 +19,7 @@ import boto
 import boto.ec2
 import ConfigParser
 import os
+import sys
 
 from .ec2UtilsExceptions import *
 
@@ -117,7 +118,7 @@ def get_config(configFilePath):
         parsed = config.read(configFilePath)
     except:
         msg = 'Could not parse configuration file %s' % configFilePath
-        type, value, tb = sys.exec_info()
+        type, value, tb = sys.exc_info()
         msg += '\n%s' % value.message
         raise EC2UtilsConfigFileParseException(msg)
 
