@@ -265,7 +265,10 @@ try:
                                            region,
                                            'ami')
         bootkernel = args.akiID
-        if not bootkernel:
+        if args.virtType == 'hvm':
+            bootkernel = None
+
+        if not bootkernel and args.virtType != 'hvm':
             if args.grub2:
                 bootkernel = utils.get_from_config(args.accountName,
                                                    config,
@@ -281,8 +284,6 @@ try:
                                                    config,
                                                    region,
                                                    'aki_i386')
-            elif args.virtType == 'hvm':
-                bootkernel = None
             else:
                 print >> sys.stderr, 'Could not reliable determine the ',
                 print >> sys.stderr, 'bootkernel to use '
