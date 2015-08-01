@@ -51,3 +51,4 @@ See the [man page](man/man1/ec2deprecateimg.1) for more information.
 ```
 man ec2deprecateimg
 ```
+
