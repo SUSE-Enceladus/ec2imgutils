@@ -23,6 +23,14 @@ images to be deprecated before any matching takes place. Therefore, the
 deprecation search criteria specified with _--image-name-frag_ or
 _--image-name-match_ cannot match the replacement image.
 
+
+# ec2publishimg
+
+
+A command line utility to control the visibility of an image in AWS EC2.
+The tool supports setting an image to public or private.
+
+
 ## Installation
 
 ### openSUSE and SUSE Linux Enterprise
@@ -30,6 +38,7 @@ _--image-name-match_ cannot match the replacement image.
 ```
 zypper in python3-ec2imgutils
 ```
+
 
 ## Usage
 
@@ -42,4 +51,3 @@ See the [man page](man/man1/ec2deprecateimg.1) for more information.
 ```
 man ec2deprecateimg
 ```
-
