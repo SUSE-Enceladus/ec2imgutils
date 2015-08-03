@@ -16,12 +16,13 @@ Specifies the account to use to connect to EC2. The account is specified
 in the config file
 .IR ~/.ec2utils.conf .
 The account is specified as a section with [account-ACCOUNT_NAME] delimiter.
-The options of the sections are
-.I access_key_id
-.I secret_access_key
+The options of the sections are:
+.IR access_key_id ,
+.IR secret_access_key ,
 .I ssh_key_name
-.I ssh_private_key
-this allows the program to connect to EC2.
+and
+.IR ssh_private_key .
+These allow the program to connect to EC2.
 .IP "--access-id AWS_ACCESS_KEY"
 Specifies the AWS access key and overrides the value given for the
 .I account
