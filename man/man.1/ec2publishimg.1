@@ -34,14 +34,14 @@ The program will not perform any action. It will provide information on
 about the actions it would perform.
 .IP "-f --file CONFIG_FILE"
 Specifies the configuration file to use. The default is
-.I ~/.ec2utils.conf
+.IR ~/.ec2utils.conf .
 .IP "--image-id AMI_ID"
 Specify the AMI ID of the image to be marked as deprecated. This option is
 mutually exclusive with the
 .IR --image-name ,
 .IR --image-name-frag ,
 and
-.I --image-name-match
+.IR --image-name-match .
 .IP "--image-name IMAGE_NAME"
 Specify the name of the image to be deprecated. The program will look for
 an exact match of the name. This option is mutually exclusive with the
@@ -76,7 +76,7 @@ EC2 disconnected regions have different API keys and thus the specified
 would not work with the disconnected regions. If a disconnected region is to
 be processed specify the region explicitly on the command line, and only the
 region of interest along with the matching
-.I account.
+.IR account .
 .IP "-s --secret-key AWS_SECRET_KEY"
 Specifies the AWS secret access key and overrides the value given for the
 .I account
@@ -96,6 +96,6 @@ ec2deprecateimg --account example --image-name-match production-v2 --share-with 
 
 Will set all images in all connected regions that match the 
 .I production-v2
-regular expression as public
+regular expression as public.
 .SH AUTHOR
 Robert Schweikert (rjschwei@suse.com)
