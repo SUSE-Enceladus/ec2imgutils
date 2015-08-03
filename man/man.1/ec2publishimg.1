@@ -14,7 +14,7 @@ image private, i.e. only available to the account owner.
 .IP "-a --account ACCOUNT_NAME"
 Specifies the account to use to connect to EC2. The account is specified
 in the config file
-.I ~/.ec2utils.conf.
+.IR ~/.ec2utils.conf .
 The account is specified as a section with [account-ACCOUNT_NAME] delimiter.
 The options of the sections are
 .I access_key_id
@@ -38,15 +38,15 @@ Specifies the configuration file to use. The default is
 .IP "--image-id AMI_ID"
 Specify the AMI ID of the image to be marked as deprecated. This option is
 mutually exclusive with the
-.I --image-name,
-.I --image-name-frag,
+.IR --image-name ,
+.IR --image-name-frag ,
 and
 .I --image-name-match
 .IP "--image-name IMAGE_NAME"
 Specify the name of the image to be deprecated. The program will look for
 an exact match of the name. This option is mutually exclusive with the
-.I --image-id,
-.I --image-name-frag,
+.IR --image-id ,
+.IR --image-name-frag ,
 and
 .I --image-name-match
 options.
@@ -54,8 +54,8 @@ options.
 Specify a section of an image name for the image(s) to be deprecated. Every
 image that matches the name fragment will be marked as deprecated. This
 option is mutually exclusive with the
-.I --image-id,
-.I --image-name-name,
+.IR --image-id ,
+.IR --image-name-name ,
 and
 .I --image-name-match
 options.
@@ -63,8 +63,8 @@ options.
 Specify a regular expression to match an image name. Every image matching the
 regular expression will be deprecated. This option is mutually
 exclusive with the
-.I --image-id,
-.I --image-name-name,
+.IR --image-id ,
+.IR --image-name-name ,
 and
 .I --image-name-frag
 options.
