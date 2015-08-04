@@ -50,53 +50,6 @@ def check_account_keys(config, command_args):
 
 
 # -----------------------------------------------------------------------------
-def check_ssh_resent(config, command_args):
-    """Verify that an ssh key exists"""
-    if (
-            command_args.sshName and
-            command_args.privateKey and
-            os.path.exists(command_args.privateKey)):
-        # All data specified on the command line nothing to do
-        return 1
-    _basicAccountCheck(command_args)
-    account = command_args.accountName
-    acctName = generateConfigAccountName(account)
-    sshKeyName = config.get_option(acctName, 'ssh_key_name')
-    sshPrivateKey = config.get_option(acctName, 'ssh_private_key')
-    if sshKeyName and sshPrivateKey and os.path.exists(sshPrivateKey):
-        # All the data is available from the specified account
-        return 1
-    if command_args.sshName and sshPrivateKey and os.path.exists(sshPrivateKey):
-        # Key name from command line and private key from config
-        return 1
-    if (
-            sshKeyName and
-            command_args.privateKey and
-            os.path.exists(command_args.privateKey)):
-        # Key name from config private key from command line
-        return 1
-    regions = get_regions(command_args)
-    for region in regions:
-        if not config.has_section(region):
-            msg = 'Could not find region %s in configuration file' % region
-            raise EC2AccountException(msg)
-        sshKeyName = config.get_option(region, 'ssh_key_name')
-        sshPrivateKey = config.get_option(region, 'ssh_private_key')
-        if sshKeyName and sshPrivateKey and os.path.exists(sshPrivateKey):
-            # All the data is available from the specified account
-            return 1
-        if command_args.sshName and sshPrivateKey and os.path.exists(sshPrivateKey):
-            # Key name from command line and private key from config
-            return 1
-        if (
-                sshKeyName and
-                command_args.privateKey and
-                os.path.exists(command_args.privateKey)):
-            # Key name from config private key from command line
-            return 1
-
-
-# -----------------------------------------------------------------------------
 def generate_config_account_name(account):
     """Generate the name of an account as it expected in the configuration"""
     return 'account-%s' % account
@@ -174,7 +127,7 @@ def get_regions(command_args):
 
 
 # -----------------------------------------------------------------------------
-def _basic_ccount_check(command_args):
+def _basic_account_check(command_args):
     """Basic check for account presense."""
     account = command_args.accountName
     if not account:
