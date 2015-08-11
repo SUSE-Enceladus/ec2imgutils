@@ -17,7 +17,6 @@
 
 import boto
 import boto.ec2
-import ConfigParser
 import datetime
 import dateutil.relativedelta
 import re

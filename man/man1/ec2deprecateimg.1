@@ -29,13 +29,14 @@ cannot match the replacement image.
 .IP "-a --account ACCOUNT_NAME"
 Specifies the account to use to connect to EC2. The account is specified
 in the config file
-.I ~/.ec2utils.conf.
+.IR ~/.ec2utils.conf.
 The account is specified as a section with [account-ACCOUNT_NAME] delimiter.
-The options of the sections are
-.I access_key_id
-.I secret_access_key
+The options of the sections are:
+.IR access_key_id
+.IR secret_access_key
 .I ssh_key_name
-.I ssh_private_key
+and
+.IR ssh_private_key .
 this allows the program to connect to EC2.
 .IP "--access-id AWS_ACCESS_KEY"
 Specifies the AWS access key and overrides the value given for the
@@ -62,47 +63,44 @@ The program will not perform any action. It will provide information on
 about the actions it would perform.
 .IP "-f --file CONFIG_FILE"
 Specifies the configuration file to use. The default is
-.I ~/.ec2utils.conf
+.IR ~/.ec2utils.conf .
 .IP "--image-id AMI_ID"
 Specify the AMI ID of the image to be marked as deprecated. This option is
 mutually exclusive with the
-.I --image-name,
-.I --image-name-frag,
+.IR --image-name ,
+.IR --image-name-frag ,
 and
-.I --image-name-match
+.IR --image-name-match .
 .IP "--image-name IMAGE_NAME"
 Specify the name of the image to be deprecated. The program will look for
-an exact match of the name. This option is mutually exclusive with the
-.I --image-id,
-.I --image-name-frag,
+an exact match of the name. This option is mutually exclusive with
+.IR --image-id ,
+.IR --image-name-frag ,
 and
-.I --image-name-match
-options.
+.IR --image-name-match .
 .IP "--image-name-frag IMAGE_NAME_FRAGMENT"
 Specify a section of an image name for the image(s) to be deprecated. Every
 image that matches the name fragment will be marked as deprecated. This
-option is mutually exclusive with the
-.I --image-id,
-.I --image-name-name,
+option is mutually exclusive with
+.IR --image-id ,
+.IR --image-name-name ,
 and
-.I --image-name-match
-options.
+.IR --image-name-match .
 .IP "--image-name-match REGEX"
 Specify a regular expression to match an image name. Every image matching the
 regular expression will be deprecated. This option is mutually
-exclusive with the
-.I --image-id,
-.I --image-name-name,
+exclusive with
+.IR --image-id ,
+.IR --image-name-name ,
 and
-.I --image-name-frag
-options.
+.IR --image-name-frag .
 .IP "--image-virt-type hvm|para"
 Specify the virtualization type of the image to be deprecated. This option
 works in addition to
-.I --image-id,
-.I --image-name,
-.I --image-name-frag,
-.I --image-name-match.
+.IR --image-id ,
+.IR --image-name ,
+.IR --image-name-frag ,
+.IR --image-name-match .
 Every specified condition must be satisfied in order to deprecate the image.
 .IP "--public-only"
 Consider only images that are public as a replacement or for deprecation
@@ -110,22 +108,22 @@ purposes.
 .IP "--replacement-id AMI_ID"
 Specify the AMI ID of the image considered to be the replacement for the
 image(s) that are being deprecated. The option is mutually exclusive
-with the
-.I --replacement-name,
-.I --replacement-name-frag,
+with
+.IR --replacement-name ,
+.IR --replacement-name-frag ,
 and 
-.I --replacement-name-match
-options. The AMI ID and the dynamically determined image name are used in
+.IR --replacement-name-match .
+The AMI ID and the dynamically determined image name are used in
 combination to form the value for the
 .I Replacement image
 tag in the form
 .I AMI_ID -- IMAGE_NAME.
 One of
-.I --replacement-id,
-.I --replacement-name,
-.I --replacement-name-frag,
+.IR --replacement-id ,
+.IR --replacement-name ,
+.IR --replacement-name-frag ,
 or
-.I --replacement-name-match,
+.IR --replacement-name-match ,
 must be specified.
 .IP "--replacement-name IMAGE_NAME"
 Specify the name of the image considered to be the replacement for the
@@ -138,50 +136,49 @@ combination to form the value for the
 tag in the form
 .I AMI_ID -- IMAGE_NAME.
 One of
-.I --replacement-id,
-.I --replacement-name,
-.I --replacement-name-frag,
+.IR --replacement-id ,
+.IR --replacement-name ,
+.IR --replacement-name-frag ,
 or
-.I --replacement-name-match,
+.IR --replacement-name-match ,
 must be specified.
 .IP "--replacement-name-frag IMAGE_NAME_FRAGMENT"
 Specify a section of an image name to be considered for the replacement
-image. This option is mutually
-exclusive with the
-.I --replacement-id,
-.I --replacement-name,
+image. This option is mutually exclusive with
+.IR --replacement-id ,
+.IR --replacement-name ,
 and 
-.I --replacement-name-match
-options. The dynamically determined AMI ID and the dynamically determined
+.IR --replacement-name-match .
+The dynamically determined AMI ID and the dynamically determined
 image name are used in combination to form the value for the
 .I Replacement image
 tag in the form
 .I AMI_ID -- IMAGE_NAME.
 One of
-.I --replacement-id,
-.I --replacement-name,
-.I --replacement-name-frag,
+.IR --replacement-id ,
+.IR --replacement-name ,
+.IR --replacement-name-frag ,
 or
-.I --replacement-name-match,
+.IR --replacement-name-match ,
 must be specified.
 .IP "--replacement-name-match REGEX"
 Specify a regular expression to match an image name to be considered for
-the replacement image. This option is mutually exclusive with the
-.I --replacement-id,
-.I --replacement-name,
+the replacement image. This option is mutually exclusive with
+.IR --replacement-id ,
+.IR --replacement-name ,
 and
-.I --replacement-name-frag
+.IR --replacement-name-frag .
  The dynamically determined AMI ID and the dynamically determined image name
 are used in combination to form the value for the
 .I Replacement image
 tag in the form
 .I AMI_ID -- IMAGE_NAME.
 One of
-.I --replacement-id,
-.I --replacement-name,
-.I --replacement-name-frag,
+.IR --replacement-id ,
+.IR --replacement-name ,
+.IR --replacement-name-frag ,
 or
-.I --replacement-name-match,
+.IR --replacement-name-match ,
 must be specified.
 .IP "-r --regions EC2_REGIONS"
 A comma separated list of Amazon EC2 regions, or a single region. If no
@@ -191,7 +188,7 @@ EC2 disconnected regions have different API keys and thus the specified
 would not work with the disconnected regions. If a disconnected region is to
 be processed specify the region explicitly on the command line, and only the
 region of interest along with the matching
-.I account.
+.IR account .
 .IP "-s --secret-key AWS_SECRET_KEY"
 Specifies the AWS secret access key and overrides the value given for the
 .I account
