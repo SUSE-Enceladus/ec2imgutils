@@ -18,7 +18,7 @@
 
 %define upstream_name ec2utilsbase
 Name:           python-ec2utilsbase
-Version:        0.2.1
+Version:        0.3.0
 Release:        0
 Summary:        Tag image as deprected in EC2
 License:        GPL-3.0+
