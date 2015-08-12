@@ -18,5 +18,9 @@ tar:
 	tar -cjf "$(NAME)-$(verSrc).tar.bz2" "$(NAME)-$(verSrc)"
 	rm -rf "$(NAME)-$(verSrc)"
 
+test:
+	find . -name "*.py" | xargs pep8
+	nosetests tests/ec2utilsutilstest.py
+
 install:
 	python setup.py install --prefix="$(PREFIX)" --root="$(DESTDIR)"

@@ -9,12 +9,12 @@
 # it under the terms of the GNU General Public License as published by
 # the Free Software Foundation, either version 3 of the License, or
 # (at your option) any later version.
-# 
+#
 # ec2utilsbase is distributed in the hope that it will be useful,
 # but WITHOUT ANY WARRANTY; without even the implied warranty of
 # MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 # GNU General Public License for more details.
-# 
+#
 # You should have received a copy of the GNU General Public License
 # along with ec2utilsbase. If not, see <http://www.gnu.org/licenses/>.
 
@@ -37,7 +37,7 @@ if __name__ == '__main__':
         author_email='rjschwei@suse.com',
         version=version,
         packages=setuptools.find_packages('lib'),
-        package_data={'ec2utils'  : ['base_VERSION']},
+        package_data={'ec2utils': ['base_VERSION']},
         package_dir={
             '': 'lib',
         },
