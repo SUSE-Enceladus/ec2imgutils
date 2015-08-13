@@ -3,11 +3,10 @@ PREFIX=/usr
 NAME=ec2imgutils
 MANPATH=/usr/share/man
 dirs = lib man
-files = Makefile README.md LICENSE ec2deprecateimg ec2publish setup.py
+files = Makefile README.md LICENSE ec2deprecateimg ec2publishimg setup.py
 
 verSpec = $(shell rpm -q --specfile --qf '%{VERSION}' *.spec)
 verSrc = $(shell cat lib/ec2utils/VERSION)
-
 
 clean:
 	@find . -name "*.pyc" | xargs rm -f 

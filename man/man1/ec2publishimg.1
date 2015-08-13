@@ -38,14 +38,14 @@ Specifies the configuration file to use. The default is
 .IR ~/.ec2utils.conf .
 .IP "--image-id AMI_ID"
 Specify the AMI ID of the image to be marked as deprecated. This option is
-mutually exclusive with the
+mutually exclusive with
 .IR --image-name ,
 .IR --image-name-frag ,
 and
 .IR --image-name-match .
 .IP "--image-name IMAGE_NAME"
 Specify the name of the image to be deprecated. The program will look for
-an exact match of the name. This option is mutually exclusive with the
+an exact match of the name. This option is mutually exclusive with
 .IR --image-id ,
 .IR --image-name-frag ,
 and
@@ -91,7 +91,15 @@ keyword
 to set the image to public, the keyword
 .I none
 to set the image private, or expects an AWS account number to share the image
-with a specific account.
+with a specific account. Use a comma separated list with no white space to
+specify multiple account numbers. By default the selected image will be
+published, i.e.
+.I all
+is the default value.
+.IP "--verbose"
+Print extra output about the operations performed to STDOUT.
+.IP "--version"
+Print the version of he program
 .SH EXAMPLE
 ec2deprecateimg --account example --image-name-match production-v2 --share-with all
 

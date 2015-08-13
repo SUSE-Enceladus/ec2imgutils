@@ -1,0 +1,225 @@
+#!/usr/bin/python
+
+# Copyright 2015 SUSE LLC, Robert Schweikert
+#
+# This file is part of ec2publishimg.
+#
+# ec2publishimg is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+#
+# ec2publishimg is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with ec2publishimg. If not, see <http://www.gnu.org/licenses/>.
+
+import boto
+import boto.ec2
+import argparse
+import os
+import re
+import sys
+
+import ec2utils.ec2utilsutils as utils
+import ec2utils.ec2publishimg as ec2pubimg
+from ec2utils.ec2UtilsExceptions import *
+
+
+# Set up command line argument parsing
+argparse = argparse.ArgumentParser(description='Publish (share) images in EC2')
+argparse.add_argument(
+    '-a', '--account',
+    dest='accountName',
+    help='Account to use',
+    metavar='ACCOUNT_NAME',
+)
+argparse.add_argument(
+    '--access-id',
+    dest='accessKey',
+    help='AWS access key (Optional)',
+    metavar='AWS_ACCESS_KEY'
+)
+help_msg = 'Do not perform any action, print information about actions that '
+help_msg += 'would be performed instared (Optional)'
+argparse.add_argument(
+    '-n', '--dry-run',
+    action='store_true',
+    default=False,
+    dest='dryRun',
+    help=help_msg
+)
+argparse.add_argument(
+    '-f', '--file',
+    default=os.path.expanduser('~') + os.sep + '.ec2utils.conf',
+    dest='configFilePath',
+    help='Path to configuration file, default ~/.ec2utils.conf (Optional)',
+    metavar='CONFIG_FILE'
+)
+# Note, one of the arguments in the group is required if --version is
+# not specified. However setting this behavior through the parser
+# also requiers one argument to be specified even if --version is specified
+# This parser behavior is true even if --version and the group are part of the
+# same subgroup
+publish_image_condition_group = argparse.add_mutually_exclusive_group()
+publish_image_condition_group.add_argument(
+    '--image-id',
+    dest='pubImgID',
+    help='The AMI ID of the image to be published (Optional)',
+    metavar='AMI_ID'
+)
+publish_image_condition_group.add_argument(
+    '--image-name',
+    dest='pubImgName',
+    help='The image name of the image to be published (Optional)',
+    metavar='IMAGE_NAME'
+)
+help_msg = 'An image name fragment to match the image name of the image to be '
+help_msg += 'published (Optional)'
+publish_image_condition_group.add_argument(
+    '--image-name-frag',
+    dest='pubImgNameFrag',
+    help=help_msg,
+    metavar='IMAGE_NAME_FRAGMENT'
+)
+help_msg = 'A regular expression to match the image name of the image to be '
+help_msg += 'published (Optional)'
+publish_image_condition_group.add_argument(
+    '--image-name-match',
+    dest='pubImgNameMatch',
+    help=help_msg,
+    metavar='REGEX'
+)
+help_msg = 'Comma separated list of regions for publishing, all integrated '
+help_msg += 'region sif not given (Optional)'
+argparse.add_argument(
+    '-r', '--regions',
+    dest='regions',
+    help=help_msg,
+    metavar='EC2_REGIONS'
+)
+argparse.add_argument(
+    '-s', '--secret-key',
+    dest='secretKey',
+    help='AWS secret access key (Optional)',
+    metavar='AWS_SECRET_KEY'
+)
+argparse.add_argument(
+    '--share-with',
+    default='all',
+    dest='share',
+    help='all, none, or a AWS account number to share the image(s) with',
+    metavar='SHARE'
+)
+argparse.add_argument(
+    '--verbose',
+    action='store_true',
+    default=False,
+    dest='verbose',
+    help='Enable on verbose output'
+)
+argparse.add_argument(
+    '--version',
+    action='store_true',
+    default=False,
+    dest='version',
+    help='Program version'
+)
+
+args = argparse.parse_args()
+
+if args.version:
+    import ec2utils
+    version_file_name = 'publish_VERSION'
+    base_path = os.path.dirname(ec2utils.__file__)
+    version = open(base_path + os.sep + version_file_name, 'r').read()
+    print version
+    sys.exit(0)
+
+# Explicit check required to to the group issue, see comment above
+if (
+        not args.pubImgID
+        and not args.pubImgName
+        and not args.pubImgNameFrag
+        and not args.pubImgNameMatch):
+    error_msg = 'ec2publishimg: error: one of the arguments '
+    error_msg += '--image-id --image-name --image-name-frag '
+    error_msg += '--image-name-match is required'
+    print error_msg
+    sys.exit(1)
+
+
+config_file = args.configFilePath
+config = None
+if not os.path.isfile(config_file):
+    print 'Configuration file "%s" not found.' % config_file
+    sys.exit(1)
+try:
+    config = utils.get_config(config_file)
+except Exception as e:
+    print >> sys.stderr, e.message
+    sys.exit(1)
+
+regions = utils.get_regions(args)
+
+access_key = args.accessKey
+if not access_key:
+    access_key = utils.get_from_config(args.accountName,
+                                       config,
+                                       None,
+                                       'access_key_id')
+if not access_key:
+    print >> sys.stderr, 'Could not determine account access key'
+    sys.exit(1)
+
+secret_key = args.secretKey
+if not secret_key:
+    secret_key = utils.get_from_config(args.accountName,
+                                       config,
+                                       None,
+                                       'secret_access_key')
+if not secret_key:
+    print >> sys.stderr, 'Could not determine account secret access key'
+    sys.exit(1)
+
+visibility = args.share.lower()
+aws_account_no = re.compile('(\d{12},?)*')
+if (
+        visibility != 'all'
+        and visibility != 'none'
+        and not aws_account_no.match(visibility)):
+    msg = 'Expecting "all", "none", or comma separated list of 12 digit AWS '
+    msg += 'account numbers as value of --share'
+    print >> sys.stderr, msg
+    sys.exit(1)
+
+if visibility[-1] == ',':
+    visibility = visibility[:-1]
+
+# Implementh te publisher next, then come back to this
+try:
+    publisher = ec2pubimg.EC2PublishImage(
+        access_key=access_key,
+        image_id=args.pubImgID,
+        image_name=args.pubImgName,
+        image_name_fragment=args.pubImgNameFrag,
+        image_name_match=args.pubImgNameMatch,
+        secret_key=secret_key,
+        verbose=args.verbose,
+        visibility=visibility)
+
+    for region in regions:
+        publisher.set_region(region)
+        if args.dryRun:
+            publisher.print_publish_info()
+        else:
+            publisher.publish_images()
+except EC2PublishImgException, e:
+    print >> sys.stderr, e
+    sys.exit(1)
+except Exception, e:
+    print >> sys.stderr, e
+    sys.exit(1)
