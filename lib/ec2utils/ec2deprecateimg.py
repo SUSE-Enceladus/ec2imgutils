@@ -1,4 +1,4 @@
-# Copyright 2015 SUSE LLC, Robert Schweikert
+# Copyright 2018 SUSE LLC, Robert Schweikert
 #
 # This file is part of ec2deprecateimg.
 #
