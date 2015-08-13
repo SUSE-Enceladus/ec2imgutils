@@ -3,7 +3,11 @@ PREFIX=/usr
 NAME=ec2imgutils
 MANPATH=/usr/share/man
 dirs = lib man
+<<<<<<< HEAD
 files = Makefile README.md LICENSE ec2deprecateimg ec2publishimg setup.py
+=======
+files = Makefile README.md LICENSE ec2publishimg setup.py
+>>>>>>> - ec2utils -- ec2publishimg
 
 verSpec = $(shell rpm -q --specfile --qf '%{VERSION}' *.spec)
 verSrc = $(shell cat lib/ec2utils/VERSION)
