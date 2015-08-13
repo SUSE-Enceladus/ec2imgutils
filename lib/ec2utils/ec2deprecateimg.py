@@ -21,6 +21,7 @@ import datetime
 import dateutil.relativedelta
 import re
 
+import ec2utilsutils as utils
 from .ec2utils import EC2Utils
 from .ec2UtilsExceptions import *
 
@@ -72,30 +73,14 @@ class EC2DeprecateImg(EC2Utils):
     # ---------------------------------------------------------------------
     def _find_images_by_id(self, image_id, filter_replacement_image=None):
         """Find images by ID match"""
-        images = []
         my_images = self._get_all_type_match_images(filter_replacement_image)
-        for image in my_images:
-            if image_id == image.id:
-                images.append(image)
-                # The framework guarantees unique image IDs
-                return images
+        return utils.find_images_by_id(my_images, image_id)
 
     # ---------------------------------------------------------------------
     def _find_images_by_name(self, image_name, filter_replacement_image=None):
         """Find images by exact name match"""
-        images = []
         my_images = self._get_all_type_match_images(filter_replacement_image)
-        for image in my_images:
-            if not image.name:
-                if filter_replacement_image:
-                    msg = 'WARNING: Found image with no name, ignoring for '
-                    msg += 'deprecation search. Image ID: %s' % image.id
-                    print msg
-                continue
-            if image_name == image.name:
-                images.append(image)
-
-        return images
+        return utils.find_images_by_name(my_images, image_name)
 
     # ---------------------------------------------------------------------
     def _find_images_by_name_fragment(
@@ -103,19 +88,8 @@ class EC2DeprecateImg(EC2Utils):
             name_fragment,
             filter_replacement_image=None):
         """Find images by string matching of the fragment with the name"""
-        images = []
         my_images = self._get_all_type_match_images(filter_replacement_image)
-        for image in my_images:
-            if not image.name:
-                if filter_replacement_image:
-                    msg = 'WARNING: Found image with no name, ignoring for '
-                    msg += 'deprecation search. Image ID: %s' % image.id
-                    print msg
-                continue
-            if image.name.find(name_fragment) != -1:
-                images.append(image)
-
-        return images
+        return utils.find_images_by_name_fragment(my_images, name_fragment)
 
     # ---------------------------------------------------------------------
     def _find_images_by_name_regex_match(
@@ -123,24 +97,8 @@ class EC2DeprecateImg(EC2Utils):
             expression,
             filter_replacement_image=None):
         """Find images by match the name with the given regular expression"""
-        images = []
         my_images = self._get_all_type_match_images(filter_replacement_image)
-        try:
-            match = re.compile(expression)
-        except:
-            msg = 'Unable to complie regular expression "%s"' % expression
-            raise EC2DeprecateImgException(msg)
-        for image in my_images:
-            if not image.name:
-                if filter_replacement_image:
-                    msg = 'WARNING: Found image with no name, ignoring for '
-                    msg += 'deprecation search. Image ID: %s' % image.id
-                    print msg
-                continue
-            if match.match(image.name):
-                images.append(image)
-
-        return images
+        return utils.find_images_by_name_regex_match(my_images, expression)
 
     # ---------------------------------------------------------------------
     def _format_date(self, date):
