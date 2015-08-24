@@ -216,7 +216,6 @@ class EC2DeprecateImg(EC2Utils):
             raise EC2DeprecateImgException(msg)
 
         image = images[0]
-        self.replacement_image_id = image.id
         self.replacement_image_tag = '%s -- %s' % (image.id, image.name)
 
     # ---------------------------------------------------------------------
