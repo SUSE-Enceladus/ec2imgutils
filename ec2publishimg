@@ -61,7 +61,7 @@ argparse.add_argument(
 )
 # Note, one of the arguments in the group is required if --version is
 # not specified. However setting this behavior through the parser
-# also requiers one argument to be specified even if --version is specified
+# also requires one argument to be specified even if --version is specified
 # This parser behavior is true even if --version and the group are part of the
 # same subgroup
 publish_image_condition_group = argparse.add_mutually_exclusive_group()
@@ -94,7 +94,7 @@ publish_image_condition_group.add_argument(
     metavar='REGEX'
 )
 help_msg = 'Comma separated list of regions for publishing, all integrated '
-help_msg += 'region sif not given (Optional)'
+help_msg += 'regions if not given (Optional)'
 argparse.add_argument(
     '-r', '--regions',
     dest='regions',
@@ -148,7 +148,7 @@ if (
     error_msg = 'ec2publishimg: error: one of the arguments '
     error_msg += '--image-id --image-name --image-name-frag '
     error_msg += '--image-name-match is required'
-    print error_msg
+    print  >> sys.stderr, error_msg
     sys.exit(1)
 
 
