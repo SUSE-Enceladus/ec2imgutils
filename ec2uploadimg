@@ -249,7 +249,7 @@ if virtualization_type == 'para':
     virtualization_type = 'paravirtual'
 
 if sriov_type and virtualization_type != 'hvm':
-    print >> sys.sdterr, 'SRIOV support is only possible with HVM images'
+    print >> sys.stderr, 'SRIOV support is only possible with HVM images'
     sys.exit(1)
 
 root_volume_size = 10
