@@ -20,7 +20,7 @@
 Name:           python-ec2utilsbase
 Version:        0.3.0
 Release:        0
-Summary:        Tag image as deprected in EC2
+Summary:        Shared EC2 utils functionality
 License:        GPL-3.0+
 Group:          System/Management
 Url:            https://github.com/SUSE/Enceladus
@@ -36,8 +36,7 @@ BuildArch:      noarch
 %endif
 
 %description
-Deprecate images owned by the specified account by adding tags named
-"Deprecated on", "Removal date", and "Replacement image"
+Shared functionality for various ec2utils
 
 %prep
 %setup -q -n %{upstream_name}-%{version}
