@@ -152,7 +152,10 @@ a copy of the complete image disk needs to be made. The code will then skip
 the clean up and a storage volume, a target root volume and a stopped
 instance will remain in the users account.
 .IP "-V --virt-type AWS_VIRT_TYPE"
-Specifies the virtualization type to use for the image to be registered.
+Specifies the virtualization type to use for the image to be registered. Possible values are
+.I para (default)
+or
+.I hvm.
 .SH EXAMPLE
 ec2uploadimg --account example -d "My first image" -m x86_64 -n my_linux_image -r us-east-1 PATH_TO_COMPRESSED_FILE
 
