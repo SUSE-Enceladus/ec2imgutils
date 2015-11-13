@@ -224,6 +224,12 @@ if not os.path.isfile(args.source):
     print 'Could not find specified image file: %s' % args.source
     sys.exit(1)
 
+try:
+    utils.check_account_keys(config, args)
+except Exception as e:
+    print >> sys.stderr, e.message
+    sys.exit(1)
+
 access_key = args.accessKey
 if not access_key:
     access_key = utils.get_from_config(args.accountName,
