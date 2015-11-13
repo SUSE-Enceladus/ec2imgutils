@@ -204,7 +204,7 @@ def _basic_account_check(config, command_args):
     acctName = generate_config_account_name(account)
     if not config.has_section(acctName):
         msg = 'Could not find account %s in configuration file' % acctName
-        raise EC2AccountExceptiong(msg)
+        raise EC2AccountException(msg)
     return 1
 
 
