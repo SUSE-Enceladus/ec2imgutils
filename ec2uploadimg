@@ -232,20 +232,32 @@ except Exception as e:
 
 access_key = args.accessKey
 if not access_key:
-    access_key = utils.get_from_config(args.accountName,
-                                       config,
-                                       None,
-                                       'access_key_id')
+    try:
+        access_key = utils.get_from_config(args.accountName,
+                                           config,
+                                           None,
+                                           'access_key_id',
+                                           '--access-id')
+    except EC2AccountException as e:
+        print >> sys.stderr, e
+        sys.exit(1)
+        
 if not access_key:
     print >> sys.stderr, 'Could not determine account access key'
     sys.exit(1)
 
 secret_key = args.secretKey
 if not secret_key:
-    secret_key = utils.get_from_config(args.accountName,
-                                       config,
-                                       None,
-                                       'secret_access_key')
+    try:
+        secret_key = utils.get_from_config(args.accountName,
+                                           config,
+                                           None,
+                                           'secret_access_key',
+                                           '--secret-key')
+    except EC2AccountException as e:
+        print >> sys.stderr, e
+        sys.exit(1)
+        
 if not secret_key:
     print >> sys.stderr, 'Could not determine account secret access key'
     sys.exit(1)
@@ -265,7 +277,7 @@ if sriov_type and virtualization_type != 'hvm':
 root_volume_size = 10
 if args.rootVolSize:
     root_volume_size = args.rootVolSize
-    
+
 try:
     for region in args.regions.split(','):
         ami_id = args.amiID
@@ -273,7 +285,8 @@ try:
             ami_id = utils.get_from_config(args.accountName,
                                            config,
                                            region,
-                                           'ami')
+                                           'ami',
+                                           '--ec2-ami')
         bootkernel = args.akiID
         if args.virtType == 'hvm':
             bootkernel = None
@@ -283,17 +296,20 @@ try:
                 bootkernel = utils.get_from_config(args.accountName,
                                                    config,
                                                    region,
-                                                   'g2_aki_x86_64')
+                                                   'g2_aki_x86_64',
+                                                   '--boot-kernel')
             elif args.arch == 'x86_64':
                 bootkernel = utils.get_from_config(args.accountName,
                                                    config,
                                                    region,
-                                                   'aki_x86_64')
+                                                   'aki_x86_64',
+                                                   '--boot-kernel')
             elif args.arch == 'i386':
                 bootkernel = utils.get_from_config(args.accountName,
                                                    config,
                                                    region,
-                                                   'aki_i386')
+                                                   'aki_i386',
+                                                   '--boot-kernel')
             else:
                 print >> sys.stderr, 'Could not reliable determine the ',
                 print >> sys.stderr, 'bootkernel to use '
@@ -306,14 +322,16 @@ try:
             inst_type = utils.get_from_config(args.accountName,
                                               config,
                                               region,
-                                              'instance_type')
+                                              'instance_type',
+                                              '--type')
 
         key_pair_name = args.sshName
         if not key_pair_name:
             key_pair_name = utils.get_from_config(args.accountName,
                                                   config,
                                                   region,
-                                                  'ssh_key_name')
+                                                  'ssh_key_name',
+                                                  '--ssh-key-pair')
         if not key_pair_name:
             print >> sys.stderr, 'Could not determine key pair name'
             sys.exit(1)
@@ -323,7 +341,8 @@ try:
             ssh_private_key_file = utils.get_from_config(args.accountName,
                                                          config,
                                                          region,
-                                                         'ssh_private_key')
+                                                         'ssh_private_key',
+                                                         '--private-key-file')
         if not ssh_private_key_file:
             print >> sys.stderr, 'Could not determine the private ssh key file'
             sys.exit(1)
@@ -336,7 +355,8 @@ try:
             ssh_user = utils.get_from_config(args.accountName,
                                              config,
                                              region,
-                                             'user')
+                                             'user',
+                                             '--user')
         if not ssh_user:
             print >> sys.stderr, 'Could not determin ssh user to use'
             sys.exit(1)
