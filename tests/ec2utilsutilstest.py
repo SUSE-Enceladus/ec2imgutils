@@ -213,7 +213,8 @@ def test_get_from_config_from_account():
         'tester',
         config,
         None,
-        'access_key_id')
+        'access_key_id',
+        '--access-id')
     assert_equals(expected, access_key_id)
 
 
@@ -227,7 +228,8 @@ def test_get_from_config_region_override():
         'tester',
         config,
         'us-east-1',
-        'ssh_key_name')
+        'ssh_key_name',
+        '--ssh-key-pair')
     assert_equals(expected, ssh_key_name)
 
 
@@ -240,7 +242,8 @@ def test_get_from_config_invalid_account_name():
         'foo',
         config,
         None,
-        'ssh_key_name')
+        'ssh_key_name',
+        '--ssh-key-pair')
 
 
 @raises(EC2AccountException)
@@ -252,7 +255,8 @@ def test_get_from_config_invalid_account_name():
         None,
         config,
         None,
-        'ssh_key_name')
+        'ssh_key_name',
+        '--ssh-key-pair')
 
 
 def test_get_regions_from_cmd():
