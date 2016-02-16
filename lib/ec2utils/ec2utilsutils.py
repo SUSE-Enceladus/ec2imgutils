@@ -150,7 +150,7 @@ def get_config(configFilePath):
 
 
 # -----------------------------------------------------------------------------
-def get_from_config(account, config, region, entry):
+def get_from_config(account, config, region, entry, cmd_line_arg):
     """Retrieve anentry from the configuration"""
     value = None
     if region:
@@ -161,8 +161,8 @@ def get_from_config(account, config, region, entry):
 
     if not value:
         if not account:
-            msg = 'No account give missing value %s on command line'
-            raise EC2AccountException(msg)
+            msg = 'No account given; missing command line argument %s'
+            raise EC2AccountException(msg % cmd_line_arg)
 
         account_name = generate_config_account_name(account)
         try:
