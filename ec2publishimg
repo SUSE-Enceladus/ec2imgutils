@@ -211,9 +211,7 @@ if (
 if visibility[-1] == ',':
     visibility = visibility[:-1]
 
-# Implementh te publisher next, then come back to this
-try:
-    publisher = ec2pubimg.EC2PublishImage(
+publisher = ec2pubimg.EC2PublishImage(
         access_key=access_key,
         image_id=args.pubImgID,
         image_name=args.pubImgName,
@@ -223,6 +221,9 @@ try:
         verbose=args.verbose,
         visibility=visibility)
 
+if args.dryRun:
+    print 'Dry run, image attributes will not be modified'
+try:
     for region in regions:
         publisher.set_region(region)
         if args.dryRun:
