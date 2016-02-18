@@ -151,7 +151,7 @@ def get_config(configFilePath):
 
 # -----------------------------------------------------------------------------
 def get_from_config(account, config, region, entry, cmd_line_arg):
-    """Retrieve anentry from the configuration"""
+    """Retrieve an entry from the configuration"""
     value = None
     if region:
         region_name = generate_config_region_name(region)
