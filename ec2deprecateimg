@@ -297,6 +297,7 @@ for region in regions:
     deprecator.set_region(region)
     try:
         if args.dryRun:
+            print 'Dry run, image attributes will not be modified'
             deprecator.print_deprecation_info()
         else:
             deprecator.deprecate_images()
