@@ -11,7 +11,17 @@ ifneq "$(verSpec)" "$(verSrc)"
 $(error "Version mismatch, will not take any action")
 endif
 
-tar:
+clean:
+	@find . -name "*.pyc" | xargs rm -f 
+	@find . -name "__pycache__" | xargs rm -rf
+	@find . -name "*.cache" | xargs rm -rf
+	@find . -name "*.egg-info" | xargs rm -rf
+
+pep8: clean
+	@pep8 -v --statistics lib/ec2utils/*
+	@pep8 -v --statistics --ignore=E402 tests/*.py
+
+tar: clean
 	rm -rf $(NAME)-$(verSrc)
 	mkdir $(NAME)-$(verSrc)
 	cp -r $(dirs) $(files) "$(NAME)-$(verSrc)"
@@ -19,8 +29,7 @@ tar:
 	rm -rf "$(NAME)-$(verSrc)"
 
 test:
-	find . -name "*.py" | xargs pep8
-	nosetests tests/ec2utilsutilstest.py
+	py.test tests/ec2utilsutilstest.py
 
 install:
 	python setup.py install --prefix="$(PREFIX)" --root="$(DESTDIR)"
