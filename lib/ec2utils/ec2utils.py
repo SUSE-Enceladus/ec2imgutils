@@ -15,8 +15,7 @@
 # You should have received a copy of the GNU General Public License
 # along with ec2utilsbase.  If not, see <http://www.gnu.org/licenses/>.
 
-import boto
-import boto.ec2
+import boto3
 import ConfigParser
 import os
 
@@ -39,10 +38,11 @@ class EC2Utils:
             return True
 
         if self.region:
-            self.ec2 = boto.ec2.connect_to_region(
-                self.region,
+            self.ec2 = boto3.client(
                 aws_access_key_id=self.access_key,
-                aws_secret_access_key=self.secret_key
+                aws_secret_access_key=self.secret_key,
+                region_name=self.region,
+                service_name='ec2'
             )
         else:
             self.region = 'UNKNOWN'
@@ -60,7 +60,7 @@ class EC2Utils:
     def _disconnect_from_ec2(self):
         """Disconnect from EC2"""
         if self.ec2:
-            self.ec2.close()
+            del self.ec2
             self.ec2 = None
 
     # ---------------------------------------------------------------------

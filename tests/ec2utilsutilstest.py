@@ -99,23 +99,15 @@ def test_check_account_keys_no_keys():
 
 def test_find_images_by_id_find_one():
     """Test find_images_by_id finds an image"""
-    images = []
-    for cnt in range(2):
-        image = Turncoat()
-        image.id = cnt
-        images.append(image)
+    images = _get_test_images()
     found_images = utils.find_images_by_id(images, 1)
     assert_equals(1, len(found_images))
-    assert_equals(1, found_images[0].id)
+    assert_equals(1, found_images[0]['ImageId'])
 
 
 def test_find_images_by_id_find_none():
     """Test find_images_by_id finds nothing and does not error"""
-    images = []
-    for cnt in range(2):
-        image = Turncoat()
-        image.id = cnt
-        images.append(image)
+    images = _get_test_images()
     found_images = utils.find_images_by_id(images, 5)
     assert_equals(0, len(found_images))
 
@@ -123,12 +115,12 @@ def test_find_images_by_id_find_none():
 def test_find_images_by_name_find_some():
     """Test find_images_by_name finds images"""
     images = _get_test_images()
-    image = Turncoat()
-    image.name = 'testimage-1'
+    image = {}
+    image['Name'] = 'testimage-1'
     images.append(image)
     found_images = utils.find_images_by_name(images, 'testimage-1')
     assert_equals(2, len(found_images))
-    assert_equals('testimage-1', found_images[1].name)
+    assert_equals('testimage-1', found_images[1]['Name'])
 
 
 def test_find_images_by_name_find_none():
@@ -141,14 +133,14 @@ def test_find_images_by_name_find_none():
 def test_find_images_by_name_fragment_find_some():
     """Test find_images_by_name_fragment finds images"""
     images = []
-    image = Turncoat()
-    image.name = 'this-is-different'
+    image = {}
+    image['Name'] = 'this-is-different'
     images.append(image)
-    image = Turncoat()
-    image.name = 'find-this'
+    image = {}
+    image['Name'] = 'find-this'
     images.append(image)
-    image = Turncoat
-    image.name = 'testimg'
+    image = {}
+    image['Name'] = 'testimg'
     images.append(image)
     found_images = utils.find_images_by_name_fragment(images, 'this')
     assert_equals(2, len(found_images))
@@ -264,7 +256,7 @@ def test_get_regions_from_cmd():
     command_args = Turncoat()
     command_args.regions = 'milk,cookies,chocolate'
     expected = command_args.regions.split(',')
-    regions = utils.get_regions(command_args)
+    regions = utils.get_regions(command_args, '123', '456')
     assert_equals(expected, regions)
 
 
@@ -274,8 +266,9 @@ def _get_test_images():
     images = []
     base_name = 'testimage-'
     for cnt in range(2):
-        image = Turncoat()
-        image.name = base_name + '%d' % cnt
+        image = {}
+        image['ImageId'] = cnt
+        image['Name'] = base_name + '%d' % cnt
         images.append(image)
 
     return images

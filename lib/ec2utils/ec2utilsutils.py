@@ -15,8 +15,7 @@
 # You should have received a copy of the GNU General Public License
 # along with ec2utilsbase.  If not, see <http://www.gnu.org/licenses/>.
 
-import boto
-import boto.ec2
+import boto3
 import ConfigParser
 import os
 import re
@@ -63,7 +62,7 @@ def find_images_by_id(images, image_id):
        is a list of one as IDs are unique."""
     matching_images = []
     for image in images:
-        if image_id == image.id:
+        if image_id == image['ImageId']:
             matching_images.append(image)
             # The framework guarantees unique image IDs
             break
@@ -76,10 +75,10 @@ def find_images_by_name(images, image_name):
     """Return a list of images that match the given name."""
     matching_images = []
     for image in images:
-        if not image.name:
+        if not image['Name']:
             print _no_name_warning(image)
             continue
-        if image_name == image.name:
+        if image_name == image['Name']:
             matching_images.append(image)
 
     return matching_images
@@ -91,10 +90,10 @@ def find_images_by_name_fragment(images, image_name_fragment):
        of the image name."""
     matching_images = []
     for image in images:
-        if not image.name:
+        if not image['Name']:
             print _no_name_warning(image)
             continue
-        if image.name.find(image_name_fragment) != -1:
+        if image['Name'].find(image_name_fragment) != -1:
             matching_images.append(image)
 
     return matching_images
@@ -107,10 +106,10 @@ def find_images_by_name_regex_match(images, image_name_regex):
     matching_images = []
     image_name_exp = re.compile(image_name_regex)
     for image in images:
-        if not image.name:
+        if not image['Name']:
             print _no_name_warning(image)
             continue
-        if image_name_exp.match(image.name):
+        if image_name_exp.match(image['Name']):
             matching_images.append(image)
 
     return matching_images
@@ -175,7 +174,7 @@ def get_from_config(account, config, region, entry, cmd_line_arg):
 
 
 # -----------------------------------------------------------------------------
-def get_regions(command_args):
+def get_regions(command_args, access_key, secret_key):
     """Return a list of connected regions if no regions are specified
        on the command line"""
     regions = None
@@ -183,13 +182,18 @@ def get_regions(command_args):
         regions = command_args.regions.split(',')
     else:
         regions = []
-        regs = boto.ec2.regions()
+        regs = boto3.client(
+                    aws_access_key_id=access_key,
+                    aws_secret_access_key=secret_key,
+                    region_name='us-east-1',
+                    service_name='ec2').describe_regions()['Regions']
         for reg in regs:
-            if reg.name in ['us-gov-west-1', 'cn-north-1']:
+            region_name = reg['RegionName']
+            if region_name in ['us-gov-west-1', 'cn-north-1']:
                 if command_args.verbose:
                     print 'Not processing disconnected region: %s' % reg.name
                 continue
-            regions.append(reg.name)
+            regions.append(region_name)
     return regions
 
 
