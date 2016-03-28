@@ -17,8 +17,7 @@
 # You should have received a copy of the GNU General Public License
 # along with ec2deprecateimg. If not, see <http://www.gnu.org/licenses/>.
 
-import boto
-import boto.ec2
+import boto3
 import argparse
 import os
 import sys
@@ -205,10 +204,10 @@ if args.version:
 
 # Explicit check required to to the group issue, see comment above
 if (
-        not args.depImgID
-        and not args.depImgName
-        and not args.depImgNameFrag
-        and not args.depImgNameMatch):
+        not args.depImgID and not
+        args.depImgName and not
+        args.depImgNameFrag and not
+        args.depImgNameMatch):
     error_msg = 'ec2deprecateimg: error: one of the arguments '
     error_msg += '--image-id --image-name --image-name-frag '
     error_msg += '--image-name-match is required'
@@ -217,10 +216,10 @@ if (
 
 # Explicit check required to to the group issue, see comment above
 if (
-        not args.replImgID
-        and not args.replImgName
-        and not args.replImgNameFrag
-        and not args.replImgNameMatch):
+        not args.replImgID and not
+        args.replImgName and not
+        args.replImgNameFrag and not
+        args.replImgNameMatch):
     error_msg = 'ec2deprecateimg: error: one of the arguments '
     error_msg += '--replacement-id --replacement-name '
     error_msg += '--replacement-name-frag --replacement-name-match is required'
@@ -238,8 +237,6 @@ try:
 except Exception as e:
     print >> sys.stderr, e.message
     sys.exit(1)
-
-regions = utils.get_regions(args)
 
 access_key = args.accessKey
 if not access_key:
@@ -272,6 +269,8 @@ if not secret_key:
 if not secret_key:
     print >> sys.stderr, 'Could not determine account secret access key'
     sys.exit(1)
+
+regions = utils.get_regions(args, access_key, secret_key)
 
 # Collect all the errors to be displayed later
 errors = {}
@@ -307,14 +306,12 @@ for region in regions:
         if errors:
             print >> sys.stderr, 'Collected errors:'
             for region, error in errors.items():
-                print  >> sys.stderr, 'Region: %s -> %s' % (region, error)
+                print >> sys.stderr, 'Region: %s -> %s' % (region, error)
         print >> sys.stderr, e
         sys.exit(1)
 
 if errors:
     print >> sys.stderr, 'Errors encountered:'
     for region, error in errors.items():
-        print  >> sys.stderr, 'Region: %s -> %s' % (region, error)
+        print >> sys.stderr, 'Region: %s -> %s' % (region, error)
     sys.exit(1)
-
-        
