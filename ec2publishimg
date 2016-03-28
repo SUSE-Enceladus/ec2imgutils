@@ -17,8 +17,7 @@
 # You should have received a copy of the GNU General Public License
 # along with ec2publishimg. If not, see <http://www.gnu.org/licenses/>.
 
-import boto
-import boto.ec2
+import boto3
 import argparse
 import os
 import re
@@ -141,14 +140,14 @@ if args.version:
 
 # Explicit check required to to the group issue, see comment above
 if (
-        not args.pubImgID
-        and not args.pubImgName
-        and not args.pubImgNameFrag
-        and not args.pubImgNameMatch):
+        not args.pubImgID and not
+        args.pubImgName and not
+        args.pubImgNameFrag and not
+        args.pubImgNameMatch):
     error_msg = 'ec2publishimg: error: one of the arguments '
     error_msg += '--image-id --image-name --image-name-frag '
     error_msg += '--image-name-match is required'
-    print  >> sys.stderr, error_msg
+    print >> sys.stderr, error_msg
     sys.exit(1)
 
 
@@ -163,8 +162,6 @@ except Exception as e:
     print >> sys.stderr, e.message
     sys.exit(1)
 
-regions = utils.get_regions(args)
-
 access_key = args.accessKey
 if not access_key:
     try:
@@ -176,7 +173,7 @@ if not access_key:
     except EC2AccountException as e:
         print >> sys.stderr, e
         sys.exit(1)
-        
+
 if not access_key:
     print >> sys.stderr, 'Could not determine account access key'
     sys.exit(1)
@@ -197,12 +194,14 @@ if not secret_key:
     print >> sys.stderr, 'Could not determine account secret access key'
     sys.exit(1)
 
+regions = utils.get_regions(args, access_key, secret_key)
+
 visibility = args.share.lower()
 aws_account_no = re.compile('(\d{12},?)*')
 if (
-        visibility != 'all'
-        and visibility != 'none'
-        and not aws_account_no.match(visibility)):
+        visibility != 'all' and
+        visibility != 'none' and not
+        aws_account_no.match(visibility)):
     msg = 'Expecting "all", "none", or comma separated list of 12 digit AWS '
     msg += 'account numbers as value of --share'
     print >> sys.stderr, msg

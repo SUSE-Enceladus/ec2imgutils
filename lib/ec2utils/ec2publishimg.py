@@ -15,8 +15,7 @@
 # You should have received a copy of the GNU General Public License
 # along with ec2publishimg. If not, see <http://www.gnu.org/licenses/>.
 
-import boto
-import boto.ec2
+import boto3
 import re
 
 import ec2utilsutils as utils
@@ -60,7 +59,7 @@ class EC2PublishImage(EC2Utils):
     def _get_images(self):
         """Return a list of images that match the filter criteria"""
         self._connect()
-        owned_images = self.ec2.get_all_images(owners='self')
+        owned_images = self.ec2.describe_images(Owners=['self'])['Images']
         if self.image_id:
             return utils.find_images_by_id(owned_images, self.image_id)
         elif self.image_name:
@@ -83,9 +82,13 @@ class EC2PublishImage(EC2Utils):
     def _print_image_info(self, image):
         """Print a message about the image that would be modified"""
         if self.visibility == 'all' or self.visibility == 'none':
-            print self.publish_msg % (image.id, image.name)
+            print self.publish_msg % (image['ImageId'], image['Name'])
         else:
-            print self.publish_msg % (image.id, image.name, self.visibility)
+            print self.publish_msg % (
+                        image['ImageId'],
+                        image['Name'],
+                        self.visibility
+            )
 
     # --------------------------------------------------------------------
     def print_publish_info(self):
@@ -99,32 +102,31 @@ class EC2PublishImage(EC2Utils):
         """Publish the matching image(s)"""
         images = self._get_images()
 
-        if self.visibility == 'all':
-            groups = ['all']
-            operation = 'add'
-            user_ids = None
-        elif self.visibility == 'none':
-            groups = None
-            operation = 'remove'
-            user_ids = None
-        else:
-            groups = None
-            operation = 'add'
-            user_ids = self.visibility.split(',')
-
         for image in images:
-            if self.visibility == 'none':
-                launch_attributes = self.ec2.get_image_attribute(
-                    image.id,
-                    attribute='launchPermission')
-                user_ids = launch_attributes.attrs.get('user_ids')
-                groups = launch_attributes.attrs.get('groups')
-
-            self.ec2.modify_image_attribute(
-                image.id,
-                attribute='launchPermission',
-                operation=operation,
-                user_ids=user_ids,
-                groups=groups)
+            if self.visibility == 'all':
+                self.ec2.modify_image_attribute(
+                    ImageId=image['ImageId'],
+                    Attribute='launchPermission',
+                    OperationType='add',
+                    UserGroups=['all']
+                )
+            elif self.visibility == 'none':
+                launch_attributes = self.ec2.describe_image_attribute(
+                    ImageId=image['ImageId'],
+                    Attribute='launchPermission')['LaunchPermissions']
+                launch_permission = {
+                    'Remove': launch_attributes
+                }
+                self.ec2.modify_image_attribute(
+                    ImageId=image['ImageId'],
+                    LaunchPermission=launch_permission
+                )
+            else:
+                self.ec2.modify_image_attribute(
+                    ImageId=image['ImageId'],
+                    Attribute='launchPermission',
+                    OperationType='add',
+                    UserIds=self.visibility.split(',')
+                )
             if self.verbose:
                 self._print_image_info(image)
