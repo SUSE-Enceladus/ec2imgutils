@@ -63,6 +63,14 @@ class EC2Utils:
             del self.ec2
             self.ec2 = None
 
+
+    # ---------------------------------------------------------------------
+    def _get_owned_images(self):
+        """Return the list of images owned by the account used for
+           uploading"""
+        return self.ec2.describe_images(Owners=['self'])['Images']
+
+    
     # ---------------------------------------------------------------------
     def _set_access_keys():
         """Set the access keys for the connection"""
