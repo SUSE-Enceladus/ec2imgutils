@@ -128,9 +128,9 @@ an AMI.
 .IP "--sriov-support"
 Enable SRIOV support for HVM images. This implies that the appropriate
 driver has to be included in the image.
-.IP "-T --timeout WAIT_TIME"
-Specifies the amount of tie to wait in seconds for operations in Amazon EC2
-to complete before aborting the attempt to upload the image.
+.IP "--ssh-timeout SSH_TIME_OUT"
+Specifies the amount of time to wait in seconds to establish an SSH connection
+with the helper instance.
 .IP "-t --type AWS_UPLOAD_INST_TYPE"
 Specifies the instance type to launch for the instance being used to upload
 the image. This value overrides the value given with the
@@ -152,10 +152,14 @@ a copy of the complete image disk needs to be made. The code will then skip
 the clean up and a storage volume, a target root volume and a stopped
 instance will remain in the users account.
 .IP "-V --virt-type AWS_VIRT_TYPE"
-Specifies the virtualization type to use for the image to be registered. Possible values are
+Specifies the virtualization type to use for the image to be registered.
+Possible values are
 .I para (default)
 or
 .I hvm.
+.IP "--wait-count AWS_WAIT_COUNT"
+Specifies the number of times to wait for the AWS operation timout. The
+default value is 1 which is equivalent to 600 seconds.
 .SH EXAMPLE
 ec2uploadimg --account example -d "My first image" -m x86_64 -n my_linux_image -r us-east-1 PATH_TO_COMPRESSED_FILE
 

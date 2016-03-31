@@ -15,11 +15,11 @@
 # You should have received a copy of the GNU General Public License
 # along with ec2uploadimg. If not, see <http://www.gnu.org/licenses/>.
 
-import boto
-import boto.ec2
+import boto3
 import os
 import paramiko
 import sys
+import threading
 import time
 
 
@@ -38,18 +38,19 @@ class EC2ImageUploader(EC2Utils):
                  image_arch='x86_64',
                  image_description='AWS EC2 AMI',
                  image_name='default',
-                 image_virt_type='para',
+                 image_virt_type='hvm',
                  inst_user_name=None,
                  launch_ami=None,
                  launch_inst_type='m1.small',
-                 operation_timeout=300,
                  root_volume_size=10,
                  secret_key=None,
                  sriov_type=None,
                  ssh_key_pair_name=None,
                  ssh_key_private_key_file=None,
+                 ssh_timeout=300,
                  use_grub2=False,
-                 verbose=None):
+                 verbose=None,
+                 wait_count=1):
         EC2Utils.__init__(self)
 
         self.access_key = access_key
@@ -62,20 +63,22 @@ class EC2ImageUploader(EC2Utils):
         self.inst_user_name = inst_user_name
         self.launch_ami = launch_ami
         self.launch_ins_type = launch_inst_type
-        self.operation_timeout = operation_timeout
-        self.root_volume_size=int(root_volume_size)
+        self.root_volume_size = int(root_volume_size)
         self.secret_key = secret_key
         self.sriov_type = sriov_type
         self.ssh_key_pair_name = ssh_key_pair_name
         self.ssh_key_private_key_file = ssh_key_private_key_file
+        self.ssh_timeout = ssh_timeout
         self.use_grub2 = use_grub2
         self.verbose = verbose
+        self.wait_count = wait_count
 
         self.created_volumes = []
         self.default_sleep = 10
         self.device_ids = ['f', 'g', 'h', 'i', 'j']
         self.instance_ids = []
         self.next_device_id = 0
+        self.operation_complete = False
         self.percent_transferred = 0
         self.region = None
         self.ssh_client = None
@@ -86,15 +89,36 @@ class EC2ImageUploader(EC2Utils):
         """Attach the given volume to the given instance"""
         if not device:
             device = self._get_next_disk_id()
-        volume.attach(instance_id=instance.id, device=device)
+        self._connect().attach_volume(
+                VolumeId=volume['VolumeId'],
+                InstanceId=instance['InstanceId'],
+                Device=device)
         if self.verbose:
             print 'Wait for volume attachment'
-        wait_status = self._wait(volume, 'in-use')
-        if not wait_status:
-            print
-            self._clean_up()
-            msg = 'Unable to attach volume'
-            raise EC2UploadImgException(msg)
+        self.operation_complete = False
+        self._show_progress()
+        waiter = self._connect().get_waiter('volume_in_use')
+        repeat_count = 1
+        error_msg = 'Unable to attach volume'
+        while repeat_count <= self.wait_count:
+            try:
+                wait_status = waiter.wait(
+                    VolumeIds=[volume['VolumeId']],
+                    Filters=[
+                        {
+                            'Name': 'attachment.status',
+                            'Values': ['attached']
+                        }
+                    ]
+                )
+            except:
+                wait_status = 1
+            self.progress_timer.cancel()
+            repeat_count = self._check_wait_status(
+                wait_status,
+                error_msg,
+                repeat_count
+            )
 
         return device
 
@@ -109,40 +133,62 @@ class EC2ImageUploader(EC2Utils):
     # ---------------------------------------------------------------------
     def _check_image_exists(self):
         """Check if an image with the given name already exists"""
-        my_images = self.ec2.get_all_images(owners='self')
+        my_images = self._get_owned_images()
         for image in my_images:
-            if image.name == self.image_name:
+            if image['Name'] == self.image_name:
                 msg = 'Image with name "%s" already exists' % self.image_name
                 raise EC2UploadImgException(msg)
 
     # ---------------------------------------------------------------------
-    def _clean_up(self, end_connection=True):
+    def _check_wait_status(
+            self,
+            wait_status,
+            error_msg,
+            repeat_count,
+            skip_cleanup=False
+    ):
+        """Check the wait status form the waiter and take appropriate action"""
+        if wait_status:
+            if self.verbose:
+                print
+            if repeat_count == self.wait_count:
+                self.operation_complete = True
+                self.progress_timer.cancel()
+                time.sleep(self.default_sleep)  # Wait for the thread
+                if not skip_cleanup:
+                    self._clean_up()
+                raise EC2UploadImgException(error_msg)
+            repeat_count += 1
+            print 'Entering wait loop number %d of %d' % (
+                repeat_count,
+                self.wait_count
+            )
+            self.operation_complete = False
+            self._show_progress()
+        else:
+            repeat_count = self.wait_count + 1
+            self.operation_complete = True
+            self.progress_timer.cancel()
+            time.sleep(self.default_sleep)  # Wait for the thread
+            if self.verbose:
+                print
+
+        return repeat_count
+
+    # ---------------------------------------------------------------------
+    def _clean_up(self):
         """Clean up the given resources"""
+        if self.ssh_client:
+            self.ssh_client.close()
         if self.instance_ids:
-            self.ec2.terminate_instances(instance_ids=self.instance_ids)
+            self._connect().terminate_instances(InstanceIds=self.instance_ids)
         if self.created_volumes:
             for volume in self.created_volumes:
                 self._detach_volume(volume, True)
                 self._remove_volume(volume)
-        if end_connection:
-            self._disconnect_from_ec2()
 
         self.created_volumes = []
         self.instance_ids = []
-
-    # ---------------------------------------------------------------------
-    def _connect_to_ec2(self):
-        """Connect to EC2"""
-        ec2 = boto.ec2.connect_to_region(region_name=self.region,
-                                         aws_access_key_id=self.access_key,
-                                         aws_secret_access_key=self.secret_key)
-        if not ec2:
-            msg = 'Could not connect to region: %s' % self.region
-            raise EC2UploadImgException(msg)
-
-        self.ec2 = ec2
-
-        return 1
 
     # ---------------------------------------------------------------------
     def _create_block_device_map(self, snapshot):
@@ -155,62 +201,87 @@ class EC2ImageUploader(EC2Utils):
         else:
             backing_store = 'gp2'
 
-        block_device_type = boto.ec2.blockdevicemapping.EBSBlockDeviceType(
-            delete_on_termination=True,
-            snapshot_id=snapshot.id,
-            size=self.root_volume_size,
-            volume_type=backing_store
-        )
-        block_device_map = boto.ec2.blockdevicemapping.BlockDeviceMapping()
-        block_device_map[root_device_name] = block_device_type
+        block_device_map = {
+            'DeviceName': root_device_name,
+            'Ebs': {
+                'SnapshotId': snapshot['SnapshotId'],
+                'VolumeSize': self.root_volume_size,
+                'DeleteOnTermination': True,
+                'VolumeType': backing_store
+            }
+        }
 
-        return block_device_map
+        return [block_device_map]
 
     # ---------------------------------------------------------------------
     def _create_image_root_volume(self, source):
         """Create a root volume from the image"""
-        self._connect_to_ec2()
+        self._connect()
         self._check_image_exists()
         helper_instance = self._launch_helper_instance()
         self.helper_instance = helper_instance
         store_volume = self._create_storge_volume()
         store_device_id = self._attach_volume(helper_instance, store_volume)
         target_root_volume = self._create_target_root_volume()
-        target_root_device_id = self._attach_volume(helper_instance,
-                                             target_root_volume)
+        target_root_device_id = self._attach_volume(
+            helper_instance,
+            target_root_volume
+        )
         self._establish_ssh_connection(helper_instance)
+        if not self._device_exists(store_device_id):
+            store_device_id = self._find_equivalent_device(store_device_id)
         self._format_storage_volume(store_device_id)
         self._create_storage_filesystem(store_device_id)
         mount_point = self._mount_storage_volume(store_device_id)
         self._change_mount_point_permissions(mount_point, '777')
         image_filename = self._upload_image(mount_point, source)
         raw_image_filename = self._unpack_image(mount_point, image_filename)
-        self._dump_root_fs(mount_point, raw_image_filename,
-                           target_root_device_id)
-        self._execute_ssh_command('umount %s' %mount_point)
+        self._dump_root_fs(
+            mount_point,
+            raw_image_filename,
+            target_root_device_id
+        )
+        self._execute_ssh_command('umount %s' % mount_point)
         self._end_ssh_session()
         self._detach_volume(target_root_volume)
         self._detach_volume(store_volume)
 
         return target_root_volume
-    
+
     # ---------------------------------------------------------------------
     def _create_snapshot(self, volume):
         """Create a snapshot from a volume"""
-        snapshot = volume.create_snapshot(description=self.image_description)
+        snapshot = self._connect().create_snapshot(
+            VolumeId=volume['VolumeId'],
+            Description=self.image_description
+        )
         if self.verbose:
-            print 'Waiting for snapshot creation: ', snapshot.id
-        # Snapshot creation can take a long time, double the the timout value
-        current_timeout = self.operation_timeout
-        self.operation_timeout = self.operation_timeout * 2
-        wait_status = self._wait(snapshot, '100%')
-        if not wait_status:
-            print
-            self._clean_up()
-            msg = 'Unable to create snapshot'
-            raise EC2UploadImgException(msg)
+            print 'Waiting for snapshot creation: ', snapshot['SnapshotId']
+        self.operation_complete = False
+        self._show_progress()
+        waiter = self._connect().get_waiter('snapshot_completed')
+        repeat_count = 1
+        error_msg = 'Unable to create snapshot'
+        while repeat_count <= self.wait_count:
+            try:
+                wait_status = waiter.wait(
+                    SnapshotIds=[snapshot['SnapshotId']],
+                    Filters=[
+                        {
+                            'Name': 'status',
+                            'Values': ['completed']
+                        }
+                    ]
+                )
+            except:
+                wait_status = 1
+            self.progress_timer.cancel()
+            repeat_count = self._check_wait_status(
+                wait_status,
+                error_msg,
+                repeat_count
+            )
 
-        self.operation_timeout = current_timeout
         return snapshot
 
     # ---------------------------------------------------------------------
@@ -239,40 +310,79 @@ class EC2ImageUploader(EC2Utils):
     # ---------------------------------------------------------------------
     def _create_volume(self, size):
         """Create a volume"""
-        volume = self.ec2.create_volume(size=size,
-                                        zone=self.zone,
-                                        volume_type='gp2')
+        volume = self._connect().create_volume(
+            Size=int(size),
+            AvailabilityZone=self.zone,
+            VolumeType='gp2'
+        )
         if self.verbose:
-            print 'Waiting for volume creation: ', volume.id
-        wait_status = self._wait(volume, 'available')
+            print 'Waiting for volume creation: ', volume['VolumeId']
+        self.operation_complete = False
+        self._show_progress()
+        waiter = self._connect().get_waiter('volume_available')
+        repeat_count = 1
+        error_msg = 'Time out for Volume creation reached, '
+        error_msg += 'terminating instance and deleting volume'
+        while repeat_count <= self.wait_count:
+            try:
+                wait_status = waiter.wait(
+                    VolumeIds=[volume['VolumeId']],
+                    Filters=[
+                        {
+                            'Name': 'status',
+                            'Values': ['available']
+                        }
+                    ]
+                )
+            except:
+                wait_status = 1
+            self.progress_timer.cancel()
+            repeat_count = self._check_wait_status(
+                wait_status,
+                error_msg,
+                repeat_count
+            )
+
         self.created_volumes.append(volume)
-        if not wait_status:
-            print
-            self._clean_up()
-            msg = 'Time out for Volume creation reached, terminating instance'
-            msg += ' and deleting volume'
-            raise EC2UploadImgException(msg)
 
         return volume
 
     # ---------------------------------------------------------------------
     def _detach_volume(self, volume, no_clean_up=False):
         """Detach the given volume"""
-        volume.update()
-        if volume.status == 'available':
+        volume = self._connect().describe_volumes(
+            VolumeIds=[volume['VolumeId']])['Volumes'][0]
+        if volume['State'] == 'available':
             # Not attached, nothing to do
             return 1
 
-        volume.detach()
+        self._connect().detach_volume(VolumeId=volume['VolumeId'])
         if self.verbose:
             print 'Wait for volume to detach'
-        wait_status = self._wait(volume, 'available')
-        if not wait_status:
-            print
-            if not no_clean_up:
-                self._clean_up()
-            msg = 'Unable to detach volume'
-            raise EC2UploadImgException(msg)
+        self.operation_complete = False
+        self._show_progress()
+        waiter = self._connect().get_waiter('volume_available')
+        repeat_count = 1
+        error_msg = 'Unable to detach volume'
+        while repeat_count <= self.wait_count:
+            try:
+                wait_status = waiter.wait(
+                    VolumeIds=[volume['VolumeId']],
+                    Filters=[
+                        {
+                            'Name': 'status',
+                            'Values': ['available']
+                        }
+                    ]
+                )
+            except:
+                wait_status = 1
+            self.progress_timer.cancel()
+            repeat_count = self._check_wait_status(
+                wait_status,
+                error_msg,
+                repeat_count
+            )
 
         return 1
 
@@ -286,19 +396,21 @@ class EC2ImageUploader(EC2Utils):
         return root_device_name
 
     # ---------------------------------------------------------------------
-    def _disconnect_from_ec2(self):
-        """Disconnect from EC2"""
-        if self.ssh_client:
-            self.ssh_client.close()
-        EC2Utils._disconnect_from_ec2(self)
+    def _device_exists(self, device_id):
+        """Verify that the device node can be found on the remote system"""
+        command = 'ls %s' % device_id
+        result = self._execute_ssh_command(command)
 
-        return 1
+        return device_id == result
 
     # ---------------------------------------------------------------------
     def _dump_root_fs(self, image_dir, raw_image_name, target_root_device):
         """Dump the raw image to the target device"""
         if self.verbose:
             print 'Dumping raw image to new target root volume'
+        if not self._device_exists(target_root_device):
+            target_root_device = self._find_equivalent_device(
+                target_root_device)
         command = 'dd if=%s/%s of=%s bs=32k' % (image_dir,
                                                 raw_image_name,
                                                 target_root_device)
@@ -323,15 +435,17 @@ class EC2ImageUploader(EC2Utils):
         """Connect to the running instance with ssh"""
         if self.verbose:
             print 'Waiting to obtain instance public IP address'
-        instance_ip = instance.ip_address
+        instance_ip = instance.get('PublicIpAddress')
         timeout_counter = 1
         while not instance_ip:
-            instance.update()
-            instance_ip = instance.ip_address
+            instance = self._connect().describe_instances(
+                InstanceIds=[instance['InstanceId']]
+            )['Reservations'][0]['Instances'][0]
+            instance_ip = instance.get('PublicIpAddress')
             if self.verbose:
                 print '. ',
                 sys.stdout.flush()
-            if timeout_counter * self.default_sleep >= self.operation_timeout:
+            if timeout_counter * self.default_sleep >= self.ssh_timeout:
                 msg = 'Unable to obtain the instance public IP address'
                 raise EC2UploadImgException(msg)
             timeout_counter += 1
@@ -358,7 +472,7 @@ class EC2ImageUploader(EC2Utils):
                 time.sleep(self.default_sleep)
                 if (
                         timeout_counter * self.default_sleep >=
-                        self.operation_timeout):
+                        self.ssh_timeout):
                     self._clean_up()
                     msg = 'Time out for ssh connection reached, '
                     msg += 'could not connect'
@@ -366,6 +480,7 @@ class EC2ImageUploader(EC2Utils):
                 timeout_counter += 1
             else:
                 ssh_connection = True
+                print
 
         self.ssh_client = client
 
@@ -379,7 +494,6 @@ class EC2ImageUploader(EC2Utils):
         if not self.ssh_client:
             msg = 'No ssh connection established, cannot execute command'
             raise EC2UploadImgException(msg)
-
         stdin, stdout, stderr = self.ssh_client.exec_command(command,
                                                              get_pty=True)
         cmd_error = stderr.read()
@@ -390,6 +504,20 @@ class EC2ImageUploader(EC2Utils):
             raise EC2UploadImgException(msg)
 
         return stdout.read().strip()
+
+    # ---------------------------------------------------------------------
+    def _find_equivalent_device(self, device_id):
+        """Try and find a device that should be the same device in the
+           instance than the one we attached with a given device id."""
+        device_letter = device_id[-1]
+        expected_name = '/dev/xvd%s' % device_letter
+        if self._device_exists(expected_name):
+            return expected_name
+
+        self._clean_up()
+        msg = 'Could not find disk device in helper instance with path '
+        msg += '%s or %s' % (device_id, expected_name)
+        raise EC2UploadImgException(msg)
 
     # ---------------------------------------------------------------------
     def _format_storage_volume(self, device_id):
@@ -448,24 +576,46 @@ class EC2ImageUploader(EC2Utils):
     def _launch_helper_instance(self):
         """Launch the helper instance that is used to create the new image"""
         self._set_zone_to_use()
-        reservation = self.ec2.run_instances(
-            key_name=self.ssh_key_pair_name,
-            image_id=self.launch_ami,
-            instance_type=self.launch_ins_type,
-            placement=self.zone
-        )
+        # TODO also support the use of specific security group
+        instance = self._connect().run_instances(
+            ImageId=self.launch_ami,
+            MinCount=1,
+            MaxCount=1,
+            KeyName=self.ssh_key_pair_name,
+            InstanceType=self.launch_ins_type,
+            Placement={'AvailabilityZone': self.zone}
+        )['Instances'][0]
 
-        instance = reservation.instances[0]
+        self.instance_ids.append(instance['InstanceId'])
+
         if self.verbose:
-            print 'Waiting for instance: ', instance.id
-        wait_status = self._wait(instance, 'running')
-        self.instance_ids.append(instance.id)
-        if not wait_status:
-            print
-            self._clean_up()
-            msg = 'Time out for instance creation reached, '
-            msg += 'terminating instance'
-            raise EC2UploadImgException(msg)
+            print 'Waiting for instance: ', instance['InstanceId']
+        self.operation_complete = False
+        self._show_progress()
+        waiter = self._connect().get_waiter('instance_running')
+        repeat_count = 1
+        error_msg = 'Time out for instance creation reached, '
+        error_msg += 'terminating instance'
+        while repeat_count <= self.wait_count:
+            try:
+                wait_status = waiter.wait(
+                    InstanceIds=[instance['InstanceId']],
+                    Filters=[
+                        {
+                            'Name': 'instance-state-name',
+                            'Values': ['running']
+                        }
+                    ]
+                )
+            except:
+                wait_status = 1
+            self.progress_timer.cancel()
+            repeat_count = self._check_wait_status(
+                wait_status,
+                error_msg,
+                repeat_count
+            )
+            
 
         return instance
 
@@ -487,32 +637,66 @@ class EC2ImageUploader(EC2Utils):
             print 'Registering image'
 
         root_device_name = self._determine_root_device()
-        volume_type = block_device_map[root_device_name].volume_type
-        ami = self.ec2.register_image(
-            architecture=self.image_arch,
-            block_device_map=block_device_map,
-            description=self.image_description,
-            kernel_id=self.bootkernel,
-            name=self.image_name,
-            root_device_name=root_device_name,
-            sriov_net_support=self.sriov_type,
-            virtualization_type=self.image_virt_type
-        )
-
-        return ami
+        if self.image_virt_type == 'hvm':
+            ami = self._connect().register_image(
+                Name=self.image_name,
+                Description=self.image_description,
+                Architecture=self.image_arch,
+                RootDeviceName=root_device_name,
+                BlockDeviceMappings=block_device_map,
+                VirtualizationType=self.image_virt_type,
+                SriovNetSupport=self.sriov_type
+            )
+        else:
+            ami = self._connect().register_image(
+                Name=self.image_name,
+                Description=self.image_description,
+                Architecture=self.image_arch,
+                KernelId=self.bootkernel,
+                RootDeviceName=root_device_name,
+                BlockDeviceMappings=block_device_map,
+                VirtualizationType=self.image_virt_type
+            )
+        return ami['ImageId']
 
     # ---------------------------------------------------------------------
     def _remove_volume(self, volume):
         """Delete the given volume from EC2"""
-        self.ec2.delete_volume(volume_id=volume.id)
+        self._connect().delete_volume(VolumeId=volume['VolumeId'])
 
         return 1
 
     # ---------------------------------------------------------------------
     def _set_zone_to_use(self):
         """Set the availability zone to use for all operations"""
-        zones = self.ec2.get_all_zones()
-        self.zone = zones[-1].name
+        zones = self._connect().describe_availability_zones()[
+            'AvailabilityZones']
+        availability_zones = []
+        for zone in zones:
+            availability_zones.append(zone['ZoneName'])
+        self.zone = availability_zones[-1]
+
+    # ---------------------------------------------------------------------
+    def _show_progress(self, timeout_counter=1):
+        """Progress indicator"""
+
+        # Give EC2 some time to update it's state
+        # Whenever _show_progress is called we get a waiter from EC2
+        # The wait operation may fail if the EC2 state is not yet updated.
+        # Taking a nap on the client side avoids the problem
+        time.sleep(self.default_sleep)
+
+        if self.verbose:
+            print '. ',
+            sys.stdout.flush()
+            timeout_counter += 1
+            if not self.operation_complete:
+                self.progress_timer = threading.Timer(
+                    self.default_sleep,
+                    self._show_progress,
+                    args=[timeout_counter]
+                )
+                self.progress_timer.start()
 
     # ---------------------------------------------------------------------
     def _upload_image(self, target_dir, source):
@@ -581,34 +765,11 @@ class EC2ImageUploader(EC2Utils):
         return raw_image_file
 
     # ---------------------------------------------------------------------
-    def _wait(self, ec2_resource, status_check):
-        """Wait for the EC2 resource to be ready"""
-        status = ec2_resource.update()
-        timeout_counter = 1
-        # Sleep first to allow EC2 to catch up to the issued command
-        time.sleep(self.default_sleep)
-        while status != status_check:
-            if self.verbose:
-                print '. ',
-                sys.stdout.flush()
-            time.sleep(self.default_sleep)
-            status = ec2_resource.update()
-            if timeout_counter * self.default_sleep >= self.operation_timeout:
-                return
-            timeout_counter += 1
-        if self.verbose:
-            print
-
-        return 1
-
-    # ---------------------------------------------------------------------
     def create_image(self, source):
         """Create an AMI (Amazon Machine Image) from the given source"""
         snapshot = self.create_snapshot(source)
 
         ami = self._register_image(snapshot)
-
-        self._disconnect_from_ec2()
 
         return ami
 
@@ -618,51 +779,94 @@ class EC2ImageUploader(EC2Utils):
            the root swap method"""
 
         target_root_volume = self._create_image_root_volume(source)
-        self.ec2.stop_instances(instance_ids=self.instance_ids)
+        self._connect().stop_instances(InstanceIds=self.instance_ids)
         if self.verbose:
             print 'Waiting for helper instance to stop'
-        wait_status = self._wait(self.helper_instance, 'stopped')
-        if not wait_status:
-            print
-            self._clean_up()
-            msg = 'Instance did not stop within allotted time'
-            raise EC2UploadImgException(msg)
+        self.operation_complete = False
+        self._show_progress()
+        waiter = self._connect().get_waiter('instance_stopped')
+        repeat_count = 1
+        error_msg = 'Instance did not stop within allotted time'
+        while repeat_count <= self.wait_count:
+            try:
+                wait_status = waiter.wait(
+                    InstanceIds=[self.helper_instance['InstanceId']],
+                    Filters=[
+                        {
+                            'Name': 'instance-state-name',
+                            'Values': ['stopped']
+                        }
+                    ]
+                )
+            except:
+                wait_status = 1
+            self.progress_timer.cancel()
+            repeat_count = self._check_wait_status(
+                wait_status,
+                error_msg,
+                repeat_count
+            )
 
         # Find the current root volume
-        my_volumes = self.ec2.get_all_volumes()
+        my_volumes = self._connect().describe_volumes()['Volumes']
         current_root_volume = None
         device_id = None
         for volume in my_volumes:
-            if volume.attach_data.instance_id == self.helper_instance.id:
+            attached = volume['Attachments']
+            if not attached:
+                continue
+            attached_to_instance = attached[0].get('InstanceId')
+            if attached_to_instance == self.helper_instance['InstanceId']:
                 current_root_volume = volume
-                device_id = volume.attach_data.device
+                device_id = attached[0].get('Device')
                 break
 
         self._detach_volume(current_root_volume)
-        self._attach_volume(self.helper_instance, target_root_volume, device_id)
+        self._attach_volume(
+            self.helper_instance,
+            target_root_volume,
+            device_id
+        )
         if self.verbose:
             print 'Creating new image'
-        ami = self.helper_instance.create_image(
-            name=self.image_name,
-            description=self.image_description,
-            no_reboot=True)
+        ami = self._connect().create_image(
+            InstanceId=self.helper_instance['InstanceId'],
+            Name=self.image_name,
+            Description=self.image_description,
+            NoReboot=True
+        )
 
-        new_image = self.ec2.get_all_images(image_ids=[ami])[0]
         if self.verbose:
             print 'Waiting for new image creation'
-        wait_status = self._wait(new_image, 'available')
-        skip_cleanup = None
-        if not wait_status:
-            print
-            msg = 'Image creation did not complete within allotted time '
-            msg += 'skipping clean up'
-            print msg
-            skip_cleanup = True
-        if not skip_cleanup:
-            self._clean_up()
+        self.operation_complete = False
+        self._show_progress()
+        waiter = self._connect().get_waiter('image_available')
+        repeat_count = 1
+        error_msg = 'Image creation did not complete within '
+        error_msg += 'allotted time skipping clean up'
+        while repeat_count <= self.wait_count:
+            try:
+                wait_status = waiter.wait(
+                    ImageIds=[ami['ImageId']],
+                    Filters=[
+                        {
+                            'Name': 'state',
+                            'Values': ['available']
+                        }
+                    ]
+                )
+            except:
+                wait_status = 1
+            self.progress_timer.cancel()
+            repeat_count = self._check_wait_status(
+                wait_status,
+                error_msg,
+                repeat_count,
+                True
+            )
 
-        return ami
-        
+        return ami['ImageId']
+
     # ---------------------------------------------------------------------
     def create_snapshot(self, source):
         """Create a snapshot from the given source"""
@@ -670,5 +874,5 @@ class EC2ImageUploader(EC2Utils):
             print
         root_volume = self._create_image_root_volume(source)
         snapshot = self._create_snapshot(root_volume)
-        self._clean_up(False)
+        self._clean_up()
         return snapshot

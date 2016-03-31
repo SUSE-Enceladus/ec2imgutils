@@ -19,22 +19,13 @@
 
 import ConfigParser
 import argparse
-import boto
-import boto.ec2
+import boto3
 import os
 import sys
 
 import ec2utils.ec2utilsutils as utils
 import ec2utils.ec2uploadimg as ec2upimg
 from ec2utils.ec2UtilsExceptions import *
-
-# Check the boto API version before doing anything
-apiVersion = boto.__version__
-major, minor, release = apiVersion.split('.')
-if int(major) < 2 or int(minor) < 22:
-    print 'Need to use boto version 2.22.0 or higher. Installed version: ',
-    print apiVer
-    sys.exit(1)
 
 # Set up command line argument parsing
 argparse = argparse.ArgumentParser(description='Upload image to Amazon EC2')
@@ -54,7 +45,7 @@ argparse.add_argument(
     '-B', '--backing-store',
     default='ssd',
     dest='backingStore',
-    help='The backing store type, (mag|ssd) (Optional)',
+    help='The backing store type, (mag|ssd), default ssd (Optional)',
     metavar='EC2_BACKING_STORE'
 )
 argparse.add_argument(
@@ -112,7 +103,7 @@ argparse.add_argument(
 argparse.add_argument(
     '-r', '--regions',
     dest='regions',
-    help='Comma separated list of regions to upload to (Required)',
+    help='Comma separated list of regions for image upload',
     metavar='EC2_REGIONS',
     required=True
 )
@@ -151,11 +142,11 @@ argparse.add_argument(
     help='The path to the image source file'
 )
 argparse.add_argument(
-    '-T', '--timeout',
+    '--ssh-timeout',
     default=300,
-    dest='timeout',
-    help='Timeout value to wait for AWS operations, default 300 s (Optional)',
-    metavar='WAIT_TIME'
+    dest='sshTimeout',
+    help='Timeout value to wait for ssh connection, default 300 s (Optional)',
+    metavar='SSH_TIME_OUT'
 )
 argparse.add_argument(
     '-t', '--type',
@@ -174,13 +165,15 @@ argparse.add_argument(
     action='store_true',
     default=False,
     dest='rootSwapMethod',
-    help='Use the root swap method to create the new image'
+    help='Use the root swap method to create the new image (Optional)'
 )
+help_msg = 'The virtualization type, (para)virtual or (hvm), '
+help_msg += 'default hvm (Optional)'
 argparse.add_argument(
     '-V', '--virt-type',
-    default='para',
+    default='hvm',
     dest='virtType',
-    help='The virtualization type, (para)virtual or (hvm)',
+    help=help_msg,
     metavar='AWS_VIRT_TYPE'
 )
 argparse.add_argument(
@@ -188,7 +181,7 @@ argparse.add_argument(
     action='store_true',
     default=False,
     dest='verbose',
-    help='Enable verbose output'
+    help='Enable verbose output (Optional)'
 )
 argparse.add_argument(
     '--version',
@@ -197,8 +190,16 @@ argparse.add_argument(
     dest='version',
     help='Program version'
 )
-
-
+help_msg = 'Wait N-number of times for AWS operation timeout, default 1 '
+help_msg += ' = 600 seconds (Optional)'
+argparse.add_argument(
+    '--wait-count',
+    default=1,
+    dest='waitCount',
+    help=help_msg,
+    metavar='AWS_WAIT_COUNT',
+    type=int
+)
 
 if '--version' in sys.argv:
     import ec2utils
@@ -207,8 +208,8 @@ if '--version' in sys.argv:
     version = open(base_path + os.sep + version_file_name, 'r').read()
     print version
     sys.exit(0)
-    
-args = argparse.parse_args()    
+
+args = argparse.parse_args()
 config_file = args.configFilePath
 config = None
 if not os.path.isfile(config_file):
@@ -241,7 +242,7 @@ if not access_key:
     except EC2AccountException as e:
         print >> sys.stderr, e
         sys.exit(1)
-        
+
 if not access_key:
     print >> sys.stderr, 'Could not determine account access key'
     sys.exit(1)
@@ -257,7 +258,7 @@ if not secret_key:
     except EC2AccountException as e:
         print >> sys.stderr, e
         sys.exit(1)
-        
+
 if not secret_key:
     print >> sys.stderr, 'Could not determine account secret access key'
     sys.exit(1)
@@ -297,7 +298,7 @@ try:
         bootkernel = args.akiID
         if args.virtType == 'hvm':
             bootkernel = None
-
+    
         if not bootkernel and args.virtType != 'hvm':
             if args.grub2:
                 bootkernel = utils.get_from_config(args.accountName,
@@ -323,7 +324,7 @@ try:
                 print >> sys.stderr, 'must specify bootkernel, ',
                 print >> sys.stderr, 'arch (x86_64|i386) or hvm'
                 sys.exit(1)
-
+    
         inst_type = args.instType
         if not inst_type:
             inst_type = utils.get_from_config(args.accountName,
@@ -331,7 +332,7 @@ try:
                                               region,
                                               'instance_type',
                                               '--type')
-
+    
         key_pair_name = args.sshName
         if not key_pair_name:
             key_pair_name = utils.get_from_config(args.accountName,
@@ -342,7 +343,7 @@ try:
         if not key_pair_name:
             print >> sys.stderr, 'Could not determine key pair name'
             sys.exit(1)
-
+    
         ssh_private_key_file = args.privateKey
         if not ssh_private_key_file:
             ssh_private_key_file = utils.get_from_config(args.accountName,
@@ -356,7 +357,7 @@ try:
         if not os.path.exists(ssh_private_key_file):
             print >> sys.stderr, ('SSH private key file "%s" does not exist'
                                   % ssh_private_key_file)
-
+    
         ssh_user = args.sshUser
         if not ssh_user:
             ssh_user = utils.get_from_config(args.accountName,
@@ -367,7 +368,7 @@ try:
         if not ssh_user:
             print >> sys.stderr, 'Could not determin ssh user to use'
             sys.exit(1)
-
+    
         uploader = ec2upimg.EC2ImageUploader(
                           access_key=access_key,
                           backing_store=args.backingStore,
@@ -379,19 +380,21 @@ try:
                           inst_user_name=ssh_user,
                           launch_ami=ami_id,
                           launch_inst_type=inst_type,
-                          operation_timeout=args.timeout,
                           root_volume_size=root_volume_size,
                           secret_key=secret_key,
                           sriov_type=sriov_type,
                           ssh_key_pair_name=key_pair_name,
                           ssh_key_private_key_file=ssh_private_key_file,
+                          ssh_timeout=args.sshTimeout,
                           use_grub2=args.grub2,
-                          verbose=args.verbose)
-
+                          verbose=args.verbose,
+                          wait_count=args.waitCount
+        )
+    
         uploader.set_region(region)
         if args.snapOnly:
             snapshot = uploader.create_snapshot(args.source)
-            print 'Created snapshot: ', snapshot.id
+            print 'Created snapshot: ', snapshot['SnapshotId']
         elif args.rootSwapMethod:
             ami = uploader.create_image_use_root_swap(args.source)
             print 'Created image: ', ami
