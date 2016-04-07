@@ -27,18 +27,15 @@ class EC2Utils:
 
     def __init__(self):
 
-        self.ec2 = None
         self.region = None
         self.verbose = None
 
     # ---------------------------------------------------------------------
     def _connect(self):
         """Connect to EC2"""
-        if self.ec2:
-            return True
 
         if self.region:
-            self.ec2 = boto3.client(
+            ec2 = boto3.client(
                 aws_access_key_id=self.access_key,
                 aws_secret_access_key=self.secret_key,
                 region_name=self.region,
@@ -47,29 +44,17 @@ class EC2Utils:
         else:
             self.region = 'UNKNOWN'
 
-        if not self.ec2:
+        if not ec2:
             msg = 'Could not connect to region: %s ' % self.region
             raise EC2ConnectionException(msg)
 
-        if self.verbose:
-            print 'Connected to region: ', self.region
-
-        return True
-
-    # ---------------------------------------------------------------------
-    def _disconnect_from_ec2(self):
-        """Disconnect from EC2"""
-        if self.ec2:
-            del self.ec2
-            self.ec2 = None
-
+        return ec2
 
     # ---------------------------------------------------------------------
     def _get_owned_images(self):
         """Return the list of images owned by the account used for
            uploading"""
-        return self.ec2.describe_images(Owners=['self'])['Images']
-
+        return self._connect().describe_images(Owners=['self'])['Images']
     
     # ---------------------------------------------------------------------
     def _set_access_keys():
@@ -87,7 +72,9 @@ class EC2Utils:
         if self.region and self.region == region:
             return True
 
-        self._disconnect_from_ec2()
+        if self.verbose:
+            print 'Using EC2 region: ', region
+            
         self.region = region
 
         return True
