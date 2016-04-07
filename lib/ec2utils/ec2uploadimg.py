@@ -216,7 +216,6 @@ class EC2ImageUploader(EC2Utils):
     # ---------------------------------------------------------------------
     def _create_image_root_volume(self, source):
         """Create a root volume from the image"""
-        self._connect()
         self._check_image_exists()
         helper_instance = self._launch_helper_instance()
         self.helper_instance = helper_instance
