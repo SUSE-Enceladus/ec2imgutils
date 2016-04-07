@@ -119,7 +119,7 @@ class EC2DeprecateImg(EC2Utils):
         """Get all images that match thespecified virtualization type.
            All images owned by the account if not type is specified."""
         images = []
-        my_images = self.ec2.describe_images(Owners=['self'])['Images']
+        my_images = self._get_owned_images()
         for image in my_images:
             if filter_replacement_image:
                 if image['ImageId'] == self.replacement_image_id:
@@ -134,7 +134,7 @@ class EC2DeprecateImg(EC2Utils):
                 else:
                     continue
             if self.public_only:
-                launch_attributes = self.ec2.describe_image_attribute(
+                launch_attributes = self._connect().describe_image_attribute(
                     ImageId=image['ImageId'],
                     Attribute='launchPermission')['LaunchPermissions']
                 launch_permission = None
@@ -266,7 +266,7 @@ class EC2DeprecateImg(EC2Utils):
                 removal_date_data,
                 replacement_image_data
             ]
-            self.ec2.create_tags(Resources=[image['ImageId']], Tags=tags)
+            self._connect().create_tags(Resources=[image['ImageId']], Tags=tags)
             if self.verbose:
                 print '\t\ttagged:%s\t%s' % (image['ImageId'], image['Name'])
 
