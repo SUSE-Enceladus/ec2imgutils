@@ -59,7 +59,7 @@ class EC2PublishImage(EC2Utils):
     def _get_images(self):
         """Return a list of images that match the filter criteria"""
         self._connect()
-        owned_images = self.ec2.describe_images(Owners=['self'])['Images']
+        owned_images = self._get_owned_images() 
         if self.image_id:
             return utils.find_images_by_id(owned_images, self.image_id)
         elif self.image_name:
@@ -104,25 +104,25 @@ class EC2PublishImage(EC2Utils):
 
         for image in images:
             if self.visibility == 'all':
-                self.ec2.modify_image_attribute(
+                self._connect().modify_image_attribute(
                     ImageId=image['ImageId'],
                     Attribute='launchPermission',
                     OperationType='add',
                     UserGroups=['all']
                 )
             elif self.visibility == 'none':
-                launch_attributes = self.ec2.describe_image_attribute(
+                launch_attributes = self._connect().describe_image_attribute(
                     ImageId=image['ImageId'],
                     Attribute='launchPermission')['LaunchPermissions']
                 launch_permission = {
                     'Remove': launch_attributes
                 }
-                self.ec2.modify_image_attribute(
+                self._connect().modify_image_attribute(
                     ImageId=image['ImageId'],
                     LaunchPermission=launch_permission
                 )
             else:
-                self.ec2.modify_image_attribute(
+                self._connect().modify_image_attribute(
                     ImageId=image['ImageId'],
                     Attribute='launchPermission',
                     OperationType='add',
