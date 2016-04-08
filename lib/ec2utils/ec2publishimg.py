@@ -30,6 +30,7 @@ class EC2PublishImage(EC2Utils):
     def __init__(
             self,
             access_key=None,
+            allow_copy=False,
             image_id=None,
             image_name=None,
             image_name_fragment=None,
@@ -40,6 +41,7 @@ class EC2PublishImage(EC2Utils):
         EC2Utils.__init__(self)
 
         self.access_key = access_key
+        self.allow_copy = allow_copy
         self.image_id = image_id
         self.image_name = image_name
         self.image_name_fragment = image_name_fragment
@@ -59,7 +61,7 @@ class EC2PublishImage(EC2Utils):
     def _get_images(self):
         """Return a list of images that match the filter criteria"""
         self._connect()
-        owned_images = self._get_owned_images() 
+        owned_images = self._get_owned_images()
         if self.image_id:
             return utils.find_images_by_id(owned_images, self.image_id)
         elif self.image_name:
@@ -77,6 +79,39 @@ class EC2PublishImage(EC2Utils):
                 msg = 'Unable to complie regular expression "%s"'
                 msg = msg % self.image_name_match
                 raise EC2PublishImgException(msg)
+
+    # --------------------------------------------------------------------
+    def _get_snapshot_ids_for_image(self, image):
+        """Return the snapshot ID for a given image"""
+        image_data = self._connect().describe_images(
+            ImageIds=[image['ImageId']])['Images']
+        block_device_maps = image_data[0]['BlockDeviceMappings']
+        snapshot_ids = []
+        for block_map in block_device_maps:
+            snapshot_ids.append(block_map['Ebs']['SnapshotId'])
+
+        return snapshot_ids
+
+    # --------------------------------------------------------------------
+    def _share_snapshot(self, image):
+        """Provide permission to copy the underlying snapshot"""
+
+        snapshot_ids = self._get_snapshot_ids_for_image(image)
+        for snapshot_id in snapshot_ids:
+            if self.visibility == 'all':
+                self._connect().modify_snapshot_attribute(
+                    SnapshotId=snapshot_id,
+                    Attribute='createVolumePermission',
+                    OperationType='add',
+                    GroupNames=['all']
+                )
+            else:
+                self._connect().modify_snapshot_attribute(
+                    SnapshotId=snapshot_id,
+                    Attribute='createVolumePermission',
+                    OperationType='add',
+                    UserIds=self.visibility.split(',')
+                )
 
     # --------------------------------------------------------------------
     def _print_image_info(self, image):
@@ -110,10 +145,13 @@ class EC2PublishImage(EC2Utils):
                     OperationType='add',
                     UserGroups=['all']
                 )
+                if self.allow_copy:
+                    self._share_snapshot(image)
             elif self.visibility == 'none':
                 launch_attributes = self._connect().describe_image_attribute(
                     ImageId=image['ImageId'],
-                    Attribute='launchPermission')['LaunchPermissions']
+                    Attribute='launchPermission'
+                )['LaunchPermissions']
                 launch_permission = {
                     'Remove': launch_attributes
                 }
@@ -121,6 +159,21 @@ class EC2PublishImage(EC2Utils):
                     ImageId=image['ImageId'],
                     LaunchPermission=launch_permission
                 )
+                snapshot_ids = self._get_snapshot_ids_for_image(image)
+                for snapshot_id in snapshot_ids:
+                    snapshot_attrs = (
+                        self._connect().describe_snapshot_attribute(
+                            SnapshotId=snapshot_id,
+                            Attribute='createVolumePermission'
+                        )['CreateVolumePermissions']
+                    )
+                    snapshot_permission = {
+                        'Remove': snapshot_attrs
+                    }
+                    self._connect().modify_snapshot_attribute(
+                        SnapshotId=snapshot_id,
+                        CreateVolumePermission=snapshot_permission
+                    )
             else:
                 self._connect().modify_image_attribute(
                     ImageId=image['ImageId'],
@@ -128,5 +181,7 @@ class EC2PublishImage(EC2Utils):
                     OperationType='add',
                     UserIds=self.visibility.split(',')
                 )
+                if self.allow_copy:
+                    self._share_snapshot(image)
             if self.verbose:
                 self._print_image_info(image)

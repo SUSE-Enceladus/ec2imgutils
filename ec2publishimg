@@ -42,6 +42,15 @@ argparse.add_argument(
     help='AWS access key (Optional)',
     metavar='AWS_ACCESS_KEY'
 )
+help_msg = 'Allow the image to be copied into the account(s) the image is '
+help_msg += 'shared with (Optional)'
+argparse.add_argument(
+    '--allow-copy',
+    action='store_true',
+    default=False,
+    dest='allowCopy',
+    help=help_msg
+)
 help_msg = 'Do not perform any action, print information about actions that '
 help_msg += 'would be performed instared (Optional)'
 argparse.add_argument(
@@ -212,6 +221,7 @@ if visibility[-1] == ',':
 
 publisher = ec2pubimg.EC2PublishImage(
         access_key=access_key,
+        allow_copy=args.allowCopy,
         image_id=args.pubImgID,
         image_name=args.pubImgName,
         image_name_fragment=args.pubImgNameFrag,
