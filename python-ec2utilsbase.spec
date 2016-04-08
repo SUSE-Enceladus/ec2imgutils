@@ -18,7 +18,7 @@
 
 %define upstream_name ec2utilsbase
 Name:           python-ec2utilsbase
-Version:        2.0.0
+Version:        2.0.1
 Release:        0
 Summary:        Shared EC2 utils functionality
 License:        GPL-3.0+
@@ -26,8 +26,8 @@ Group:          System/Management
 Url:            https://github.com/SUSE/Enceladus
 Source0:        %{upstream_name}-%{version}.tar.bz2
 Requires:       python
-Requires:       python-boto3
-BuildRequires:  python-boto3
+Requires:       python-boto3 >= 1.3.0
+BuildRequires:  python-boto3 >= 1.3.0
 BuildRequires:  python-setuptools
 BuildRoot:      %{_tmppath}/%{name}-%{version}-build
 
