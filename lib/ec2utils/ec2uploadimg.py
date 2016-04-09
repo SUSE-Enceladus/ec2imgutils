@@ -61,7 +61,7 @@ class EC2ImageUploader(EC2Utils):
         self.image_name = image_name
         self.image_virt_type = image_virt_type
         self.inst_user_name = inst_user_name
-        self.launch_ami = launch_ami
+        self.launch_ami_id = launch_ami
         self.launch_ins_type = launch_inst_type
         self.root_volume_size = int(root_volume_size)
         self.secret_key = secret_key
@@ -138,6 +138,19 @@ class EC2ImageUploader(EC2Utils):
             if image['Name'] == self.image_name:
                 msg = 'Image with name "%s" already exists' % self.image_name
                 raise EC2UploadImgException(msg)
+
+    # ---------------------------------------------------------------------
+    def _check_virt_type_consistent(self):
+        """When using root swap the virtualization type of the helper
+           image and the target image must be the same"""
+        image = self._connect().describe_images(
+            ImageIds=[self.launch_ami_id]
+        )['Images'][0]
+        if not self.image_virt_type == image['VirtualizationType']:
+            error_msg = 'Virtualization type of the helper image and the '
+            error_msg += 'target image must be the same when using '
+            error_msg += 'root-swap method for image creation.'
+            raise EC2UploadImgException(error_msg)
 
     # ---------------------------------------------------------------------
     def _check_wait_status(
@@ -577,7 +590,7 @@ class EC2ImageUploader(EC2Utils):
         self._set_zone_to_use()
         # TODO also support the use of specific security group
         instance = self._connect().run_instances(
-            ImageId=self.launch_ami,
+            ImageId=self.launch_ami_id,
             MinCount=1,
             MaxCount=1,
             KeyName=self.ssh_key_pair_name,
@@ -777,6 +790,7 @@ class EC2ImageUploader(EC2Utils):
         """Creae an AMI (Amazon Machine Image) from the given source using
            the root swap method"""
 
+        self._check_virt_type_consistent()
         target_root_volume = self._create_image_root_volume(source)
         self._connect().stop_instances(InstanceIds=self.instance_ids)
         if self.verbose:
