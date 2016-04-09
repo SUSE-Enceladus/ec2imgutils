@@ -157,6 +157,14 @@ Possible values are
 .I para (default)
 or
 .I hvm.
+.IP "--vpc-subnet-id VPC_SUBNET_ID"
+Specify the VPC subnet ID into which the helper instance should be
+launched. This option is useful if no default VPC is configured or
+it is desired to launch the helper instance into a private subnet of the
+VPC. For the use of a private subnet it may also be necessary to use the
+.I --use-private-ip
+command line option. The ID should start with
+.I subnet-.
 .IP "--wait-count AWS_WAIT_COUNT"
 Specifies the number of times to wait for the AWS operation timout. The
 default value is 1 which is equivalent to 600 seconds.

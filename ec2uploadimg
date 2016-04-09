@@ -190,6 +190,13 @@ argparse.add_argument(
     dest='version',
     help='Program version'
 )
+argparse.add_argument(
+    '--vpc-subnet-id',
+    default='',
+    dest='vpcSubnetId',
+    help='The ID of the VPC subnet in which the helper instance should run',
+    metavar='VPC_SUBNET_ID'
+)
 help_msg = 'Wait N-number of times for AWS operation timeout, default 1 '
 help_msg += ' = 600 seconds (Optional)'
 argparse.add_argument(
@@ -388,6 +395,7 @@ try:
                           ssh_timeout=args.sshTimeout,
                           use_grub2=args.grub2,
                           verbose=args.verbose,
+                          vpc_subnet_id=args.vpcSubnetId,
                           wait_count=args.waitCount
         )
     

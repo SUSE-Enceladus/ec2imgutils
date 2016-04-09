@@ -50,6 +50,7 @@ class EC2ImageUploader(EC2Utils):
                  ssh_timeout=300,
                  use_grub2=False,
                  verbose=None,
+                 vpc_subnet_id='',
                  wait_count=1):
         EC2Utils.__init__(self)
 
@@ -71,6 +72,7 @@ class EC2ImageUploader(EC2Utils):
         self.ssh_timeout = ssh_timeout
         self.use_grub2 = use_grub2
         self.verbose = verbose
+        self.vpc_subnet_id = vpc_subnet_id
         self.wait_count = wait_count
 
         self.created_volumes = []
@@ -138,6 +140,16 @@ class EC2ImageUploader(EC2Utils):
             if image['Name'] == self.image_name:
                 msg = 'Image with name "%s" already exists' % self.image_name
                 raise EC2UploadImgException(msg)
+
+    # ---------------------------------------------------------------------
+    def _check_subnet_exists(self):
+        """Verify that the subnet being used for the helper instance
+           exists"""
+        try:
+            self._connect().describe_subnets(SubnetIds=[self.vpc_subnet_id])
+        except Exception, e:
+            error_msg = 'Specified subnet %s not found' % self.vpc_subnet_id
+            raise EC2UploadImgException(error_msg)
 
     # ---------------------------------------------------------------------
     def _check_virt_type_consistent(self):
@@ -230,6 +242,8 @@ class EC2ImageUploader(EC2Utils):
     def _create_image_root_volume(self, source):
         """Create a root volume from the image"""
         self._check_image_exists()
+        if self.vpc_subnet_id:
+            self._check_subnet_exists()
         helper_instance = self._launch_helper_instance()
         self.helper_instance = helper_instance
         store_volume = self._create_storge_volume()
@@ -595,7 +609,8 @@ class EC2ImageUploader(EC2Utils):
             MaxCount=1,
             KeyName=self.ssh_key_pair_name,
             InstanceType=self.launch_ins_type,
-            Placement={'AvailabilityZone': self.zone}
+            Placement={'AvailabilityZone': self.zone},
+            SubnetId=self.vpc_subnet_id
         )['Instances'][0]
 
         self.instance_ids.append(instance['InstanceId'])
@@ -627,7 +642,6 @@ class EC2ImageUploader(EC2Utils):
                 error_msg,
                 repeat_count
             )
-            
 
         return instance
 
@@ -681,6 +695,14 @@ class EC2ImageUploader(EC2Utils):
     # ---------------------------------------------------------------------
     def _set_zone_to_use(self):
         """Set the availability zone to use for all operations"""
+        if self.vpc_subnet_id:
+            # If a subnet is given we need to launch the helper instance
+            # in the AZ wher ethe subnet is defined
+            subnet = self._connect().describe_subnets(
+                SubnetIds=[self.vpc_subnet_id]
+            )['Subnets'][0]
+            self.zone = subnet['AvailabilityZone']
+            return
         zones = self._connect().describe_availability_zones()[
             'AvailabilityZones']
         availability_zones = []
