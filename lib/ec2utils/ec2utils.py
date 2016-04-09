@@ -34,6 +34,7 @@ class EC2Utils:
     def _connect(self):
         """Connect to EC2"""
 
+        ec2 = None
         if self.region:
             ec2 = boto3.client(
                 aws_access_key_id=self.access_key,
