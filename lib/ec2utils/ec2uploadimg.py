@@ -44,6 +44,7 @@ class EC2ImageUploader(EC2Utils):
                  launch_inst_type='m1.small',
                  root_volume_size=10,
                  secret_key=None,
+                 security_group_ids='',
                  sriov_type=None,
                  ssh_key_pair_name=None,
                  ssh_key_private_key_file=None,
@@ -67,6 +68,7 @@ class EC2ImageUploader(EC2Utils):
         self.launch_ins_type = launch_inst_type
         self.root_volume_size = int(root_volume_size)
         self.secret_key = secret_key
+        self.security_group_ids = security_group_ids
         self.sriov_type = sriov_type
         self.ssh_key_pair_name = ssh_key_pair_name
         self.ssh_key_private_key_file = ssh_key_private_key_file
@@ -144,12 +146,24 @@ class EC2ImageUploader(EC2Utils):
                 raise EC2UploadImgException(msg)
 
     # ---------------------------------------------------------------------
+    def _check_security_groups_exist(self):
+        """Check that the specified security groups exist"""
+        try:
+            self._connect().describe_security_groups(
+                GroupIds=self.security_group_ids.split(',')
+            )
+        except:
+            error_msg = 'One or more of the specified security groups '
+            error_msg += 'could not be found: %s' % self.security_group_ids
+            raise EC2UploadImgException(error_msg)
+
+    # ---------------------------------------------------------------------
     def _check_subnet_exists(self):
         """Verify that the subnet being used for the helper instance
            exists"""
         try:
             self._connect().describe_subnets(SubnetIds=[self.vpc_subnet_id])
-        except Exception, e:
+        except:
             error_msg = 'Specified subnet %s not found' % self.vpc_subnet_id
             raise EC2UploadImgException(error_msg)
 
@@ -246,6 +260,8 @@ class EC2ImageUploader(EC2Utils):
         self._check_image_exists()
         if self.vpc_subnet_id:
             self._check_subnet_exists()
+        if self.security_group_ids:
+            self._check_security_groups_exist()
         helper_instance = self._launch_helper_instance()
         self.helper_instance = helper_instance
         store_volume = self._create_storge_volume()
@@ -607,16 +623,27 @@ class EC2ImageUploader(EC2Utils):
     def _launch_helper_instance(self):
         """Launch the helper instance that is used to create the new image"""
         self._set_zone_to_use()
-        # TODO also support the use of specific security group
-        instance = self._connect().run_instances(
-            ImageId=self.launch_ami_id,
-            MinCount=1,
-            MaxCount=1,
-            KeyName=self.ssh_key_pair_name,
-            InstanceType=self.launch_ins_type,
-            Placement={'AvailabilityZone': self.zone},
-            SubnetId=self.vpc_subnet_id
-        )['Instances'][0]
+        if self.security_group_ids:
+            instance = self._connect().run_instances(
+                ImageId=self.launch_ami_id,
+                MinCount=1,
+                MaxCount=1,
+                KeyName=self.ssh_key_pair_name,
+                InstanceType=self.launch_ins_type,
+                Placement={'AvailabilityZone': self.zone},
+                SubnetId=self.vpc_subnet_id,
+                SecurityGroupIds=self.security_group_ids.split(',')
+            )['Instances'][0]
+        else:
+            instance = self._connect().run_instances(
+                ImageId=self.launch_ami_id,
+                MinCount=1,
+                MaxCount=1,
+                KeyName=self.ssh_key_pair_name,
+                InstanceType=self.launch_ins_type,
+                Placement={'AvailabilityZone': self.zone},
+                SubnetId=self.vpc_subnet_id,
+            )['Instances'][0]
 
         self.instance_ids.append(instance['InstanceId'])
 

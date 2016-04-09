@@ -125,6 +125,15 @@ argparse.add_argument(
     help='AWS secret access key (Optional)',
     metavar='AWS_SECRET_KEY'
 )
+help_msg = 'A comma separated listof security group ids to apply to the '
+help_msg += 'helper instance. At least port 22 must be open (Optional)'
+argparse.add_argument(
+    '--security-group-ids',
+    default='',
+    dest='securityGroupIds',
+    help=help_msg,
+    metavar='AWS_SECURITY_GROUP_IDS'
+)
 argparse.add_argument(
     '--snaponly',
     action='store_true',
@@ -398,6 +407,7 @@ try:
                           launch_inst_type=inst_type,
                           root_volume_size=root_volume_size,
                           secret_key=secret_key,
+                          security_group_ids=args.securityGroupIds,
                           sriov_type=sriov_type,
                           ssh_key_pair_name=key_pair_name,
                           ssh_key_private_key_file=ssh_private_key_file,
