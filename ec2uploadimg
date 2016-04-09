@@ -161,6 +161,13 @@ argparse.add_argument(
     metavar='AWS_INSTANCE_USER'
 )
 argparse.add_argument(
+    '--use-private-ip',
+    action='store_true',
+    default=False,
+    dest='usePrivateIP',
+    help='Use the instance private IP address to connect (Optional)'
+)
+argparse.add_argument(
     '--use-root-swap',
     action='store_true',
     default=False,
@@ -190,11 +197,13 @@ argparse.add_argument(
     dest='version',
     help='Program version'
 )
+help_msg = 'The ID of the VPC subnet in which the helper instance should '
+help_msg += 'run (Optional)'
 argparse.add_argument(
     '--vpc-subnet-id',
     default='',
     dest='vpcSubnetId',
-    help='The ID of the VPC subnet in which the helper instance should run',
+    help=help_msg,
     metavar='VPC_SUBNET_ID'
 )
 help_msg = 'Wait N-number of times for AWS operation timeout, default 1 '
@@ -394,6 +403,7 @@ try:
                           ssh_key_private_key_file=ssh_private_key_file,
                           ssh_timeout=args.sshTimeout,
                           use_grub2=args.grub2,
+                          use_private_ip=args.usePrivateIP,
                           verbose=args.verbose,
                           vpc_subnet_id=args.vpcSubnetId,
                           wait_count=args.waitCount

@@ -141,6 +141,9 @@ Specifies the user to use to connect to the instance being used to upload
 the image. This value overrides the value given with the
 .I user
 option for a given region in the configuration file.
+.IP "--use-private-ip"
+Use the private IP of the helper instance to upload the new image. This is
+helful when an image is to be created and only a private VPC is available.
 .IP "--use-root-swap"
 Create the new image using the root swap method. The helper instance used
 to upload the image will be stopped and the created image volume will be

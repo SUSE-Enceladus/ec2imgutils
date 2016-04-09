@@ -49,6 +49,7 @@ class EC2ImageUploader(EC2Utils):
                  ssh_key_private_key_file=None,
                  ssh_timeout=300,
                  use_grub2=False,
+                 use_private_ip=False,
                  verbose=None,
                  vpc_subnet_id='',
                  wait_count=1):
@@ -71,6 +72,7 @@ class EC2ImageUploader(EC2Utils):
         self.ssh_key_private_key_file = ssh_key_private_key_file
         self.ssh_timeout = ssh_timeout
         self.use_grub2 = use_grub2
+        self.use_private_ip = use_private_ip
         self.verbose = verbose
         self.vpc_subnet_id = vpc_subnet_id
         self.wait_count = wait_count
@@ -460,24 +462,27 @@ class EC2ImageUploader(EC2Utils):
     def _establish_ssh_connection(self, instance):
         """Connect to the running instance with ssh"""
         if self.verbose:
-            print 'Waiting to obtain instance public IP address'
+            print 'Waiting to obtain instance IP address'
         instance_ip = instance.get('PublicIpAddress')
+        if self.use_private_ip:
+            instance_ip = instance.get('PrivateIpAddress')
         timeout_counter = 1
         while not instance_ip:
             instance = self._connect().describe_instances(
                 InstanceIds=[instance['InstanceId']]
             )['Reservations'][0]['Instances'][0]
             instance_ip = instance.get('PublicIpAddress')
+            if self.use_private_ip:
+                instance_ip = instance.get('PrivateIpAddress')
             if self.verbose:
                 print '. ',
                 sys.stdout.flush()
             if timeout_counter * self.default_sleep >= self.ssh_timeout:
-                msg = 'Unable to obtain the instance public IP address'
+                msg = 'Unable to obtain the instance IP address'
                 raise EC2UploadImgException(msg)
             timeout_counter += 1
         if self.verbose:
             print
-
         client = paramiko.client.SSHClient()
         client.set_missing_host_key_policy(paramiko.WarningPolicy())
         if self.verbose:
