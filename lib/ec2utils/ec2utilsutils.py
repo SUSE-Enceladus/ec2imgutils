@@ -181,19 +181,11 @@ def get_regions(command_args, access_key, secret_key):
     if command_args.regions:
         regions = command_args.regions.split(',')
     else:
-        regions = []
-        regs = boto3.client(
-                    aws_access_key_id=access_key,
-                    aws_secret_access_key=secret_key,
-                    region_name='us-east-1',
-                    service_name='ec2').describe_regions()['Regions']
-        for reg in regs:
-            region_name = reg['RegionName']
-            if region_name in ['us-gov-west-1', 'cn-north-1']:
-                if command_args.verbose:
-                    print 'Not processing disconnected region: %s' % reg.name
-                continue
-            regions.append(region_name)
+        regions = boto3.session.Session(
+            aws_access_key_id=access_key,
+            aws_secret_access_key=secret_key
+        ).get_available_regions('ec2')
+
     return regions
 
 
