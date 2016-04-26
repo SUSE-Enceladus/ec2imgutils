@@ -26,7 +26,7 @@ Group:          System/Management
 Url:            https://github.com/SUSE/Enceladus
 Source0:        %{upstream_name}-%{version}.tar.bz2
 Requires:       python
-Requires:       python-boto
+Requires:       python-boto3
 Requires:       python-dateutil
 Requires:       python-ec2utilsbase >= 2.0.0
 Requires:       python-ec2utilsbase < 3.0.0
