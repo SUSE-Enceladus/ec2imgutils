@@ -18,7 +18,7 @@
 
 %define upstream_name ec2publishimg
 Name:           python-ec2publishimg
-Version:        1.1.0
+Version:        1.1.1
 Release:        0
 Summary:        Tag image as deprected in EC2
 License:        GPL-3.0+
@@ -51,9 +51,6 @@ python setup.py build
 
 %install
 python setup.py install --prefix=%{_prefix} --root=%{buildroot}
-# __init__.py is supplied by the base package, remove it to avoid
-# file conflicts during install
-rm %{buildroot}/%{python_sitelib}/ec2utils/__init__.*
 install -d -m 755 %{buildroot}/%{_mandir}/man1
 install -m 644 man/man1/ec2publishimg.1 %{buildroot}/%{_mandir}/man1
 gzip %{buildroot}/%{_mandir}/man1/ec2publishimg.1
