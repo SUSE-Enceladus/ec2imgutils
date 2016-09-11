@@ -18,7 +18,7 @@
 
 %define upstream_name ec2uploadimg
 Name:           python-ec2uploadimg
-Version:        1.1.1
+Version:        1.1.2
 Release:        0
 Summary:        Upload an image to EC2
 License:        GPL-3.0+
@@ -54,8 +54,6 @@ python setup.py install --prefix=%{_prefix} --root=%{buildroot}
 install -d -m 755 %{buildroot}/%{_mandir}/man1
 install -m 644 man/man1/ec2uploadimg.1 %{buildroot}/%{_mandir}/man1
 gzip %{buildroot}/%{_mandir}/man1/ec2uploadimg.1
-# __init__ provided by ec2utilsbase
-rm %{buildroot}/%{python_sitelib}/ec2utils/__init__.*
 
 %files
 %defattr(-,root,root,-)

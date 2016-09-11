@@ -20,6 +20,8 @@
 
 import sys
 
+import sys
+
 try:
     import setuptools
 except ImportError:
