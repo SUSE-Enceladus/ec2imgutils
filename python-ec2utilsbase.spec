@@ -18,7 +18,7 @@
 
 %define upstream_name ec2utilsbase
 Name:           python-ec2utilsbase
-Version:        2.0.1
+Version:        2.0.2
 Release:        0
 Summary:        Shared EC2 utils functionality
 License:        GPL-3.0+
