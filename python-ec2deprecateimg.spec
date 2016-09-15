@@ -18,7 +18,7 @@
 
 %define upstream_name ec2deprecateimg
 Name:           python-ec2deprecateimg
-Version:        3.0.1
+Version:        3.0.2
 Release:        0
 Summary:        Tag image as deprected in EC2
 License:        GPL-3.0+
@@ -28,7 +28,7 @@ Source0:        %{upstream_name}-%{version}.tar.bz2
 Requires:       python
 Requires:       python-boto3
 Requires:       python-dateutil
-Requires:       python-ec2utilsbase >= 2.0.0
+Requires:       python-ec2utilsbase >= 2.0.2
 Requires:       python-ec2utilsbase < 3.0.0
 BuildRequires:  python-setuptools
 BuildRoot:      %{_tmppath}/%{name}-%{version}-build
@@ -60,7 +60,7 @@ gzip %{buildroot}/%{_mandir}/man1/ec2deprecateimg.1
 %doc LICENSE
 %{_mandir}/man*/*
 %{python_sitelib}/ec2utils
-%{python_sitelib}/%{upstream_name}-%{version}-py%{py_ver}.egg-info
+%{python_sitelib}/%{upstream_name}-%{version}-py%{py_ver}*
 %{_bindir}/*
 
 %changelog
