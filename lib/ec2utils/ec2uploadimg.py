@@ -119,7 +119,8 @@ class EC2ImageUploader(EC2Utils):
                 )
             except:
                 wait_status = 1
-            self.progress_timer.cancel()
+            if self.verbose:
+                self.progress_timer.cancel()
             repeat_count = self._check_wait_status(
                 wait_status,
                 error_msg,
@@ -194,7 +195,8 @@ class EC2ImageUploader(EC2Utils):
                 print
             if repeat_count == self.wait_count:
                 self.operation_complete = True
-                self.progress_timer.cancel()
+                if self.verbose:
+                    self.progress_timer.cancel()
                 time.sleep(self.default_sleep)  # Wait for the thread
                 if not skip_cleanup:
                     self._clean_up()
@@ -209,7 +211,8 @@ class EC2ImageUploader(EC2Utils):
         else:
             repeat_count = self.wait_count + 1
             self.operation_complete = True
-            self.progress_timer.cancel()
+            if self.verbose:
+                self.progress_timer.cancel()
             time.sleep(self.default_sleep)  # Wait for the thread
             if self.verbose:
                 print
@@ -319,7 +322,8 @@ class EC2ImageUploader(EC2Utils):
                 )
             except:
                 wait_status = 1
-            self.progress_timer.cancel()
+            if self.verbose:
+                self.progress_timer.cancel()
             repeat_count = self._check_wait_status(
                 wait_status,
                 error_msg,
@@ -380,7 +384,8 @@ class EC2ImageUploader(EC2Utils):
                 )
             except:
                 wait_status = 1
-            self.progress_timer.cancel()
+            if self.verbose:
+                self.progress_timer.cancel()
             repeat_count = self._check_wait_status(
                 wait_status,
                 error_msg,
@@ -421,7 +426,8 @@ class EC2ImageUploader(EC2Utils):
                 )
             except:
                 wait_status = 1
-            self.progress_timer.cancel()
+            if self.verbose:
+                self.progress_timer.cancel()
             repeat_count = self._check_wait_status(
                 wait_status,
                 error_msg,
@@ -668,7 +674,8 @@ class EC2ImageUploader(EC2Utils):
                 )
             except:
                 wait_status = 1
-            self.progress_timer.cancel()
+            if self.verbose:
+                self.progress_timer.cancel()
             repeat_count = self._check_wait_status(
                 wait_status,
                 error_msg,
@@ -862,7 +869,8 @@ class EC2ImageUploader(EC2Utils):
                 )
             except:
                 wait_status = 1
-            self.progress_timer.cancel()
+            if self.verbose:
+                self.progress_timer.cancel()
             repeat_count = self._check_wait_status(
                 wait_status,
                 error_msg,
@@ -919,7 +927,8 @@ class EC2ImageUploader(EC2Utils):
                 )
             except:
                 wait_status = 1
-            self.progress_timer.cancel()
+            if self.verbose:
+                self.progress_timer.cancel()
             repeat_count = self._check_wait_status(
                 wait_status,
                 error_msg,
