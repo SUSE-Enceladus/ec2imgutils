@@ -155,6 +155,11 @@ class EC2PublishImage(EC2Utils):
                 launch_permission = {
                     'Remove': launch_attributes
                 }
+                if not launch_attributes:
+                    msg = '\tImage with ID: %s  ' % image['ImageId']
+                    msg += 'is already private, nothing to do'
+                    print msg
+                    continue
                 self._connect().modify_image_attribute(
                     ImageId=image['ImageId'],
                     LaunchPermission=launch_permission
@@ -167,6 +172,8 @@ class EC2PublishImage(EC2Utils):
                             Attribute='createVolumePermission'
                         )['CreateVolumePermissions']
                     )
+                    if not snapshot_attrs:
+                        continue
                     snapshot_permission = {
                         'Remove': snapshot_attrs
                     }

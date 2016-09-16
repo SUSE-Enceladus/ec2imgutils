@@ -18,7 +18,7 @@
 
 %define upstream_name ec2publishimg
 Name:           python-ec2publishimg
-Version:        1.1.2
+Version:        1.1.3
 Release:        0
 Summary:        Tag image as deprected in EC2
 License:        GPL-3.0+
