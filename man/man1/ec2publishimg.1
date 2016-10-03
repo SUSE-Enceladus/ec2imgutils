@@ -41,14 +41,14 @@ about the actions it would perform.
 Specifies the configuration file to use. The default is
 .IR ~/.ec2utils.conf .
 .IP "--image-id AMI_ID"
-Specify the AMI ID of the image to be marked as deprecated. This option is
+Specify the AMI ID of the image to be published. This option is
 mutually exclusive with
 .IR --image-name ,
 .IR --image-name-frag ,
 and
 .IR --image-name-match .
 .IP "--image-name IMAGE_NAME"
-Specify the name of the image to be deprecated. The program will look for
+Specify the name of the image to be published. The program will look for
 an exact match of the name. This option is mutually exclusive with
 .IR --image-id ,
 .IR --image-name-frag ,
@@ -56,8 +56,8 @@ and
 .I --image-name-match
 options.
 .IP "--image-name-frag IMAGE_NAME_FRAGMENT"
-Specify a section of an image name for the image(s) to be deprecated. Every
-image that matches the name fragment will be marked as deprecated. This
+Specify a section of an image name for the image(s) to be published. Every
+image that matches the name fragment will be published. This
 option is mutually exclusive with the
 .IR --image-id ,
 .IR --image-name-name ,
@@ -66,7 +66,7 @@ and
 options.
 .IP "--image-name-match REGEX"
 Specify a regular expression to match an image name. Every image matching the
-regular expression will be deprecated. This option is mutually
+regular expression will be published. This option is mutually
 exclusive with the
 .IR --image-id ,
 .IR --image-name-name ,
