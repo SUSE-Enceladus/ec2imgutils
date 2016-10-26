@@ -35,6 +35,7 @@ class EC2ImageUploader(EC2Utils):
                  backing_store='ssd',
                  bootkernel=None,
                  config=None,
+                 ena_support=False,
                  image_arch='x86_64',
                  image_description='AWS EC2 AMI',
                  image_name='default',
@@ -59,6 +60,7 @@ class EC2ImageUploader(EC2Utils):
         self.access_key = access_key
         self.backing_store = backing_store
         self.bootkernel = bootkernel
+        self.ena_support = ena_support
         self.image_arch = image_arch
         self.image_description = image_description
         self.image_name = image_name
@@ -703,11 +705,12 @@ class EC2ImageUploader(EC2Utils):
 
         root_device_name = self._determine_root_device()
         register_args = {
-            'Name' : self.image_name,
-            'Description' : self.image_description,
             'Architecture' : self.image_arch,
-            'RootDeviceName' : root_device_name,
             'BlockDeviceMappings' : block_device_map,
+            'Description' : self.image_description,
+            'EnaSupport' : self.ena_support,
+            'Name' : self.image_name,
+            'RootDeviceName' : root_device_name,
             'VirtualizationType' : self.image_virt_type
         }
         if self.sriov_type:

@@ -68,6 +68,13 @@ argparse.add_argument(
     metavar='AWS_AMI_ID',
 )
 argparse.add_argument(
+    '--ena-support',
+    action='store_true',
+    default=False,
+    dest='ena',
+    help='The image supports the ENA network interface (Optional)'
+)
+argparse.add_argument(
     '-f', '--file',
     default=os.path.expanduser('~') + os.sep + '.ec2utils.conf',
     dest='configFilePath',
@@ -79,6 +86,7 @@ argparse.add_argument(
     action='store_true',
     default=False,
     dest='grub2',
+    help='The image uses the GRUB2 bootloader (Optional)'
 )
 argparse.add_argument(
     '-m', '--machine',
@@ -138,13 +146,15 @@ argparse.add_argument(
     '--snaponly',
     action='store_true',
     default=False,
-    dest='snapOnly'
+    dest='snapOnly',
+    help='Stop after snapshot creation (Optional)'
 )
 argparse.add_argument(
     '--sriov-support',
     action='store_true',
     default=False,
-    dest='sriov'
+    dest='sriov',
+    help='The image supports SRIOV network interface (Optional)'
 )
 argparse.add_argument(
     'source',
@@ -400,6 +410,7 @@ try:
                           access_key=access_key,
                           backing_store=args.backingStore,
                           bootkernel=bootkernel,
+                          ena_support=args.ena,
                           image_arch=args.arch,
                           image_description=args.descript,
                           image_name=args.imgName,

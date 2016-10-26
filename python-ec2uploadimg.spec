@@ -18,7 +18,7 @@
 
 %define upstream_name ec2uploadimg
 Name:           python-ec2uploadimg
-Version:        1.1.3
+Version:        2.0.0
 Release:        0
 Summary:        Upload an image to EC2
 License:        GPL-3.0+
@@ -26,7 +26,7 @@ Group:          System/Management
 Url:            https://github.com/SUSE/Enceladus
 Source0:        %{upstream_name}-%{version}.tar.bz2
 Requires:       python
-Requires:       python-boto3
+Requires:       python-boto3        >= 1.4.1
 Requires:       python-ec2utilsbase >= 2.0.2
 Requires:       python-ec2utilsbase < 3.0.0
 Requires:       python-paramiko
