@@ -707,7 +707,7 @@ class EC2ImageUploader(EC2Utils):
         register_args = {
             'Architecture' : self.image_arch,
             'BlockDeviceMappings' : block_device_map,
-            'Description' : self.image_description,
+            'Description' : self.image_description.strip(),
             'EnaSupport' : self.ena_support,
             'Name' : self.image_name,
             'RootDeviceName' : root_device_name,
