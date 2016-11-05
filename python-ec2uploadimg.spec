@@ -41,7 +41,7 @@ BuildArch:      noarch
 
 %description
 Upload a compressed .raw disk image to Amazon EC2 and create a snapshot
-or register and AMI
+or register and AMI.
 
 %prep
 %setup -q -n %{upstream_name}-%{version}
