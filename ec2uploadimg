@@ -89,6 +89,12 @@ argparse.add_argument(
     help='The image uses the GRUB2 bootloader (Optional)'
 )
 argparse.add_argument(
+    '-i', '--instance-id',
+    dest='runningID',
+    help='ID of running instance to use to upload (Optional)',
+    metavar='AWS_INSTANCE_ID',
+)
+argparse.add_argument(
     '-m', '--machine',
     dest='arch',
     help='Machine architecture i386|x86_64 for the uploaded image',
@@ -237,9 +243,8 @@ argparse.add_argument(
 )
 
 if '--version' in sys.argv:
-    import ec2utils
     version_file_name = 'upload_VERSION'
-    base_path = os.path.dirname(ec2utils.__file__)
+    base_path = os.path.dirname(utils.__file__)
     version = open(base_path + os.sep + version_file_name, 'r').read()
     print version
     sys.exit(0)
@@ -310,21 +315,26 @@ if sriov_type and virtualization_type != 'hvm':
     print >> sys.stderr, 'SRIOV support is only possible with HVM images'
     sys.exit(1)
 
+if args.amiID and args.runningID:
+    print >> sys.stderr, 'Specify either AMI ID to start instance or running ID to use already running instance'
+    sys.exit(1)
+
 root_volume_size = 10
 if args.rootVolSize:
     root_volume_size = args.rootVolSize
 
 regions = args.regions.split(',')
-if len(regions) > 1 and (args.amiID or arg.akiID):
+if len(regions) > 1 and (args.amiID or arg.akiID or ars.runningID):
     print >> sys.stderr, 'Incompatible arguments: multiple regions specified'
-    print >> sys.stderr, 'Cannot process region unique argument for --ec2-ami'
-    print >> sys.stderr, 'or --boot-kernel'
+    print >> sys.stderr, 'Cannot process region unique argument for --ec2-ami,'
+    print >> sys.stderr, '--instance-id, or --boot-kernel'
     sys.exit(1)
 
 try:
     for region in regions:
         ami_id = args.amiID
-        if not ami_id:
+        running_id = args.runningID
+        if not ami_id and not running_id:
             ami_id = utils.get_from_config(args.accountName,
                                            config,
                                            region,
@@ -419,6 +429,7 @@ try:
                           launch_ami=ami_id,
                           launch_inst_type=inst_type,
                           root_volume_size=root_volume_size,
+                          running_id=running_id,
                           secret_key=secret_key,
                           security_group_ids=args.securityGroupIds,
                           sriov_type=sriov_type,

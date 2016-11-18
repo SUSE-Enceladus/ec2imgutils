@@ -44,6 +44,7 @@ class EC2ImageUploader(EC2Utils):
                  launch_ami=None,
                  launch_inst_type='m1.small',
                  root_volume_size=10,
+                 running_id=None,
                  secret_key=None,
                  security_group_ids='',
                  sriov_type=None,
@@ -69,6 +70,7 @@ class EC2ImageUploader(EC2Utils):
         self.launch_ami_id = launch_ami
         self.launch_ins_type = launch_inst_type
         self.root_volume_size = int(root_volume_size)
+        self.running_id = running_id,
         self.secret_key = secret_key
         self.security_group_ids = security_group_ids
         self.sriov_type = sriov_type
@@ -629,8 +631,12 @@ class EC2ImageUploader(EC2Utils):
 
     # ---------------------------------------------------------------------
     def _launch_helper_instance(self):
-        """Launch the helper instance that is used to create the new image"""
         self._set_zone_to_use()
+        """When using an already running instance, simply look up this one"""
+        if self.running_id:
+            return self._connect().describe_instances(InstanceIds=self.running_id)['Reservations'][0]['Instances'][0]
+
+        """Launch the helper instance that is used to create the new image"""
         if self.security_group_ids:
             instance = self._connect().run_instances(
                 ImageId=self.launch_ami_id,

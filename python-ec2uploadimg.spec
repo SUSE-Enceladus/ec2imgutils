@@ -18,7 +18,7 @@
 
 %define upstream_name ec2uploadimg
 Name:           python-ec2uploadimg
-Version:        2.0.0
+Version:        2.1.0
 Release:        0
 Summary:        Upload an image to EC2
 License:        GPL-3.0+
