@@ -269,7 +269,11 @@ class EC2ImageUploader(EC2Utils):
             self._check_subnet_exists()
         if self.security_group_ids:
             self._check_security_groups_exist()
-        helper_instance = self._launch_helper_instance()
+        if self.running_id:
+            """When using an already running instance, simply look up this one"""
+            helper_instance = self._get_helper_instance()
+        else:
+            helper_instance = self._launch_helper_instance()
         self.helper_instance = helper_instance
         store_volume = self._create_storge_volume()
         store_device_id = self._attach_volume(helper_instance, store_volume)
@@ -621,6 +625,16 @@ class EC2ImageUploader(EC2Utils):
 
         return location
 
+    def _get_helper_instance(self):
+        """Returns handle to running instance"""
+        self._set_zone_to_use()
+        helper_instance = self._connect().describe_instances(InstanceIds=self.running_id)['Reservations'][0]['Instances'][0]
+        if helper_instance['State']['Name'] != 'running':
+            msg = 'Helper instance %s is not running' % self.running_id
+            raise EC2UploadImgException(msg)
+
+        return helper_instance
+
     # ---------------------------------------------------------------------
     def _get_next_disk_id(self):
         """Return the next device name for a storage volume"""
@@ -631,12 +645,8 @@ class EC2ImageUploader(EC2Utils):
 
     # ---------------------------------------------------------------------
     def _launch_helper_instance(self):
-        self._set_zone_to_use()
-        """When using an already running instance, simply look up this one"""
-        if self.running_id:
-            return self._connect().describe_instances(InstanceIds=self.running_id)['Reservations'][0]['Instances'][0]
-
         """Launch the helper instance that is used to create the new image"""
+        self._set_zone_to_use()
         if self.security_group_ids:
             instance = self._connect().run_instances(
                 ImageId=self.launch_ami_id,
