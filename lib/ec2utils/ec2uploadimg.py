@@ -270,7 +270,7 @@ class EC2ImageUploader(EC2Utils):
         if self.security_group_ids:
             self._check_security_groups_exist()
         if self.running_id:
-            """When using an already running instance, simply look up this one"""
+            # When using an already running instance, simply look up this one
             helper_instance = self._get_helper_instance()
         else:
             helper_instance = self._launch_helper_instance()
@@ -628,7 +628,8 @@ class EC2ImageUploader(EC2Utils):
     def _get_helper_instance(self):
         """Returns handle to running instance"""
         self._set_zone_to_use()
-        helper_instance = self._connect().describe_instances(InstanceIds=self.running_id)['Reservations'][0]['Instances'][0]
+        helper_instance = self._connect().describe_instances(
+            InstanceIds=self.running_id)['Reservations'][0]['Instances'][0]
         if helper_instance['State']['Name'] != 'running':
             msg = 'Helper instance %s is not running' % self.running_id
             raise EC2UploadImgException(msg)
@@ -721,13 +722,13 @@ class EC2ImageUploader(EC2Utils):
 
         root_device_name = self._determine_root_device()
         register_args = {
-            'Architecture' : self.image_arch,
-            'BlockDeviceMappings' : block_device_map,
-            'Description' : self.image_description.strip(),
-            'EnaSupport' : self.ena_support,
-            'Name' : self.image_name,
-            'RootDeviceName' : root_device_name,
-            'VirtualizationType' : self.image_virt_type
+            'Architecture': self.image_arch,
+            'BlockDeviceMappings': block_device_map,
+            'Description': self.image_description.strip(),
+            'EnaSupport': self.ena_support,
+            'Name': self.image_name,
+            'RootDeviceName': root_device_name,
+            'VirtualizationType': self.image_virt_type
         }
         if self.sriov_type:
             register_args['SriovNetSupport'] = self.sriov_type

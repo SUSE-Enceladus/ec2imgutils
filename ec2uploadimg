@@ -315,8 +315,14 @@ if sriov_type and virtualization_type != 'hvm':
     print >> sys.stderr, 'SRIOV support is only possible with HVM images'
     sys.exit(1)
 
+if args.ena and virtualization_type != 'hvm':
+    print >> sys.stderr, 'ENA is only possible with HVM images'
+    sys.exit(1)
+
 if args.amiID and args.runningID:
-    print >> sys.stderr, 'Specify either AMI ID to start instance or running ID to use already running instance'
+    msg = 'Specify either AMI ID to start instance or running '
+    msg += ' ID to use already running instance'
+    print >> sys.stderr, msg
     sys.exit(1)
 
 root_volume_size = 10
@@ -324,7 +330,7 @@ if args.rootVolSize:
     root_volume_size = args.rootVolSize
 
 regions = args.regions.split(',')
-if len(regions) > 1 and (args.amiID or arg.akiID or ars.runningID):
+if len(regions) > 1 and (args.amiID or args.akiID or ars.runningID):
     print >> sys.stderr, 'Incompatible arguments: multiple regions specified'
     print >> sys.stderr, 'Cannot process region unique argument for --ec2-ami,'
     print >> sys.stderr, '--instance-id, or --boot-kernel'
@@ -335,41 +341,57 @@ try:
         ami_id = args.amiID
         running_id = args.runningID
         if not ami_id and not running_id:
-            ami_id = utils.get_from_config(args.accountName,
-                                           config,
-                                           region,
-                                           'ami',
-                                           '--ec2-ami')
+            try:
+                ami_id = utils.get_from_config(args.accountName,
+                                               config,
+                                               region,
+                                               'ami',
+                                               '--ec2-ami')
+            except:
+                print >> stderr, 'Could not determine helper AMI-ID'
+                sys.exit(1)
         bootkernel = args.akiID
         if args.virtType == 'hvm':
             bootkernel = None
-    
+
         if not bootkernel and args.virtType != 'hvm':
             if args.grub2:
-                bootkernel = utils.get_from_config(args.accountName,
-                                                   config,
-                                                   region,
-                                                   'g2_aki_x86_64',
-                                                   '--boot-kernel')
+                try:
+                    bootkernel = utils.get_from_config(args.accountName,
+                                                       config,
+                                                       region,
+                                                       'g2_aki_x86_64',
+                                                       '--boot-kernel')
+                except:
+                    print >> sys.stderr, 'Could not find bootkernel in config'
+                    sys.exit(1)
             elif args.arch == 'x86_64':
-                bootkernel = utils.get_from_config(args.accountName,
-                                                   config,
-                                                   region,
-                                                   'aki_x86_64',
-                                                   '--boot-kernel')
+                try:
+                    bootkernel = utils.get_from_config(args.accountName,
+                                                       config,
+                                                       region,
+                                                       'aki_x86_64',
+                                                       '--boot-kernel')
+                except:
+                    print >> sys.stderr, 'Could not find bootkernel in config'
+                    sys.exit(1)
             elif args.arch == 'i386':
-                bootkernel = utils.get_from_config(args.accountName,
-                                                   config,
-                                                   region,
-                                                   'aki_i386',
-                                                   '--boot-kernel')
+                try:
+                    bootkernel = utils.get_from_config(args.accountName,
+                                                       config,
+                                                       region,
+                                                       'aki_i386',
+                                                       '--boot-kernel')
+                except:
+                    print >> sys.stderr, 'Could not find bootkernel in config'
+                    sys.exit(1)
             else:
                 print >> sys.stderr, 'Could not reliable determine the ',
                 print >> sys.stderr, 'bootkernel to use '
                 print >> sys.stderr, 'must specify bootkernel, ',
                 print >> sys.stderr, 'arch (x86_64|i386) or hvm'
                 sys.exit(1)
-    
+
         inst_type = args.instType
         if not inst_type:
             inst_type = utils.get_from_config(args.accountName,
@@ -377,7 +399,7 @@ try:
                                               region,
                                               'instance_type',
                                               '--type')
-    
+
         key_pair_name = args.sshName
         if not key_pair_name:
             key_pair_name = utils.get_from_config(args.accountName,
@@ -388,7 +410,7 @@ try:
         if not key_pair_name:
             print >> sys.stderr, 'Could not determine key pair name'
             sys.exit(1)
-    
+
         ssh_private_key_file = args.privateKey
         if not ssh_private_key_file:
             ssh_private_key_file = utils.get_from_config(args.accountName,
@@ -415,7 +437,7 @@ try:
         if not ssh_user:
             print >> sys.stderr, 'Could not determin ssh user to use'
             sys.exit(1)
-    
+
         uploader = ec2upimg.EC2ImageUploader(
                           access_key=access_key,
                           backing_store=args.backingStore,
@@ -442,7 +464,7 @@ try:
                           vpc_subnet_id=args.vpcSubnetId,
                           wait_count=args.waitCount
         )
-    
+
         uploader.set_region(region)
         if args.snapOnly:
             snapshot = uploader.create_snapshot(args.source)
