@@ -58,7 +58,7 @@ def check_account_keys(config, command_args):
 
 # ----------------------------------------------------------------------------
 def find_images_by_id(images, image_id):
-    """Return a list of images that mtch the given ID. By definition this
+    """Return a list of images that match the given ID. By definition this
        is a list of one as IDs are unique."""
     matching_images = []
     for image in images:
