@@ -330,16 +330,16 @@ if args.rootVolSize:
     root_volume_size = args.rootVolSize
 
 regions = args.regions.split(',')
-if len(regions) > 1 and (args.amiID or args.akiID or ars.runningID):
+if len(regions) > 1 and (args.amiID or args.akiID or args.runningID):
     print >> sys.stderr, 'Incompatible arguments: multiple regions specified'
     print >> sys.stderr, 'Cannot process region unique argument for --ec2-ami,'
     print >> sys.stderr, '--instance-id, or --boot-kernel'
     sys.exit(1)
 
 try:
+    ami_id = args.amiID
+    running_id = args.runningID
     for region in regions:
-        ami_id = args.amiID
-        running_id = args.runningID
         if not ami_id and not running_id:
             try:
                 ami_id = utils.get_from_config(args.accountName,

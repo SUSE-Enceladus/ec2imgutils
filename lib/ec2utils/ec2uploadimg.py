@@ -70,7 +70,7 @@ class EC2ImageUploader(EC2Utils):
         self.launch_ami_id = launch_ami
         self.launch_ins_type = launch_inst_type
         self.root_volume_size = int(root_volume_size)
-        self.running_id = running_id,
+        self.running_id = running_id
         self.secret_key = secret_key
         self.security_group_ids = security_group_ids
         self.sriov_type = sriov_type
@@ -625,6 +625,7 @@ class EC2ImageUploader(EC2Utils):
 
         return location
 
+    # ---------------------------------------------------------------------
     def _get_helper_instance(self):
         """Returns handle to running instance"""
         self._set_zone_to_use()
@@ -919,7 +920,26 @@ class EC2ImageUploader(EC2Utils):
         )
         if self.verbose:
             print 'Creating new image'
+        instance_info = self._connect().describe_instances(
+            InstanceIds=[self.helper_instance['InstanceId']]
+        )
+        helper_instance = instance_info['Reservations'][0]['Instances']
+        helper_dev_map = helper_instance[0]['BlockDeviceMappings'][0]
+        if self.backing_store == 'mag':
+            backing_store = 'standard'
+        else:
+            backing_store = 'gp2'
+        block_device_map = {
+            'DeviceName': helper_dev_map['DeviceName'],
+            'Ebs': {
+                'DeleteOnTermination':
+                helper_dev_map['Ebs']['DeleteOnTermination'],
+                'VolumeSize': self.root_volume_size,
+                'VolumeType': backing_store
+            }
+        }
         ami = self._connect().create_image(
+            BlockDeviceMappings=[block_device_map],
             InstanceId=self.helper_instance['InstanceId'],
             Name=self.image_name,
             Description=self.image_description,
