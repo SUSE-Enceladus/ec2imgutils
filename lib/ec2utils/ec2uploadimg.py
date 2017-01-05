@@ -630,7 +630,7 @@ class EC2ImageUploader(EC2Utils):
         """Returns handle to running instance"""
         self._set_zone_to_use()
         helper_instance = self._connect().describe_instances(
-            InstanceIds=self.running_id)['Reservations'][0]['Instances'][0]
+            InstanceIds=[self.running_id])['Reservations'][0]['Instances'][0]
         if helper_instance['State']['Name'] != 'running':
             msg = 'Helper instance %s is not running' % self.running_id
             raise EC2UploadImgException(msg)
