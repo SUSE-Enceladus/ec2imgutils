@@ -422,6 +422,8 @@ try:
             print >> sys.stderr, 'Could not determine the private ssh key file'
             sys.exit(1)
 
+        ssh_private_key_file = os.path.expanduser(ssh_private_key_file)
+            
         if not os.path.exists(ssh_private_key_file):
             print >> sys.stderr, ('SSH private key file "%s" does not exist'
                                   % ssh_private_key_file)
