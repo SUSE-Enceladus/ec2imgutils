@@ -348,7 +348,7 @@ try:
                                                'ami',
                                                '--ec2-ami')
             except:
-                print >> stderr, 'Could not determine helper AMI-ID'
+                print >> sys.stderr, 'Could not determine helper AMI-ID'
                 sys.exit(1)
         bootkernel = args.akiID
         if args.virtType == 'hvm':
