@@ -73,7 +73,7 @@ argparse.add_argument(
     action='store_true',
     default=False,
     dest='force',
-    help='Overwrite existing deprecation tags (Optionsl)',
+    help='Overwrite existing deprecation tags (Optional)',
 )
 # Note, one of the arguments in the group is required if --version is
 # not specified. However setting this behavior through the parser
