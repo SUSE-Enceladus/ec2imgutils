@@ -26,10 +26,9 @@ _--image-name-match_ cannot match the replacement image.
 
 # ec2publishimg
 
-
-A command line utility to control the visibility of an image in AWS EC2.
-The tool supports setting an image to public or private.
-
+Sets the visibility of an AMI to allow others to use the
+image or to make the image private, i.e. only available to the account
+owner.
 
 ## Installation
 
@@ -44,11 +43,15 @@ zypper in python3-ec2imgutils
 
 ```
 ec2deprecateimg --account example --image-name-match v15 --image-virt-type hvm --replacement-name exampleimage_v16
+
+ec2publishimg --account example --image-name-match production-v2 --share-with all
 ```
 
+
 See the [man page](man/man1/ec2deprecateimg.1) for more information.
+See the [man page](man/man1/ec2publishimg.1) for more information.
 
 ```
 man ec2deprecateimg
+man ec2publishimg
 ```
-
