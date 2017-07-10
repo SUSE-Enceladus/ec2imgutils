@@ -16,15 +16,12 @@
 # along with ec2utilsbase.  If not, see <http://www.gnu.org/licenses/>.
 
 import boto3
-import ConfigParser
+import configparser
 import os
 import re
 import sys
 
-try:
-    from .ec2UtilsExceptions import *
-except:
-    from ec2UtilsExceptions import *
+from ec2UtilsExceptions import *
 
 
 # -----------------------------------------------------------------------------
@@ -76,7 +73,7 @@ def find_images_by_name(images, image_name):
     matching_images = []
     for image in images:
         if not image['Name']:
-            print _no_name_warning(image)
+            print(_no_name_warning(image))
             continue
         if image_name == image['Name']:
             matching_images.append(image)
@@ -91,7 +88,7 @@ def find_images_by_name_fragment(images, image_name_fragment):
     matching_images = []
     for image in images:
         if not image['Name']:
-            print _no_name_warning(image)
+            print(_no_name_warning(image))
             continue
         if image['Name'].find(image_name_fragment) != -1:
             matching_images.append(image)
@@ -107,7 +104,7 @@ def find_images_by_name_regex_match(images, image_name_regex):
     image_name_exp = re.compile(image_name_regex)
     for image in images:
         if not image['Name']:
-            print _no_name_warning(image)
+            print(_no_name_warning(image))
             continue
         if image_name_exp.match(image['Name']):
             matching_images.append(image)
@@ -131,7 +128,7 @@ def generate_config_region_name(region):
 def get_config(configFilePath):
     """Return a config object fr hte given file."""
 
-    config = ConfigParser.RawConfigParser()
+    config = configparser.RawConfigParser()
     parsed = None
     try:
         parsed = config.read(configFilePath)
@@ -209,4 +206,4 @@ def _no_name_warning(image):
     """Print a warning for images that have no name"""
     msg = 'WARNING: Found image with no name, ignoring for search results. '
     msg += 'Image ID: %s' % image.id
-    print msg
+    print(msg)

@@ -18,24 +18,21 @@
 
 %define upstream_name ec2utilsbase
 Name:           python-ec2utilsbase
-Version:        2.0.2
+Version:        3.0.0
 Release:        0
 Summary:        Shared EC2 utils functionality
 License:        GPL-3.0+
 Group:          System/Management
 Url:            https://github.com/SUSE/Enceladus
 Source0:        %{upstream_name}-%{version}.tar.bz2
-Requires:       python
-Requires:       python-boto3 >= 1.3.0
-BuildRequires:  python-boto3 >= 1.3.0
-BuildRequires:  python-setuptools
+Requires:       python3
+Requires:       python3-boto3 >= 1.3.0
+BuildRequires:  python3-boto3 >= 1.3.0
+BuildRequires:  python3-setuptools
 BuildRoot:      %{_tmppath}/%{name}-%{version}-build
 
-%if 0%{?suse_version} && 0%{?suse_version} <= 1110
-%{!?python_sitelib: %global python_sitelib %(python -c "from distutils.sysconfig import get_python_lib; print get_python_lib()")}
-%else
 BuildArch:      noarch
-%endif
+
 
 %description
 Shared functionality for various ec2utils
@@ -44,17 +41,16 @@ Shared functionality for various ec2utils
 %setup -q -n %{upstream_name}-%{version}
 
 %build
-python setup.py build
+python3 setup.py build
 
 %install
-python setup.py install --prefix=%{_prefix} --root=%{buildroot}
+python3 setup.py install --prefix=%{_prefix} --root=%{buildroot}
 
 
 %files
 %defattr(-,root,root,-)
 %doc LICENSE
-%dir %{python_sitelib}/ec2utils
-%dir %{python_sitelib}/%{upstream_name}-%{version}-py%{py_ver}.egg-info
-%{python_sitelib}/*
+%dir %{python3_sitelib}/ec2utils
+%{python3_sitelib}/*
 
 %changelog

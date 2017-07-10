@@ -1,4 +1,4 @@
-#!/usr/bin/python
+#!/usr/bin/python3
 #
 # Copyright (c) 2015 SUSE Linux GmbH.  All rights reserved.
 #
@@ -19,7 +19,7 @@
 # <http://www.gnu.org/licenses/>.
 #
 
-import ConfigParser
+import configparser
 import os
 import sys
 
