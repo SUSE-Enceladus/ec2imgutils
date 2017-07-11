@@ -1,4 +1,4 @@
-# Copyright 2015 SUSE LLC, Robert Schweikert
+# Copyright 2017 SUSE LLC, Robert Schweikert
 #
 # This file is part of ec2uploadimg.
 #
@@ -104,7 +104,7 @@ class EC2ImageUploader(EC2Utils):
                 InstanceId=instance['InstanceId'],
                 Device=device)
         if self.verbose:
-            print 'Wait for volume attachment'
+            print('Wait for volume attachment')
         self.operation_complete = False
         self._show_progress()
         waiter = self._connect().get_waiter('volume_in_use')
@@ -196,7 +196,7 @@ class EC2ImageUploader(EC2Utils):
         """Check the wait status form the waiter and take appropriate action"""
         if wait_status:
             if self.verbose:
-                print
+                print()
             if repeat_count == self.wait_count:
                 self.operation_complete = True
                 if self.verbose:
@@ -206,10 +206,10 @@ class EC2ImageUploader(EC2Utils):
                     self._clean_up()
                 raise EC2UploadImgException(error_msg)
             repeat_count += 1
-            print 'Entering wait loop number %d of %d' % (
+            print('Entering wait loop number %d of %d' % (
                 repeat_count,
                 self.wait_count
-            )
+            ))
             self.operation_complete = False
             self._show_progress()
         else:
@@ -219,7 +219,7 @@ class EC2ImageUploader(EC2Utils):
                 self.progress_timer.cancel()
             time.sleep(self.default_sleep)  # Wait for the thread
             if self.verbose:
-                print
+                print()
 
         return repeat_count
 
@@ -311,7 +311,7 @@ class EC2ImageUploader(EC2Utils):
             Description=self.image_description
         )
         if self.verbose:
-            print 'Waiting for snapshot creation: ', snapshot['SnapshotId']
+            print('Waiting for snapshot creation: ', snapshot['SnapshotId'])
         self.operation_complete = False
         self._show_progress()
         waiter = self._connect().get_waiter('snapshot_completed')
@@ -344,7 +344,7 @@ class EC2ImageUploader(EC2Utils):
     def _create_storage_filesystem(self, device_id):
         """Create an ext3 filesystem on the storage volume"""
         if self.verbose:
-            print 'Creating ext3 filesystem on storage volume'
+            print('Creating ext3 filesystem on storage volume')
         filesystem_partition = '%s1' % device_id
         command = 'mkfs -t ext3 %s' % filesystem_partition
         result = self._execute_ssh_command(command)
@@ -372,7 +372,7 @@ class EC2ImageUploader(EC2Utils):
             VolumeType='gp2'
         )
         if self.verbose:
-            print 'Waiting for volume creation: ', volume['VolumeId']
+            print('Waiting for volume creation: ', volume['VolumeId'])
         self.operation_complete = False
         self._show_progress()
         waiter = self._connect().get_waiter('volume_available')
@@ -415,7 +415,7 @@ class EC2ImageUploader(EC2Utils):
 
         self._connect().detach_volume(VolumeId=volume['VolumeId'])
         if self.verbose:
-            print 'Wait for volume to detach'
+            print('Wait for volume to detach')
         self.operation_complete = False
         self._show_progress()
         waiter = self._connect().get_waiter('volume_available')
@@ -465,7 +465,7 @@ class EC2ImageUploader(EC2Utils):
     def _dump_root_fs(self, image_dir, raw_image_name, target_root_device):
         """Dump the raw image to the target device"""
         if self.verbose:
-            print 'Dumping raw image to new target root volume'
+            print('Dumping raw image to new target root volume')
         if not self._device_exists(target_root_device):
             target_root_device = self._find_equivalent_device(
                 target_root_device)
@@ -492,7 +492,7 @@ class EC2ImageUploader(EC2Utils):
     def _establish_ssh_connection(self, instance):
         """Connect to the running instance with ssh"""
         if self.verbose:
-            print 'Waiting to obtain instance IP address'
+            print('Waiting to obtain instance IP address')
         instance_ip = instance.get('PublicIpAddress')
         if self.use_private_ip:
             instance_ip = instance.get('PrivateIpAddress')
@@ -505,18 +505,18 @@ class EC2ImageUploader(EC2Utils):
             if self.use_private_ip:
                 instance_ip = instance.get('PrivateIpAddress')
             if self.verbose:
-                print '. ',
+                print('. ', end=' ')
                 sys.stdout.flush()
             if timeout_counter * self.default_sleep >= self.ssh_timeout:
                 msg = 'Unable to obtain the instance IP address'
                 raise EC2UploadImgException(msg)
             timeout_counter += 1
         if self.verbose:
-            print
+            print()
         client = paramiko.client.SSHClient()
         client.set_missing_host_key_policy(paramiko.WarningPolicy())
         if self.verbose:
-            print 'Attempt ssh connection'
+            print('Attempt ssh connection')
         ssh_connection = None
         timeout_counter = 1
         while not ssh_connection:
@@ -528,7 +528,7 @@ class EC2ImageUploader(EC2Utils):
                 )
             except:
                 if self.verbose:
-                    print '. ',
+                    print('. ', end=' ')
                     sys.stdout.flush()
                 time.sleep(self.default_sleep)
                 if (
@@ -541,7 +541,7 @@ class EC2ImageUploader(EC2Utils):
                 timeout_counter += 1
             else:
                 ssh_connection = True
-                print
+                print()
 
         self.ssh_client = client
 
@@ -585,7 +585,7 @@ class EC2ImageUploader(EC2Utils):
         """Format the storage volume"""
 
         if self.verbose:
-            print 'Formating storage volume'
+            print('Formating storage volume')
         parted = self._get_command_from_instance('parted')
         sfdifk = None
         if not parted:
@@ -674,7 +674,7 @@ class EC2ImageUploader(EC2Utils):
         self.instance_ids.append(instance['InstanceId'])
 
         if self.verbose:
-            print 'Waiting for instance: ', instance['InstanceId']
+            print('Waiting for instance: ', instance['InstanceId'])
         self.operation_complete = False
         self._show_progress()
         waiter = self._connect().get_waiter('instance_running')
@@ -719,7 +719,7 @@ class EC2ImageUploader(EC2Utils):
         """Register an image from the given snapshot"""
         block_device_map = self._create_block_device_map(snapshot)
         if self.verbose:
-            print 'Registering image'
+            print('Registering image')
 
         root_device_name = self._determine_root_device()
         register_args = {
@@ -776,7 +776,7 @@ class EC2ImageUploader(EC2Utils):
         time.sleep(self.default_sleep)
 
         if self.verbose:
-            print '. ',
+            print('. ', end=' ')
             sys.stdout.flush()
             timeout_counter += 1
             if not self.operation_complete:
@@ -794,13 +794,13 @@ class EC2ImageUploader(EC2Utils):
         sftp = self.ssh_client.open_sftp()
         try:
             if self.verbose:
-                print 'Uploading image file: ', source
+                print('Uploading image file: ', source)
             sftp_attrs = sftp.put(source,
                                   '%s/%s' % (target_dir, filename),
                                   self._upload_progress)
             if self.verbose:
-                print
-        except Exception, e:
+                print()
+        except Exception as e:
             self._clean_up()
             raise e
 
@@ -812,7 +812,7 @@ class EC2ImageUploader(EC2Utils):
         if self.verbose:
             percent_complete = (float(transferred_bytes) / total_bytes) * 100
             if percent_complete - self.percent_transferred >= 10:
-                print '.',
+                print('.', end=' ')
                 sys.stdout.flush()
                 self.percent_transferred = percent_complete
 
@@ -838,7 +838,7 @@ class EC2ImageUploader(EC2Utils):
             for fl in files:
                 if fl.strip()[-2:] == 'xz':
                     if self.verbose:
-                        print 'Inflating image: ', fl
+                        print('Inflating image: ', fl)
                     command = 'xz -d %s/%s' % (image_dir, fl)
                     result = self._execute_ssh_command(command)
                     raw_image_file = fl.strip()[:-3]
@@ -871,7 +871,7 @@ class EC2ImageUploader(EC2Utils):
         target_root_volume = self._create_image_root_volume(source)
         self._connect().stop_instances(InstanceIds=self.instance_ids)
         if self.verbose:
-            print 'Waiting for helper instance to stop'
+            print('Waiting for helper instance to stop')
         self.operation_complete = False
         self._show_progress()
         waiter = self._connect().get_waiter('instance_stopped')
@@ -919,7 +919,7 @@ class EC2ImageUploader(EC2Utils):
             device_id
         )
         if self.verbose:
-            print 'Creating new image'
+            print('Creating new image')
         instance_info = self._connect().describe_instances(
             InstanceIds=[self.helper_instance['InstanceId']]
         )
@@ -947,7 +947,7 @@ class EC2ImageUploader(EC2Utils):
         )
 
         if self.verbose:
-            print 'Waiting for new image creation'
+            print('Waiting for new image creation')
         self.operation_complete = False
         self._show_progress()
         waiter = self._connect().get_waiter('image_available')
@@ -982,7 +982,7 @@ class EC2ImageUploader(EC2Utils):
     def create_snapshot(self, source):
         """Create a snapshot from the given source"""
         if self.verbose:
-            print
+            print()
         root_volume = self._create_image_root_volume(source)
         snapshot = self._create_snapshot(root_volume)
         self._clean_up()

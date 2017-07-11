@@ -1,6 +1,6 @@
-#!/usr/bin/python
+#!/usr/bin/python3
 
-# Copyright 2015 SUSE LLC, Robert Schweikert
+# Copyright 2017 SUSE LLC, Robert Schweikert
 #
 # This file is part of ec2uploadimg.
 #
@@ -17,7 +17,7 @@
 # You should have received a copy of the GNU General Public License
 # along with ec2uploadimg. If not, see <http://www.gnu.org/licenses/>.
 
-import ConfigParser
+import configparser
 import argparse
 import boto3
 import os
@@ -246,29 +246,29 @@ if '--version' in sys.argv:
     version_file_name = 'upload_VERSION'
     base_path = os.path.dirname(utils.__file__)
     version = open(base_path + os.sep + version_file_name, 'r').read()
-    print version
+    print(version)
     sys.exit(0)
 
 args = argparse.parse_args()
 config_file = args.configFilePath
 config = None
 if not os.path.isfile(config_file):
-    print 'Configuration file "%s" not found.' % config_file
+    print('Configuration file "%s" not found.' % config_file)
     sys.exit(1)
 try:
     config = utils.get_config(config_file)
 except Exception as e:
-    print >> sys.stderr, e.message
+    print(e.message, file=sys.stderr)
     sys.exit(1)
 
 if not os.path.isfile(args.source):
-    print 'Could not find specified image file: %s' % args.source
+    print('Could not find specified image file: %s' % args.source)
     sys.exit(1)
 
 try:
     utils.check_account_keys(config, args)
 except Exception as e:
-    print >> sys.stderr, e.message
+    print(e.message, file=sys.stderr)
     sys.exit(1)
 
 access_key = args.accessKey
@@ -280,11 +280,11 @@ if not access_key:
                                            'access_key_id',
                                            '--access-id')
     except EC2AccountException as e:
-        print >> sys.stderr, e
+        print(e, file=sys.stderr)
         sys.exit(1)
 
 if not access_key:
-    print >> sys.stderr, 'Could not determine account access key'
+    print('Could not determine account access key', file=sys.stderr)
     sys.exit(1)
 
 secret_key = args.secretKey
@@ -296,11 +296,11 @@ if not secret_key:
                                            'secret_access_key',
                                            '--secret-key')
     except EC2AccountException as e:
-        print >> sys.stderr, e
+        print(e, file=sys.stderr)
         sys.exit(1)
 
 if not secret_key:
-    print >> sys.stderr, 'Could not determine account secret access key'
+    print('Could not determine account secret access key', file=sys.stderr)
     sys.exit(1)
 
 sriov_type = args.sriov
@@ -312,17 +312,17 @@ if virtualization_type == 'para':
     virtualization_type = 'paravirtual'
 
 if sriov_type and virtualization_type != 'hvm':
-    print >> sys.stderr, 'SRIOV support is only possible with HVM images'
+    print('SRIOV support is only possible with HVM images', file=sys.stderr)
     sys.exit(1)
 
 if args.ena and virtualization_type != 'hvm':
-    print >> sys.stderr, 'ENA is only possible with HVM images'
+    print('ENA is only possible with HVM images', file=sys.stderr)
     sys.exit(1)
 
 if args.amiID and args.runningID:
     msg = 'Specify either AMI ID to start instance or running '
     msg += ' ID to use already running instance'
-    print >> sys.stderr, msg
+    print(msg, file=sys.stderr)
     sys.exit(1)
 
 root_volume_size = 10
@@ -331,9 +331,15 @@ if args.rootVolSize:
 
 regions = args.regions.split(',')
 if len(regions) > 1 and (args.amiID or args.akiID or args.runningID):
-    print >> sys.stderr, 'Incompatible arguments: multiple regions specified'
-    print >> sys.stderr, 'Cannot process region unique argument for --ec2-ami,'
-    print >> sys.stderr, '--instance-id, or --boot-kernel'
+    print(
+        'Incompatible arguments: multiple regions specified',
+        file=sys.stderr
+    )
+    print(
+        'Cannot process region unique argument for --ec2-ami,',
+        file=sys.stderr
+    )
+    print('--instance-id, or --boot-kernel', file=sys.stderr)
     sys.exit(1)
 
 try:
@@ -348,7 +354,7 @@ try:
                                                'ami',
                                                '--ec2-ami')
             except:
-                print >> sys.stderr, 'Could not determine helper AMI-ID'
+                print('Could not determine helper AMI-ID', file=sys.stderr)
                 sys.exit(1)
         bootkernel = args.akiID
         if args.virtType == 'hvm':
@@ -363,7 +369,10 @@ try:
                                                        'g2_aki_x86_64',
                                                        '--boot-kernel')
                 except:
-                    print >> sys.stderr, 'Could not find bootkernel in config'
+                    print(
+                        'Could not find bootkernel in config',
+                        file=sys.stderr
+                    )
                     sys.exit(1)
             elif args.arch == 'x86_64':
                 try:
@@ -373,7 +382,10 @@ try:
                                                        'aki_x86_64',
                                                        '--boot-kernel')
                 except:
-                    print >> sys.stderr, 'Could not find bootkernel in config'
+                    print(
+                        'Could not find bootkernel in config',
+                        file=sys.stderr
+                    )
                     sys.exit(1)
             elif args.arch == 'i386':
                 try:
@@ -383,13 +395,20 @@ try:
                                                        'aki_i386',
                                                        '--boot-kernel')
                 except:
-                    print >> sys.stderr, 'Could not find bootkernel in config'
+                    print(
+                        'Could not find bootkernel in config',
+                        file=sys.stderr
+                    )
                     sys.exit(1)
             else:
-                print >> sys.stderr, 'Could not reliable determine the ',
-                print >> sys.stderr, 'bootkernel to use '
-                print >> sys.stderr, 'must specify bootkernel, ',
-                print >> sys.stderr, 'arch (x86_64|i386) or hvm'
+                print(
+                    'Could not reliable determine the ',
+                    end=' ',
+                    file=sys.stderr
+                )
+                print('bootkernel to use ', file=sys.stderr)
+                print('must specify bootkernel, ', end=' ', file=sys.stderr)
+                print('arch (x86_64|i386) or hvm', file=sys.stderr)
                 sys.exit(1)
 
         inst_type = args.instType
@@ -408,7 +427,7 @@ try:
                                                   'ssh_key_name',
                                                   '--ssh-key-pair')
         if not key_pair_name:
-            print >> sys.stderr, 'Could not determine key pair name'
+            print('Could not determine key pair name', file=sys.stderr)
             sys.exit(1)
 
         ssh_private_key_file = args.privateKey
@@ -419,14 +438,22 @@ try:
                                                          'ssh_private_key',
                                                          '--private-key-file')
         if not ssh_private_key_file:
-            print >> sys.stderr, 'Could not determine the private ssh key file'
+            print(
+                'Could not determine the private ssh key file',
+                file=sys.stderr
+            )
             sys.exit(1)
 
         ssh_private_key_file = os.path.expanduser(ssh_private_key_file)
-            
+
         if not os.path.exists(ssh_private_key_file):
-            print >> sys.stderr, ('SSH private key file "%s" does not exist'
-                                  % ssh_private_key_file)
+            print(
+                (
+                     'SSH private key file "%s" does not exist'
+                     % ssh_private_key_file
+                ),
+                file=sys.stderr
+            )
             sys.exit(1)
 
         ssh_user = args.sshUser
@@ -437,7 +464,7 @@ try:
                                              'user',
                                              '--user')
         if not ssh_user:
-            print >> sys.stderr, 'Could not determin ssh user to use'
+            print('Could not determin ssh user to use', file=sys.stderr)
             sys.exit(1)
 
         uploader = ec2upimg.EC2ImageUploader(
@@ -470,16 +497,16 @@ try:
         uploader.set_region(region)
         if args.snapOnly:
             snapshot = uploader.create_snapshot(args.source)
-            print 'Created snapshot: ', snapshot['SnapshotId']
+            print('Created snapshot: ', snapshot['SnapshotId'])
         elif args.rootSwapMethod:
             ami = uploader.create_image_use_root_swap(args.source)
-            print 'Created image: ', ami
+            print('Created image: ', ami)
         else:
             ami = uploader.create_image(args.source)
-            print 'Created image: ', ami
-except EC2UploadImgException, e:
-    print >> sys.stderr, e
+            print('Created image: ', ami)
+except EC2UploadImgException as e:
+    print(e, file=sys.stderr)
     sys.exit(1)
-except Exception, e:
-    print >> sys.stderr, e
+except Exception as e:
+    print(e, file=sys.stderr)
     sys.exit(1)
