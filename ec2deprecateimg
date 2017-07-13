@@ -199,7 +199,7 @@ if args.version:
     version_file_name = 'deprecate_VERSION'
     base_path = os.path.dirname(ec2utils.__file__)
     version = open(base_path + os.sep + version_file_name, 'r').read()
-    print version
+    print(version)
     sys.exit(0)
 
 # Explicit check required to to the group issue, see comment above
@@ -211,7 +211,7 @@ if (
     error_msg = 'ec2deprecateimg: error: one of the arguments '
     error_msg += '--image-id --image-name --image-name-frag '
     error_msg += '--image-name-match is required'
-    print error_msg
+    print(error_msg)
     sys.exit(1)
 
 # Explicit check required to to the group issue, see comment above
@@ -223,19 +223,19 @@ if (
     error_msg = 'ec2deprecateimg: error: one of the arguments '
     error_msg += '--replacement-id --replacement-name '
     error_msg += '--replacement-name-frag --replacement-name-match is required'
-    print error_msg
+    print(error_msg)
     sys.exit(1)
 
 
 config_file = args.configFilePath
 config = None
 if not os.path.isfile(config_file):
-    print 'Configuration file "%s" not found.' % config_file
+    print('Configuration file "%s" not found.' % config_file)
     sys.exit(1)
 try:
     config = utils.get_config(config_file)
 except Exception as e:
-    print >> sys.stderr, e.message
+    print(e.message, file=sys.stderr)
     sys.exit(1)
 
 access_key = args.accessKey
@@ -247,11 +247,11 @@ if not access_key:
                                            'access_key_id',
                                            '--access-id')
     except EC2AccountException as e:
-        print >> sys.stderr, e
+        print(e, file=sys.stderr)
         sys.exit(1)
 
 if not access_key:
-    print >> sys.stderr, 'Could not determine account access key'
+    print('Could not determine account access key', file=sys.stderr)
     sys.exit(1)
 
 secret_key = args.secretKey
@@ -263,11 +263,11 @@ if not secret_key:
                                            'secret_access_key',
                                            '--secret-key')
     except EC2AccountException as e:
-        print >> sys.stderr, e
+        print(e, file=sys.stderr)
         sys.exit(1)
 
 if not secret_key:
-    print >> sys.stderr, 'Could not determine account secret access key'
+    print('Could not determine account secret access key', file=sys.stderr)
     sys.exit(1)
 
 regions = utils.get_regions(args, access_key, secret_key)
@@ -296,22 +296,22 @@ for region in regions:
     deprecator.set_region(region)
     try:
         if args.dryRun:
-            print 'Dry run, image attributes will not be modified'
+            print('Dry run, image attributes will not be modified')
             deprecator.print_deprecation_info()
         else:
             deprecator.deprecate_images()
-    except EC2DeprecateImgException, e:
+    except EC2DeprecateImgException as e:
         errors[region] = e.message
-    except Exception, e:
+    except Exception as e:
         if errors:
-            print >> sys.stderr, 'Collected errors:'
-            for region, error in errors.items():
-                print >> sys.stderr, 'Region: %s -> %s' % (region, error)
-        print >> sys.stderr, e
+            print('Collected errors:', file=sys.stderr)
+            for region, error in list(errors.items()):
+                print('Region: %s -> %s' % (region, error), file=sys.stderr)
+        print(e, file=sys.stderr)
         sys.exit(1)
 
 if errors:
-    print >> sys.stderr, 'Errors encountered:'
-    for region, error in errors.items():
-        print >> sys.stderr, 'Region: %s -> %s' % (region, error)
+    print('Errors encountered:', file=sys.stderr)
+    for region, error in list(errors.items()):
+        print('Region: %s -> %s' % (region, error), file=sys.stderr)
     sys.exit(1)

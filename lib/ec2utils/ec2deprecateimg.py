@@ -126,7 +126,7 @@ class EC2DeprecateImg(EC2Utils):
                     if self.verbose:
                         msg = 'Ignore replacement image as potential target '
                         msg += 'for deprecation.'
-                        print msg
+                        print(msg)
                     continue
             if self.image_virt_type:
                 if self.image_virt_type == image['VirtualizationType']:
@@ -230,13 +230,13 @@ class EC2DeprecateImg(EC2Utils):
         images = self._get_images_to_deprecate()
         if not images:
             if self.verbose:
-                print 'No images to deprecate found'
+                print('No images to deprecate found')
             return False
         if self.verbose:
-            print 'Deprecating images in region: ', self.region
-            print '\tDeprecated on', self.deprecation_date
-            print 'Removal date', self.deletion_date
-            print 'Replacement image', self.replacement_image_tag
+            print('Deprecating images in region: ', self.region)
+            print('\tDeprecated on', self.deprecation_date)
+            print('Removal date', self.deletion_date)
+            print('Replacement image', self.replacement_image_tag)
         for image in images:
             existing_tags = image.get('Tags')
             tagged = False
@@ -245,7 +245,7 @@ class EC2DeprecateImg(EC2Utils):
                     if tag.get('Key') == 'Deprecated on':
                         if self.verbose:
                             msg = '\t\tImage %s already tagged, skipping'
-                            print msg % image['ImageId']
+                            print(msg % image['ImageId'])
                         tagged = True
             if tagged:
                 continue
@@ -268,7 +268,7 @@ class EC2DeprecateImg(EC2Utils):
             ]
             self._connect().create_tags(Resources=[image['ImageId']], Tags=tags)
             if self.verbose:
-                print '\t\ttagged:%s\t%s' % (image['ImageId'], image['Name'])
+                print('\t\ttagged:%s\t%s' % (image['ImageId'], image['Name']))
 
     # ---------------------------------------------------------------------
     def print_deprecation_info(self):
@@ -277,15 +277,15 @@ class EC2DeprecateImg(EC2Utils):
         self._set_replacement_image_info()
         images = self._get_images_to_deprecate()
         if not images:
-            print 'No images to deprecate found'
+            print('No images to deprecate found')
             return True
 
-        print 'Would deprecate images in region: ', self.region
-        print '\tDeprecated on', self.deprecation_date
-        print '\tRemoval date', self.deletion_date
-        print '\tReplacement image', self.replacement_image_tag
-        print '\tImages to deprecate:\n\t\tID\t\t\t\tName'
+        print('Would deprecate images in region: ', self.region)
+        print('\tDeprecated on', self.deprecation_date)
+        print('\tRemoval date', self.deletion_date)
+        print('\tReplacement image', self.replacement_image_tag)
+        print('\tImages to deprecate:\n\t\tID\t\t\t\tName')
         for image in images:
-            print '\t\t%s\t%s' % (image['ImageId'], image['Name'])
+            print('\t\t%s\t%s' % (image['ImageId'], image['Name']))
 
         return True
