@@ -17,7 +17,7 @@
 
 
 %define upstream_name ec2deprecateimg
-Name:           python-ec2deprecateimg
+Name:           python3-ec2deprecateimg
 Version:        4.0.0
 Release:        0
 Summary:        Tag image as deprected in EC2
@@ -34,6 +34,10 @@ BuildRequires:  python3-setuptools
 BuildRoot:      %{_tmppath}/%{name}-%{version}-build
 BuildArch:      noarch
 
+# Package renamed in SLE 12, do not remove Provides, Obsolete directives
+# until after SLE 12 EOL
+Provides:       python-ec2deprecateimg = %{version}
+Obsoletes:      python-ec2deprecateimg < %{version}
 
 %description
 Deprecate images owned by the specified account by adding tags named
