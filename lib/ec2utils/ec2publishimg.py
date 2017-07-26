@@ -117,13 +117,13 @@ class EC2PublishImage(EC2Utils):
     def _print_image_info(self, image):
         """Print a message about the image that would be modified"""
         if self.visibility == 'all' or self.visibility == 'none':
-            print self.publish_msg % (image['ImageId'], image['Name'])
+            print(self.publish_msg % (image['ImageId'], image['Name']))
         else:
-            print self.publish_msg % (
+            print(self.publish_msg % (
                         image['ImageId'],
                         image['Name'],
                         self.visibility
-            )
+            ))
 
     # --------------------------------------------------------------------
     def print_publish_info(self):
@@ -158,7 +158,7 @@ class EC2PublishImage(EC2Utils):
                 if not launch_attributes:
                     msg = '\tImage with ID: %s  ' % image['ImageId']
                     msg += 'is already private, nothing to do'
-                    print msg
+                    print(msg)
                     continue
                 self._connect().modify_image_attribute(
                     ImageId=image['ImageId'],

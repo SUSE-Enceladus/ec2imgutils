@@ -144,7 +144,7 @@ if args.version:
     version_file_name = 'publish_VERSION'
     base_path = os.path.dirname(ec2utils.__file__)
     version = open(base_path + os.sep + version_file_name, 'r').read()
-    print version
+    print(version)
     sys.exit(0)
 
 # Explicit check required to to the group issue, see comment above
@@ -156,19 +156,19 @@ if (
     error_msg = 'ec2publishimg: error: one of the arguments '
     error_msg += '--image-id --image-name --image-name-frag '
     error_msg += '--image-name-match is required'
-    print >> sys.stderr, error_msg
+    print(error_msg, file=sys.stderr)
     sys.exit(1)
 
 
 config_file = args.configFilePath
 config = None
 if not os.path.isfile(config_file):
-    print 'Configuration file "%s" not found.' % config_file
+    print('Configuration file "%s" not found.' % config_file)
     sys.exit(1)
 try:
     config = utils.get_config(config_file)
 except Exception as e:
-    print >> sys.stderr, e.message
+    print(e.message, file=sys.stderr)
     sys.exit(1)
 
 access_key = args.accessKey
@@ -180,11 +180,11 @@ if not access_key:
                                            'access_key_id',
                                            '--access-id')
     except EC2AccountException as e:
-        print >> sys.stderr, e
+        print(e, file=sys.stderr)
         sys.exit(1)
 
 if not access_key:
-    print >> sys.stderr, 'Could not determine account access key'
+    print('Could not determine account access key', file=sys.stderr)
     sys.exit(1)
 
 secret_key = args.secretKey
@@ -196,11 +196,11 @@ if not secret_key:
                                            'secret_access_key',
                                            '--secret-key')
     except EC2AccountException as e:
-        print >> sys.stderr, e
+        print(e, file=sys.stderr)
         sys.exit(1)
 
 if not secret_key:
-    print >> sys.stderr, 'Could not determine account secret access key'
+    print('Could not determine account secret access key', file=sys.stderr)
     sys.exit(1)
 
 regions = utils.get_regions(args, access_key, secret_key)
@@ -213,7 +213,7 @@ if (
         aws_account_no.match(visibility)):
     msg = 'Expecting "all", "none", or comma separated list of 12 digit AWS '
     msg += 'account numbers as value of --share'
-    print >> sys.stderr, msg
+    print(msg, file=sys.stderr)
     sys.exit(1)
 
 if visibility[-1] == ',':
@@ -231,7 +231,7 @@ publisher = ec2pubimg.EC2PublishImage(
         visibility=visibility)
 
 if args.dryRun:
-    print 'Dry run, image attributes will not be modified'
+    print('Dry run, image attributes will not be modified')
 try:
     for region in regions:
         publisher.set_region(region)
@@ -239,9 +239,9 @@ try:
             publisher.print_publish_info()
         else:
             publisher.publish_images()
-except EC2PublishImgException, e:
-    print >> sys.stderr, e
+except EC2PublishImgException as e:
+    print(e, file=sys.stderr)
     sys.exit(1)
-except Exception, e:
-    print >> sys.stderr, e
+except Exception as e:
+    print(e, file=sys.stderr)
     sys.exit(1)
