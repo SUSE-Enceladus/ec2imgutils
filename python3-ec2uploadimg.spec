@@ -17,7 +17,7 @@
 
 
 %define upstream_name ec2uploadimg
-Name:           python-ec2uploadimg
+Name:           python3-ec2uploadimg
 Version:        4.0.0
 Release:        0
 Summary:        Upload an image to EC2
@@ -32,12 +32,12 @@ Requires:       python-ec2utilsbase < 4.0.0
 Requires:       python3-paramiko
 BuildRequires:  python3-setuptools
 BuildRoot:      %{_tmppath}/%{name}-%{version}-build
-
-%if 0%{?suse_version} && 0%{?suse_version} <= 1110
-%{!?python_sitelib: %global python_sitelib %(python -c "from distutils.sysconfig import get_python_lib; print get_python_lib()")}
-%else
 BuildArch:      noarch
-%endif
+
+# Package renamed in SLE 12, do not remove Provides, Obsolete directives
+# until after SLE 12 EOL
+Provides:       python-ec2uploadimg = %{version}
+Obsoletes:      python-ec2uploadimg < %{version}
 
 %description
 Upload a compressed .raw disk image to Amazon EC2 and create a snapshot
