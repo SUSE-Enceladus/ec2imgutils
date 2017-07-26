@@ -17,7 +17,7 @@
 
 
 %define upstream_name ec2utilsbase
-Name:           python-ec2utilsbase
+Name:           python3-ec2utilsbase
 Version:        3.0.0
 Release:        0
 Summary:        Shared EC2 utils functionality
@@ -30,9 +30,12 @@ Requires:       python3-boto3 >= 1.3.0
 BuildRequires:  python3-boto3 >= 1.3.0
 BuildRequires:  python3-setuptools
 BuildRoot:      %{_tmppath}/%{name}-%{version}-build
-
 BuildArch:      noarch
 
+# Package renamed in SLE 12, do not remove Provides, Obsolete directives
+# until after SLE 12 EOL
+Provides:       python-ec2utilsbase = %{version}
+Obsoletes:      python-ec2utilsbase < %{version}
 
 %description
 Shared functionality for various ec2utils
