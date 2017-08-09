@@ -235,7 +235,7 @@ if not os.path.isfile(config_file):
 try:
     config = utils.get_config(config_file)
 except Exception as e:
-    print(e.message, file=sys.stderr)
+    print(format(e), file=sys.stderr)
     sys.exit(1)
 
 access_key = args.accessKey
@@ -247,7 +247,7 @@ if not access_key:
                                            'access_key_id',
                                            '--access-id')
     except EC2AccountException as e:
-        print(e, file=sys.stderr)
+        print(format(e), file=sys.stderr)
         sys.exit(1)
 
 if not access_key:
@@ -263,7 +263,7 @@ if not secret_key:
                                            'secret_access_key',
                                            '--secret-key')
     except EC2AccountException as e:
-        print(e, file=sys.stderr)
+        print(format(e), file=sys.stderr)
         sys.exit(1)
 
 if not secret_key:
@@ -301,13 +301,13 @@ for region in regions:
         else:
             deprecator.deprecate_images()
     except EC2DeprecateImgException as e:
-        errors[region] = e.message
+        errors[region] = format(e)
     except Exception as e:
         if errors:
             print('Collected errors:', file=sys.stderr)
             for region, error in list(errors.items()):
                 print('Region: %s -> %s' % (region, error), file=sys.stderr)
-        print(e, file=sys.stderr)
+        print(format(e), file=sys.stderr)
         sys.exit(1)
 
 if errors:
