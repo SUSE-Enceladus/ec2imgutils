@@ -168,7 +168,7 @@ if not os.path.isfile(config_file):
 try:
     config = utils.get_config(config_file)
 except Exception as e:
-    print(e.message, file=sys.stderr)
+    print(format(e), file=sys.stderr)
     sys.exit(1)
 
 access_key = args.accessKey
@@ -180,7 +180,7 @@ if not access_key:
                                            'access_key_id',
                                            '--access-id')
     except EC2AccountException as e:
-        print(e, file=sys.stderr)
+        print(format(e), file=sys.stderr)
         sys.exit(1)
 
 if not access_key:
@@ -196,7 +196,7 @@ if not secret_key:
                                            'secret_access_key',
                                            '--secret-key')
     except EC2AccountException as e:
-        print(e, file=sys.stderr)
+        print(format(e), file=sys.stderr)
         sys.exit(1)
 
 if not secret_key:
@@ -240,8 +240,8 @@ try:
         else:
             publisher.publish_images()
 except EC2PublishImgException as e:
-    print(e, file=sys.stderr)
+    print(format(e), file=sys.stderr)
     sys.exit(1)
 except Exception as e:
-    print(e, file=sys.stderr)
+    print(format(e), file=sys.stderr)
     sys.exit(1)
