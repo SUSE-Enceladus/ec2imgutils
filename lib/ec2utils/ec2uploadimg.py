@@ -564,7 +564,7 @@ class EC2ImageUploader(EC2Utils):
             msg += '\n%s' % cmd_err
             raise EC2UploadImgException(msg)
 
-        return stdout.read().strip()
+        return stdout.read().strip().decode('utf-8')
 
     # ---------------------------------------------------------------------
     def _find_equivalent_device(self, device_id):
