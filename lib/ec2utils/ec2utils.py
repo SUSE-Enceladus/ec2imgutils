@@ -1,4 +1,4 @@
-# Copyright (c) 2015 SUSE LLC, Robert Schweikert <rjschwei@suse.com>
+# Copyright (c) 2017 SUSE LLC, Robert Schweikert <rjschwei@suse.com>
 #
 # This file is part of ec2utilsbase.
 #
@@ -19,7 +19,7 @@ import boto3
 import configparser
 import os
 
-from .ec2UtilsExceptions import *
+from ec2utils.ec2UtilsExceptions import *
 
 
 class EC2Utils:
