@@ -403,7 +403,7 @@ try:
                     sys.exit(1)
             else:
                 print(
-                    'Could not reliable determine the ',
+                    'Could not reliably determine the ',
                     end=' ',
                     file=sys.stderr
                 )

@@ -23,8 +23,8 @@ import threading
 import time
 
 
-from .ec2utils import EC2Utils
-from .ec2UtilsExceptions import *
+from ec2utils.ec2utils import EC2Utils
+from ec2utils.ec2UtilsExceptions import *
 
 
 class EC2ImageUploader(EC2Utils):
