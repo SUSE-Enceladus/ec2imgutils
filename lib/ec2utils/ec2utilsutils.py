@@ -133,9 +133,9 @@ def get_config(configFilePath):
     try:
         parsed = config.read(configFilePath)
     except:
-        msg = 'Could not parse configuration file %s' % configFilePath
-        type, value, tb = sys.exc_info()
-        msg += '\n%s' % value.message
+        msg = 'Could not parse configuration file "%s"\n' % configFilePath
+        e_type, value, tb = sys.exc_info()
+        msg += format(value)
         raise EC2ConfigFileParseException(msg)
 
     if not parsed:
