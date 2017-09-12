@@ -49,6 +49,12 @@ argparse.add_argument(
     metavar='EC2_BACKING_STORE'
 )
 argparse.add_argument(
+    '--billing-codes',
+    dest='billingCodes',
+    help='The BillingProduct codes, only available to some accounts',
+    metavar='BILLING_CODES'
+)
+argparse.add_argument(
     '--boot-kernel',
     dest='akiID',
     help='AWS kernel ID (aki) to boot the new image (Optional)',
@@ -471,6 +477,7 @@ try:
         uploader = ec2upimg.EC2ImageUploader(
                           access_key=access_key,
                           backing_store=args.backingStore,
+                          billing_codes=args.billingCodes,
                           bootkernel=bootkernel,
                           ena_support=args.ena,
                           image_arch=args.arch,

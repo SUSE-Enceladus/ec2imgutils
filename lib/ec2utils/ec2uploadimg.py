@@ -33,6 +33,7 @@ class EC2ImageUploader(EC2Utils):
     def __init__(self,
                  access_key=None,
                  backing_store='ssd',
+                 billing_codes=None,
                  bootkernel=None,
                  config=None,
                  ena_support=False,
@@ -60,6 +61,7 @@ class EC2ImageUploader(EC2Utils):
 
         self.access_key = access_key
         self.backing_store = backing_store
+        self.billing_codes = billing_codes
         self.bootkernel = bootkernel
         self.ena_support = ena_support
         self.image_arch = image_arch
@@ -731,10 +733,12 @@ class EC2ImageUploader(EC2Utils):
             'RootDeviceName': root_device_name,
             'VirtualizationType': self.image_virt_type
         }
-        if self.sriov_type:
-            register_args['SriovNetSupport'] = self.sriov_type
+        if self.billing_codes:
+            register_args['BillingProducts'] = self.billing_codes.split(',')
         if self.image_virt_type == 'paravirtual':
             register_args['KernelId'] = self.bootkernel
+        if self.sriov_type:
+            register_args['SriovNetSupport'] = self.sriov_type
 
         ami = self._connect().register_image(**register_args)
 
