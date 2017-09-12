@@ -262,6 +262,7 @@ config = None
 if not os.path.isfile(config_file):
     print('Configuration file "%s" not found.' % config_file)
     sys.exit(1)
+
 try:
     config = utils.get_config(config_file)
 except Exception as e:
@@ -337,7 +338,10 @@ if args.rootVolSize:
     root_volume_size = args.rootVolSize
 
 regions = args.regions.split(',')
-if len(regions) > 1 and (args.amiID or args.akiID or args.runningID):
+if (
+        len(regions) > 1
+        and (args.amiID or args.akiID or args.runningID or args.vpcSubnetId)
+):
     print(
         'Incompatible arguments: multiple regions specified',
         file=sys.stderr
@@ -474,6 +478,26 @@ try:
             print('Could not determin ssh user to use', file=sys.stderr)
             sys.exit(1)
 
+        vpc_subnet_id = args.vpcSubnetId
+        if not vpc_subnet_id and not (args.amiID or args.runningID):
+            # Depending on instance type an instance may possibly only
+            # launch inside a subnet. Look in the config for a subnet if none
+            # is given and the AMI to use was not specified on the command line
+            try:
+                vpc_subnet_id = utils.get_from_config(args.accountName,
+                                                      config,
+                                                      region,
+                                                      'subnet_id_%s' % region,
+                                                      '--vpc-subnet-id')
+                if args.verbose and vpc_subnet_id:
+                    print('Using VPC subnet: %s' % vpc_subnet_id)
+            except:
+                if args.verbose:
+                    msg = 'Not using a subnet-id, none given on the '
+                    msg += 'command line and none found in config for '
+                    msg += '"subnet_id_%s" value' % region
+                    print(msg)
+
         uploader = ec2upimg.EC2ImageUploader(
                           access_key=access_key,
                           backing_store=args.backingStore,
@@ -498,7 +522,7 @@ try:
                           use_grub2=args.grub2,
                           use_private_ip=args.usePrivateIP,
                           verbose=args.verbose,
-                          vpc_subnet_id=args.vpcSubnetId,
+                          vpc_subnet_id=vpc_subnet_id,
                           wait_count=args.waitCount
         )
 

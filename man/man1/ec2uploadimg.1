@@ -54,7 +54,7 @@ or
 .I ssd,mag.
 .IP "--billing-codes BILLING_CODES"
 Specifies the billing product codes to apply to the image during
-registration. This functionality is restrictred to specific accounts
+registration. This functionality is restricted to specific accounts
 within EC2.
 .IP "--boot-kernel AWS_AKI_ID"
 Specifies the
@@ -150,7 +150,7 @@ the image. This value overrides the value given with the
 option for a given region in the configuration file.
 .IP "--use-private-ip"
 Use the private IP of the helper instance to upload the new image. This is
-helful when an image is to be created and only a private VPC is available.
+helpful when an image is to be created and only a private VPC is available.
 .IP "--use-root-swap"
 Create the new image using the root swap method. The helper instance used
 to upload the image will be stopped and the created image volume will be
@@ -175,8 +175,29 @@ VPC. For the use of a private subnet it may also be necessary to use the
 .I --use-private-ip
 command line option. The ID should start with
 .I subnet-.
+Instance type and subnets are to a certain degree linked in that it may not
+be possible to launch the configured helper instance type outside a VPC
+subnet. Therefore, if the
+.I --vpc-subnet-id
+is not specified on the command line and neither
+.I --ec2-ami
+or
+.I --instance-id
+are specified on the command line an attempt will be made to retrieve the
+subnet-id from the configuration. The configuration is
+.I subnet_id_REGION
+where region is one of the known region identifiers such as
+.I us-east-1.
+The region given with the
+.I --regions
+command line argument is used. Specifying multiple regions with the
+.I --regions
+argument and using the
+.I --vpc-subnet-id
+argument is incompatible. When targeting multiple regions the subnet-id must
+be set in the configuration file.
 .IP "--wait-count AWS_WAIT_COUNT"
-Specifies the number of times to wait for the AWS operation timout. The
+Specifies the number of times to wait for the AWS operation timeout. The
 default value is 1 which is equivalent to 600 seconds.
 .SH EXAMPLE
 ec2uploadimg --account example -d "My first image" -m x86_64 -n my_linux_image -r us-east-1 PATH_TO_COMPRESSED_FILE
