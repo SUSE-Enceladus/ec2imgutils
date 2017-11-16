@@ -31,5 +31,13 @@ tar: clean
 test:
 	py.test tests/ec2utilsutilstest.py
 
+pypi:
+	mkdir -p "$(NAME)-$(verSrc)"/man/man1
+	cp -r $(dirs) $(files) "$(NAME)-$(verSrc)"
+	tar -czf "$(NAME)-$(verSrc).tar.gz" "$(NAME)-$(verSrc)"
+	rm -rf "$(NAME)-$(verSrc)"
+	mkdir dist
+	mv "$(NAME)-$(verSrc).tar.gz" dist
+
 install:
 	python setup.py install --prefix="$(PREFIX)" --root="$(DESTDIR)"

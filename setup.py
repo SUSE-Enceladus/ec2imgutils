@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 """Setup module for ec2utilsbase"""
 
-# Copyright (c) 2015 SUSE LLC, Robert Schweikert <rjschwei@suse.com>
+# Copyright (c) 2017 SUSE LLC
 #
 # This file is part of ec2utilsbase.
 #
@@ -33,15 +33,31 @@ if __name__ == '__main__':
         name='ec2utilsbase',
         description=(
             'Command-line tool to upload EC2 images'),
-        url='https://github.com/SUSE/Enceladus',
+        long_description=open('README.md').read(),
+        url='https://github.com/SUSE/Enceladus/tree/master/ec2utils',
         license='GPL-3.0+',
-        author='Robert Schweikert',
-        author_email='rjschwei@suse.com',
+        install_requires=[ 'boto3>=1.3.0' ],
+        author='SUSE Public Cloud Team',
+        author_email='public-cloud-dev@susecloud.net',
         version=version,
         packages=setuptools.find_packages('lib'),
         package_data={'ec2utils': ['base_VERSION']},
         package_dir={
             '': 'lib',
         },
-        namespace_packages = ['ec2utils']
+        namespace_packages = ['ec2utils'],
+        classifiers=(
+            'Development Status :: 5 - Production/Stable',
+            'Intended Audience :: Developers',
+            'Natural Language :: English',
+            'License :: OSI Approved :: GPL-3.0+',
+            'Programming Language :: Python',
+            'Programming Language :: Python :: 3',
+            'Programming Language :: Python :: 3.3',
+            'Programming Language :: Python :: 3.4',
+            'Programming Language :: Python :: 3.5',
+            'Programming Language :: Python :: 3.6',
+            'Programming Language :: Python :: Implementation :: CPython',
+            'Programming Language :: Python :: Implementation :: PyPy',
+        )
     )
