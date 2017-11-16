@@ -28,10 +28,11 @@ except ImportError:
     sys.stderr.write('Python setuptools required, please install.')
     sys.exit(1)
 
-version = open('lib/ec2utils/upload_VERSION').read().strip()
+version = open('lib/ec2utils/VERSION').read().strip()
 
 requires = [
-    'boto3>=1.3.0',
+    'boto3>=1.4.1',
+    'paramiko',
     'python-dateutil',
 ]
 

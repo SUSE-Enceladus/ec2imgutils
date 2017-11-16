@@ -27,9 +27,13 @@ Url:            https://github.com/SUSE/Enceladus
 Source0:        %{upstream_name}-%{version}.tar.bz2
 Requires:       python3
 Requires:       python3-boto3        >= 1.4.1
-Requires:       python-ec2utilsbase >= 3.0.0
-Requires:       python-ec2utilsbase < 4.0.0
+Requires:       python3-ec2utilsbase >= 3.0.0
+Requires:       python3-ec2utilsbase < 4.0.0
 Requires:       python3-paramiko
+BuildRequires:  python3-boto3        >= 1.4.1
+BuildRequires:  python3-ec2utilsbase >= 3.0.0
+BuildRequires:  python3-ec2utilsbase < 4.0.0
+BuildRequires:  python3-paramiko
 BuildRequires:  python3-setuptools
 BuildRoot:      %{_tmppath}/%{name}-%{version}-build
 BuildArch:      noarch
