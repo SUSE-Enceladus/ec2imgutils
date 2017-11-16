@@ -18,6 +18,7 @@ clean:
 	@find . -name "*.cache" | xargs rm -rf
 	@find . -name "*.egg-info" | xargs rm -rf
 
+<<<<<<< HEAD
 pep8: clean
 	@pep8 -v --statistics lib/ec2utils/*
 	@pep8 -v --statistics --ignore=E402 tests/*.py
@@ -25,6 +26,19 @@ pep8: clean
 tar: clean
 	rm -rf $(NAME)-$(verSrc)
 	mkdir $(NAME)-$(verSrc)
+=======
+clean:
+	@find . -name "*.pyc" | xargs rm -f 
+	@find . -name "__pycache__" | xargs rm -rf
+	@find . -name "*.cache" | xargs rm -rf
+	@find . -name "*.egg-info" | xargs rm -rf
+
+pep8: clean
+	@pep8 -v --statistics lib/ec2utils/*
+
+
+tar:
+>>>>>>> - ec2utils
 	mkdir -p "$(NAME)-$(verSrc)"/man/man1
 	cp -r $(dirs) $(files) "$(NAME)-$(verSrc)"
 	tar -cjf "$(NAME)-$(verSrc).tar.bz2" "$(NAME)-$(verSrc)"
@@ -39,3 +53,11 @@ install:
 	install -m 644 man/man1/* "$(DESTDIR)"/"$(MANDIR)"/man1
 	gzip "$(DESTDIR)"/"$(MANDIR)"/man1/ec2deprecateimg.1
 	gzip "$(DESTDIR)"/"$(MANDIR)"/man1/ec2publishimg.1
+
+pypi:
+	mkdir -p "$(NAME)-$(verSrc)"/man/man1
+	cp -r $(dirs) $(files) "$(NAME)-$(verSrc)"
+	tar -czf "$(NAME)-$(verSrc).tar.gz" "$(NAME)-$(verSrc)"
+	rm -rf "$(NAME)-$(verSrc)"
+	mkdir dist
+	mv "$(NAME)-$(verSrc).tar.gz" dist
