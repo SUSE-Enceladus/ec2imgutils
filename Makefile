@@ -14,7 +14,6 @@ ifneq "$(verSpec)" "$(verSrc)"
 $(error "Version mismatch, will not take any action")
 endif
 
-
 clean:
 	@find . -name "*.pyc" | xargs rm -f 
 	@find . -name "__pycache__" | xargs rm -rf
@@ -41,3 +40,11 @@ install:
 	install -d -m 755 "$(DESTDIR)"/"$(MANDIR)"/man1
 	install -m 644 man/man1/ec2deprecateimg.1 "$(DESTDIR)"/"$(MANDIR)"/man1
 	gzip "$(DESTDIR)"/"$(MANDIR)"/man1/ec2deprecateimg.1
+
+pypi:
+	mkdir -p "$(NAME)-$(verSrc)"/man/man1
+	cp -r $(dirs) $(files) "$(NAME)-$(verSrc)"
+	tar -czf "$(NAME)-$(verSrc).tar.gz" "$(NAME)-$(verSrc)"
+	rm -rf "$(NAME)-$(verSrc)"
+	mkdir dist
+	mv "$(NAME)-$(verSrc).tar.gz" dist

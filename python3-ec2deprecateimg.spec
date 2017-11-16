@@ -28,8 +28,12 @@ Source0:        %{upstream_name}-%{version}.tar.bz2
 Requires:       python3
 Requires:       python3-boto3
 Requires:       python3-dateutil
-Requires:       python-ec2utilsbase >= 3.0.0
-Requires:       python-ec2utilsbase < 4.0.0
+Requires:       python3-ec2utilsbase >= 3.0.0
+Requires:       python3-ec2utilsbase < 4.0.0
+BuildRequires:  python3-boto3
+BuildRequires:  python3-dateutil
+BuildRequires:  python3-ec2utilsbase >= 3.0.0
+BuildRequires:  python3-ec2utilsbase < 4.0.0
 BuildRequires:  python3-setuptools
 BuildRoot:      %{_tmppath}/%{name}-%{version}-build
 BuildArch:      noarch

@@ -29,6 +29,11 @@ except ImportError:
     sys.exit(1)
 
 version = open('lib/ec2utils/base_VERSION').read().strip()
+requires = [
+    'boto3',
+    'python-dateutil',
+    'ec2utilsbase>=3.0.0,<4.0.0'
+]
 
 if __name__ == '__main__':
     setuptools.setup(
@@ -38,7 +43,10 @@ if __name__ == '__main__':
         long_description=open('README.md').read(),
         url='https://github.com/SUSE-Enceladus/tree/master/ec2imgutils',
         license='GPLv3+',
-        install_requires=[ 'boto3>=1.3.0' ],
+        long_description=open('README.md').read(),
+        url='https://github.com/SUSE-Enceladus/tree/master/ec2imgutils',
+        license='GPL-3.0+',
+        install_requires=requires,
         author='SUSE Public Cloud Team',
         author_email='public-cloud-dev@susecloud.net',
         version=version,
