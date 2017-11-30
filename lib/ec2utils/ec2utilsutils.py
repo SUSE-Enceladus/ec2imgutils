@@ -21,7 +21,7 @@ import os
 import re
 import sys
 
-from ec2utils.ec2UtilsExceptions import *
+from ec2UtilsExceptions import *
 
 
 # -----------------------------------------------------------------------------
