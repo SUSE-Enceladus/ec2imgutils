@@ -25,7 +25,7 @@ import sys
 
 import ec2utils.ec2utilsutils as utils
 import ec2utils.ec2publishimg as ec2pubimg
-from ec2utils.ec2UtilsExceptions import *
+from ec2UtilsExceptions import *
 
 
 # Set up command line argument parsing

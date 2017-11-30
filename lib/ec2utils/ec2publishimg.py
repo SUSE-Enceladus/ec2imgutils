@@ -20,7 +20,7 @@ import re
 
 import ec2utils.ec2utilsutils as utils
 from ec2utils.ec2utils import EC2Utils
-from ec2utils.ec2UtilsExceptions import *
+from ec2UtilsExceptions import *
 
 
 class EC2PublishImage(EC2Utils):
