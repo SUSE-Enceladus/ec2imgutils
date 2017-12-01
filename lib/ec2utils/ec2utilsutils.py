@@ -21,7 +21,10 @@ import os
 import re
 import sys
 
-from ec2UtilsExceptions import *
+from .ec2UtilsExceptions import (
+    EC2AccountException,
+    EC2ConfigFileParseException
+)
 
 
 # -----------------------------------------------------------------------------
