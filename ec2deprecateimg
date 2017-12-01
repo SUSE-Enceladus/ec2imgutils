@@ -24,7 +24,10 @@ import sys
 
 import ec2utils.ec2utilsutils as utils
 import ec2utils.ec2deprecateimg as ec2depimg
-from ec2UtilsExceptions import *
+from .ec2UtilsExceptions import (
+    EC2AccountException,
+    EC2DeprecateImgException
+)
 
 
 # Set up command line argument parsing

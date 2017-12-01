@@ -20,9 +20,9 @@ import datetime
 import dateutil.relativedelta
 import re
 
-import ec2utils.ec2utilsutils as utils
-from ec2utils.ec2utils import EC2Utils
-from ec2UtilsExceptions import *
+import .ec2utilsutils as utils
+from .ec2utils import EC2Utils
+from .ec2UtilsExceptions import EC2DeprecateImgException
 
 
 class EC2DeprecateImg(EC2Utils):
