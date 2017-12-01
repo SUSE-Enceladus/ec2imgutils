@@ -24,8 +24,8 @@ import threading
 import time
 
 
-from ec2utils import EC2Utils
-from ec2UtilsExceptions import *
+from .ec2utils import EC2Utils
+from .ec2UtilsExceptions import EC2UploadImgException
 
 
 class EC2ImageUploader(EC2Utils):
