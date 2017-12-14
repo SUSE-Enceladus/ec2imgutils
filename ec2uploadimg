@@ -155,6 +155,12 @@ argparse.add_argument(
     metavar='AWS_SECURITY_GROUP_IDS'
 )
 argparse.add_argument(
+    '--session-token',
+    dest='sessionToken',
+    help='AWS session token, for use of temporary credentials (Optional)',
+    metavar='AWS_SESSION_TOKEN'
+)
+argparse.add_argument(
     '--snaponly',
     action='store_true',
     default=False,
@@ -515,6 +521,7 @@ try:
                           running_id=running_id,
                           secret_key=secret_key,
                           security_group_ids=args.securityGroupIds,
+                          session_token=args.sessionToken,
                           sriov_type=sriov_type,
                           ssh_key_pair_name=key_pair_name,
                           ssh_key_private_key_file=ssh_private_key_file,

@@ -128,6 +128,8 @@ in the configuration file.
 .IP "--security-group-ids AWS_SECURITY_GROUP_IDS"
 Specifies a list of security group ids to apply to the helper instance. At
 least one of the groups must have port 22 open to support ssh connections.
+.IP "--session-token AWS_SESSION_TOKEN"
+Specifies the AWS session token. Only necessary when using temporary credentials.
 .IP "--snaponly"
 When this argument is set only a snapshot of the uploaded image will be
 created. The snapshot may then be used in a separate operation to register
@@ -206,7 +208,3 @@ Will upload the raw disk image contained in the PATH_TO_COMPRESSED_FILE and
 will register a new AMI from the image.
 .SH AUTHOR
 Robert Schweikert (rjschwei@suse.com)
-
-
-
-

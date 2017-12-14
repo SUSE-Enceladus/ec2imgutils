@@ -48,6 +48,7 @@ class EC2ImageUploader(EC2Utils):
                  running_id=None,
                  secret_key=None,
                  security_group_ids='',
+                 session_token=None,
                  sriov_type=None,
                  ssh_key_pair_name=None,
                  ssh_key_private_key_file=None,
@@ -75,6 +76,7 @@ class EC2ImageUploader(EC2Utils):
         self.running_id = running_id
         self.secret_key = secret_key
         self.security_group_ids = security_group_ids
+        self.session_token = session_token
         self.sriov_type = sriov_type
         self.ssh_key_pair_name = ssh_key_pair_name
         self.ssh_key_private_key_file = ssh_key_private_key_file
