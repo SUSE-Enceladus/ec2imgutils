@@ -36,12 +36,21 @@ class EC2Utils:
 
         ec2 = None
         if self.region:
-            ec2 = boto3.client(
-                aws_access_key_id=self.access_key,
-                aws_secret_access_key=self.secret_key,
-                region_name=self.region,
-                service_name='ec2'
-            )
+            if self.session_token:
+                ec2 = boto3.client(
+                    aws_access_key_id=self.access_key,
+                    aws_secret_access_key=self.secret_key,
+                    aws_session_token=self.session_token,
+                    region_name=self.region,
+                    service_name='ec2'
+                )
+            else:
+                ec2 = boto3.client(
+                    aws_access_key_id=self.access_key,
+                    aws_secret_access_key=self.secret_key,
+                    region_name=self.region,
+                    service_name='ec2'
+                )
         else:
             self.region = 'UNKNOWN'
 
@@ -56,7 +65,7 @@ class EC2Utils:
         """Return the list of images owned by the account used for
            uploading"""
         return self._connect().describe_images(Owners=['self'])['Images']
-    
+
     # ---------------------------------------------------------------------
     def _set_access_keys():
         """Set the access keys for the connection"""
