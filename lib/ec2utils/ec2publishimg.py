@@ -18,9 +18,9 @@
 import boto3
 import re
 
-import .ec2utilsutils as utils
-from .ec2utils import EC2Utils
-from .ec2UtilsExceptions import EC2PublishImgException
+import ec2utils.ec2utilsutils as utils
+from ec2utils.ec2utils import EC2Utils
+from ec2utils.ec2UtilsExceptions import EC2PublishImgException
 
 
 class EC2PublishImage(EC2Utils):

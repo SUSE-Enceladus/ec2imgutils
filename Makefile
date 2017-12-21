@@ -53,11 +53,3 @@ install:
 	install -m 644 man/man1/* "$(DESTDIR)"/"$(MANDIR)"/man1
 	gzip "$(DESTDIR)"/"$(MANDIR)"/man1/ec2deprecateimg.1
 	gzip "$(DESTDIR)"/"$(MANDIR)"/man1/ec2publishimg.1
-
-pypi:
-	mkdir -p "$(NAME)-$(verSrc)"/man/man1
-	cp -r $(dirs) $(files) "$(NAME)-$(verSrc)"
-	tar -czf "$(NAME)-$(verSrc).tar.gz" "$(NAME)-$(verSrc)"
-	rm -rf "$(NAME)-$(verSrc)"
-	mkdir dist
-	mv "$(NAME)-$(verSrc).tar.gz" dist

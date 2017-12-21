@@ -38,10 +38,15 @@ if __name__ == '__main__':
         description=(
             'Command-line tools to manage images in AWS EC2'),
         long_description=open('README.md').read(),
+<<<<<<< HEAD
         url='https://github.com/SUSE-Enceladus/tree/master/ec2imgutils',
         license='GPL-3.0+',
         long_description=open('README.md').read(),
         url='https://github.com/SUSE-Enceladus/tree/master/ec2imgutils',
+=======
+        url='https://github.com/SUSE/Enceladus/tree/master/ec2utils',
+        license='GPLv3+',
+>>>>>>> Fix imports for ec2publishimg.
         install_requires=requires,
         author='SUSE Public Cloud Team',
         author_email='public-cloud-dev@susecloud.net',
