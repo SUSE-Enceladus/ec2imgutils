@@ -56,7 +56,6 @@ if __name__ == '__main__':
             '': 'lib',
         },
         scripts=['ec2deprecateimg'],
-        namespace_packages = ['ec2utils'],
         classifiers=[
             'Development Status :: 5 - Production/Stable',
             'Intended Audience :: Developers',
