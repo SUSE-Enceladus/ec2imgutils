@@ -35,7 +35,7 @@ if __name__ == '__main__':
             'Command-line tool to upload EC2 images'),
         long_description=open('README.md').read(),
         url='https://github.com/SUSE/Enceladus/tree/master/ec2utils',
-        license='GPL-3.0+',
+        license='GPLv3+',
         install_requires=[ 'boto3>=1.3.0' ],
         author='SUSE Public Cloud Team',
         author_email='public-cloud-dev@susecloud.net',

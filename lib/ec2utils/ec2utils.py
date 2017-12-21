@@ -19,7 +19,7 @@ import boto3
 import configparser
 import os
 
-from .ec2UtilsExceptions import EC2ConnectionException
+from ec2utils.ec2UtilsExceptions import EC2ConnectionException
 
 
 class EC2Utils:
