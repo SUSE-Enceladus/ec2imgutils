@@ -18,7 +18,7 @@
 
 %define upstream_name ec2deprecateimg
 Name:           python3-ec2deprecateimg
-Version:        4.0.0
+Version:        4.0.1
 Release:        0
 Summary:        Tag image as deprected in EC2
 License:        GPL-3.0+
