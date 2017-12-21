@@ -16,8 +16,8 @@ to others if the image is shared.
 
 Images are tagged with:
 
-- Deprecated on -> today’s date in YYYYMMDD format
-- Removal date -> today’s date plus the deprecation period specified
+- Deprecated on -> today's date in YYYYMMDD format
+- Removal date -> today's date plus the deprecation period specified
 - Replacement image -> The AMI ID and name of the replacement image
 
 The image set as the replacement is removed from the list of potential
