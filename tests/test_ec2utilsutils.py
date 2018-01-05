@@ -19,19 +19,17 @@
 # <http://www.gnu.org/licenses/>.
 #
 
-import configparser
 import os
-import sys
+import pytest
 
-from nose.tools import *
+from ec2utils import ec2utilsutils as utils
+from ec2utils.ec2UtilsExceptions import (
+    EC2AccountException,
+    EC2ConfigFileParseException,
+)
 
 this_path = os.path.dirname(os.path.abspath(__file__))
-mod_path = this_path + os.sep + '../lib/ec2utils'
 data_path = this_path + os.sep + 'data'
-sys.path.insert(0, mod_path)
-
-import ec2utilsutils as utils
-from ec2UtilsExceptions import *
 
 
 class Turncoat:
@@ -46,7 +44,7 @@ def test_check_account_keys_no_cmd_keys():
     command_args.accessKey = None
     command_args.secretKey = None
     command_args.accountName = 'tester'
-    assert_equals(1, utils.check_account_keys(config, command_args))
+    assert 1 == utils.check_account_keys(config, command_args)
 
 
 def test_check_account_keys_cmd_access_key():
@@ -58,7 +56,7 @@ def test_check_account_keys_cmd_access_key():
     command_args.accessKey = 'AAAAAA'
     command_args.secretKey = None
     command_args.accountName = 'tester'
-    assert_equals(1, utils.check_account_keys(config, command_args))
+    assert 1 == utils.check_account_keys(config, command_args)
 
 
 def test_check_account_keys_cmd_secret_key():
@@ -70,7 +68,7 @@ def test_check_account_keys_cmd_secret_key():
     command_args.accessKey = None
     command_args.secretKey = 'BBBBBBB'
     command_args.accountName = 'tester'
-    assert_equals(1, utils.check_account_keys(config, command_args))
+    assert 1 == utils.check_account_keys(config, command_args)
 
 
 def test_check_account_keys_cmd_keys():
@@ -82,10 +80,9 @@ def test_check_account_keys_cmd_keys():
     command_args.accessKey = 'AAAAAA'
     command_args.secretKey = 'BBBBBBB'
     command_args.accountName = 'tester'
-    assert_equals(1, utils.check_account_keys(config, command_args))
+    assert 1 == utils.check_account_keys(config, command_args)
 
 
-@raises(EC2AccountException)
 def test_check_account_keys_no_keys():
     """Test check_account_keys with no keys available."""
     config_file = data_path + os.sep + 'nokeys.cfg'
@@ -94,22 +91,24 @@ def test_check_account_keys_no_keys():
     command_args.accessKey = None
     command_args.secretKey = None
     command_args.accountName = 'tester'
-    utils.check_account_keys(config, command_args)
+
+    with pytest.raises(EC2AccountException):
+        utils.check_account_keys(config, command_args)
 
 
 def test_find_images_by_id_find_one():
     """Test find_images_by_id finds an image"""
     images = _get_test_images()
     found_images = utils.find_images_by_id(images, 1)
-    assert_equals(1, len(found_images))
-    assert_equals(1, found_images[0]['ImageId'])
+    assert 1 == len(found_images)
+    assert 1 == found_images[0]['ImageId']
 
 
 def test_find_images_by_id_find_none():
     """Test find_images_by_id finds nothing and does not error"""
     images = _get_test_images()
     found_images = utils.find_images_by_id(images, 5)
-    assert_equals(0, len(found_images))
+    assert 0 == len(found_images)
 
 
 def test_find_images_by_name_find_some():
@@ -119,15 +118,15 @@ def test_find_images_by_name_find_some():
     image['Name'] = 'testimage-1'
     images.append(image)
     found_images = utils.find_images_by_name(images, 'testimage-1')
-    assert_equals(2, len(found_images))
-    assert_equals('testimage-1', found_images[1]['Name'])
+    assert 2 == len(found_images)
+    assert 'testimage-1' == found_images[1]['Name']
 
 
 def test_find_images_by_name_find_none():
     """Test find_images_by_name finds nothing and does not error"""
     images = _get_test_images()
     found_images = utils.find_images_by_name(images, 'test')
-    assert_equals(0, len(found_images))
+    assert 0 == len(found_images)
 
 
 def test_find_images_by_name_fragment_find_some():
@@ -143,21 +142,21 @@ def test_find_images_by_name_fragment_find_some():
     image['Name'] = 'testimg'
     images.append(image)
     found_images = utils.find_images_by_name_fragment(images, 'this')
-    assert_equals(2, len(found_images))
+    assert 2 == len(found_images)
 
 
 def test_find_images_by_name_fragment_find_none():
     """Test find_images_by_name_fragment finds nothing and does not error"""
     images = _get_test_images()
     found_images = utils.find_images_by_name_fragment(images, 'foo')
-    assert_equals(0, len(found_images))
+    assert 0 == len(found_images)
 
 
 def test_find_images_by_name_regex_match_find_some():
     """Test find_images_by_name_regex_match finds images"""
     images = _get_test_images()
     found_images = utils.find_images_by_name_regex_match(images, '^test')
-    assert_equals(2, len(found_images))
+    assert 2 == len(found_images)
 
 
 def test_find_images_by_name_regex_match_find_none():
@@ -165,35 +164,37 @@ def test_find_images_by_name_regex_match_find_none():
        does not error"""
     images = _get_test_images()
     found_images = utils.find_images_by_name_regex_match(images, '^-1')
-    assert_equals(0, len(found_images))
+    assert 0 == len(found_images)
 
 
-@raises(Exception)
 def test_find_images_by_name_regex_match_invalid_re():
     """Test find_images_by_name_regex_match throws with invalid expression"""
     images = _get_test_images()
-    found_images = utils.find_images_by_name_regex_match(images, 't*{2}')
+
+    with pytest.raises(Exception):
+        utils.find_images_by_name_regex_match(images, 't*{2}')
 
 
 def test_generate_config_account_name():
     """Test generate_config_account_name returns the expected name"""
     expected = 'account-foo'
     account_name = utils.generate_config_account_name('foo')
-    assert_equals(expected, account_name)
+    assert expected == account_name
 
 
 def test_generate_config_region_name():
     """Test generate_config_region_name returns the expected name"""
     expected = 'region-bar'
     region_name = utils.generate_config_region_name('bar')
-    assert_equals(expected, region_name)
+    assert expected == region_name
 
 
-@raises(EC2ConfigFileParseException)
 def test_get_config_invalid():
     """Test get_config with an invalid configuration file"""
     config_file = data_path + os.sep + 'invalid.cfg'
-    config = utils.get_config(config_file)
+
+    with pytest.raises(EC2ConfigFileParseException):
+        utils.get_config(config_file)
 
 
 def test_get_from_config_from_account():
@@ -207,7 +208,7 @@ def test_get_from_config_from_account():
         None,
         'access_key_id',
         '--access-id')
-    assert_equals(expected, access_key_id)
+    assert expected == access_key_id
 
 
 def test_get_from_config_region_override():
@@ -222,33 +223,35 @@ def test_get_from_config_region_override():
         'us-east-1',
         'ssh_key_name',
         '--ssh-key-pair')
-    assert_equals(expected, ssh_key_name)
+    assert expected == ssh_key_name
 
 
-@raises(EC2AccountException)
 def test_get_from_config_invalid_account_name():
     """Test get_from_config throws if an invalid account name is given"""
     config_file = data_path + os.sep + 'complete.cfg'
     config = utils.get_config(config_file)
-    ssh_key_name = utils.get_from_config(
-        'foo',
-        config,
-        None,
-        'ssh_key_name',
-        '--ssh-key-pair')
+
+    with pytest.raises(EC2AccountException):
+        utils.get_from_config(
+            'foo',
+            config,
+            None,
+            'ssh_key_name',
+            '--ssh-key-pair')
 
 
-@raises(EC2AccountException)
-def test_get_from_config_invalid_account_name():
+def test_get_from_config_no_account_name():
     """Test get_from_config throws if no account name is given"""
     config_file = data_path + os.sep + 'complete.cfg'
     config = utils.get_config(config_file)
-    ssh_key_name = utils.get_from_config(
-        None,
-        config,
-        None,
-        'ssh_key_name',
-        '--ssh-key-pair')
+
+    with pytest.raises(EC2AccountException):
+        utils.get_from_config(
+            None,
+            config,
+            None,
+            'ssh_key_name',
+            '--ssh-key-pair')
 
 
 def test_get_regions_from_cmd():
@@ -257,7 +260,7 @@ def test_get_regions_from_cmd():
     command_args.regions = 'milk,cookies,chocolate'
     expected = command_args.regions.split(',')
     regions = utils.get_regions(command_args, '123', '456')
-    assert_equals(expected, regions)
+    assert expected == regions
 
 
 # --------------------------------------------------------------------
