@@ -17,7 +17,6 @@
 
 import boto3
 import configparser
-import os
 import re
 import sys
 
