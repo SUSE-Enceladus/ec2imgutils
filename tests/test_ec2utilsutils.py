@@ -122,6 +122,20 @@ def test_find_images_by_name_find_some():
     assert 'testimage-1' == found_images[1]['Name']
 
 
+def test_find_images_by_name_pending_image():
+    """
+    Test find_images_by_name does not raise if an image is pending.
+
+    If Status is pending image will not have a name key.
+    """
+    images = _get_test_images()
+    image = {}
+    image['Status'] = 'pending'
+    image['ImageId'] = 'testimage-3'
+    images.append(image)
+    utils.find_images_by_name(images, 'testimage-1')
+
+
 def test_find_images_by_name_find_none():
     """Test find_images_by_name finds nothing and does not error"""
     images = _get_test_images()
