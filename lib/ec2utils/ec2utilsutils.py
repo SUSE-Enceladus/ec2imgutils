@@ -75,7 +75,7 @@ def find_images_by_name(images, image_name):
     """Return a list of images that match the given name."""
     matching_images = []
     for image in images:
-        if not image['Name']:
+        if not image.get('Name'):
             print(_no_name_warning(image))
             continue
         if image_name == image['Name']:
@@ -90,7 +90,7 @@ def find_images_by_name_fragment(images, image_name_fragment):
        of the image name."""
     matching_images = []
     for image in images:
-        if not image['Name']:
+        if not image.get('Name'):
             print(_no_name_warning(image))
             continue
         if image['Name'].find(image_name_fragment) != -1:
@@ -106,7 +106,7 @@ def find_images_by_name_regex_match(images, image_name_regex):
     matching_images = []
     image_name_exp = re.compile(image_name_regex)
     for image in images:
-        if not image['Name']:
+        if not image.get('Name'):
             print(_no_name_warning(image))
             continue
         if image_name_exp.match(image['Name']):
@@ -208,5 +208,5 @@ def _basic_account_check(config, command_args):
 def _no_name_warning(image):
     """Print a warning for images that have no name"""
     msg = 'WARNING: Found image with no name, ignoring for search results. '
-    msg += 'Image ID: %s' % image.id
+    msg += 'Image ID: %s' % image['ImageId']
     print(msg)
