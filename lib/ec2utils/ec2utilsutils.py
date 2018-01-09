@@ -21,6 +21,8 @@ import os
 import re
 import sys
 
+from itertools import repeat
+
 from ec2utils.ec2UtilsExceptions import (
     EC2AccountException,
     EC2ConfigFileParseException
@@ -210,3 +212,11 @@ def _no_name_warning(image):
     msg = 'WARNING: Found image with no name, ignoring for search results. '
     msg += 'Image ID: %s' % image.id
     print(msg)
+
+
+# ----------------------------------------------------------------------------
+def validate_account_numbers(share_with):
+    accounts = list(filter(None, share_with.split(',')))
+    if accounts:
+        return all(map(re.match, repeat('^\d{12}$'), accounts))
+    return False
