@@ -17,10 +17,8 @@
 # You should have received a copy of the GNU General Public License
 # along with ec2publishimg. If not, see <http://www.gnu.org/licenses/>.
 
-import boto3
 import argparse
 import os
-import re
 import sys
 
 import ec2utils.ec2utilsutils as utils
@@ -208,11 +206,11 @@ if not secret_key:
 regions = utils.get_regions(args, access_key, secret_key)
 
 visibility = args.share.lower()
-aws_account_no = re.compile('(\d{12},?)*')
 if (
-        visibility != 'all' and
-        visibility != 'none' and not
-        aws_account_no.match(visibility)):
+    visibility != 'all' and
+    visibility != 'none' and not
+    utils.validate_account_numbers(visibility)
+):
     msg = 'Expecting "all", "none", or comma separated list of 12 digit AWS '
     msg += 'account numbers as value of --share'
     print(msg, file=sys.stderr)
