@@ -443,9 +443,6 @@ try:
                                                   region,
                                                   'ssh_key_name',
                                                   '--ssh-key-pair')
-        if not key_pair_name:
-            print('Could not determine key pair name', file=sys.stderr)
-            sys.exit(1)
 
         ssh_private_key_file = args.privateKey
         if not ssh_private_key_file:
@@ -454,24 +451,30 @@ try:
                                                          region,
                                                          'ssh_private_key',
                                                          '--private-key-file')
-        if not ssh_private_key_file:
-            print(
-                'Could not determine the private ssh key file',
-                file=sys.stderr
-            )
+        # If key_pair_name and ssh_private_key_file are missing, a temporary key pair
+        # get's created. Otherwise both parameters are required.
+        if key_pair_name or ssh_private_key_file:
+            if not key_pair_name:
+                print('Could not determine key pair name', file=sys.stderr)
+            if not ssh_private_key_file:
+                print(
+                    'Could not determine the private ssh key file',
+                    file=sys.stderr
+                )
             sys.exit(1)
 
-        ssh_private_key_file = os.path.expanduser(ssh_private_key_file)
+        if ssh_private_key_file:
+            ssh_private_key_file = os.path.expanduser(ssh_private_key_file)
 
-        if not os.path.exists(ssh_private_key_file):
-            print(
-                (
-                     'SSH private key file "%s" does not exist'
-                     % ssh_private_key_file
-                ),
-                file=sys.stderr
-            )
-            sys.exit(1)
+            if not os.path.exists(ssh_private_key_file):
+                print(
+                    (
+                         'SSH private key file "%s" does not exist'
+                         % ssh_private_key_file
+                    ),
+                    file=sys.stderr
+                )
+                sys.exit(1)
 
         ssh_user = args.sshUser
         if not ssh_user:
@@ -517,6 +520,7 @@ try:
                           inst_user_name=ssh_user,
                           launch_ami=ami_id,
                           launch_inst_type=inst_type,
+                          region=region,
                           root_volume_size=root_volume_size,
                           running_id=running_id,
                           secret_key=secret_key,
@@ -533,7 +537,6 @@ try:
                           wait_count=args.waitCount
         )
 
-        uploader.set_region(region)
         if args.snapOnly:
             snapshot = uploader.create_snapshot(args.source)
             print('Created snapshot: ', snapshot['SnapshotId'])
