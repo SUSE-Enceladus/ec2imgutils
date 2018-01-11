@@ -99,13 +99,13 @@ class EC2ImageUploader(EC2Utils):
         self.storage_volume_size = 2 * self.root_volume_size
 
     # ---------------------------------------------------------------------
-    def _attach_volume(self, instance, volume, device=None):
+    def _attach_volume(self, volume, device=None):
         """Attach the given volume to the given instance"""
         if not device:
             device = self._get_next_disk_id()
         self._connect().attach_volume(
                 VolumeId=volume['VolumeId'],
-                InstanceId=instance['InstanceId'],
+                InstanceId=self.helper_instance['InstanceId'],
                 Device=device)
         if self.verbose:
             print('Wait for volume attachment')
@@ -280,13 +280,10 @@ class EC2ImageUploader(EC2Utils):
             helper_instance = self._launch_helper_instance()
         self.helper_instance = helper_instance
         store_volume = self._create_storge_volume()
-        store_device_id = self._attach_volume(helper_instance, store_volume)
+        store_device_id = self._attach_volume(store_volume)
         target_root_volume = self._create_target_root_volume()
-        target_root_device_id = self._attach_volume(
-            helper_instance,
-            target_root_volume
-        )
-        self._establish_ssh_connection(helper_instance)
+        target_root_device_id = self._attach_volume(target_root_volume)
+        self._establish_ssh_connection()
         if not self._device_exists(store_device_id):
             store_device_id = self._find_equivalent_device(store_device_id)
         self._format_storage_volume(store_device_id)
@@ -493,17 +490,17 @@ class EC2ImageUploader(EC2Utils):
         return 1
 
     # ---------------------------------------------------------------------
-    def _establish_ssh_connection(self, instance):
+    def _establish_ssh_connection(self):
         """Connect to the running instance with ssh"""
         if self.verbose:
             print('Waiting to obtain instance IP address')
-        instance_ip = instance.get('PublicIpAddress')
+        instance_ip = self.helper_instance.get('PublicIpAddress')
         if self.use_private_ip:
-            instance_ip = instance.get('PrivateIpAddress')
+            instance_ip = self.helper_instance.get('PrivateIpAddress')
         timeout_counter = 1
         while not instance_ip:
             instance = self._connect().describe_instances(
-                InstanceIds=[instance['InstanceId']]
+                InstanceIds=[self.helper_instance['InstanceId']]
             )['Reservations'][0]['Instances'][0]
             instance_ip = instance.get('PublicIpAddress')
             if self.use_private_ip:
@@ -919,11 +916,7 @@ class EC2ImageUploader(EC2Utils):
                 break
 
         self._detach_volume(current_root_volume)
-        self._attach_volume(
-            self.helper_instance,
-            target_root_volume,
-            device_id
-        )
+        self._attach_volume(target_root_volume, device_id)
         if self.verbose:
             print('Creating new image')
         instance_info = self._connect().describe_instances(
