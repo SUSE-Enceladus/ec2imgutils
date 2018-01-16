@@ -453,14 +453,11 @@ try:
                                                          '--private-key-file')
         # If key_pair_name and ssh_private_key_file are missing, a temporary key pair
         # get's created. Otherwise both parameters are required.
-        if key_pair_name or ssh_private_key_file:
-            if not key_pair_name:
-                print('Could not determine key pair name', file=sys.stderr)
-            if not ssh_private_key_file:
-                print(
-                    'Could not determine the private ssh key file',
-                    file=sys.stderr
-                )
+        if key_pair_name and not ssh_private_key_file:
+            print('Could not determine the private ssh key file', file=sys.stderr)
+            sys.exit(1)
+        if ssh_private_key_file and not key_pair_name:
+            print('Could not determine key pair name', file=sys.stderr)
             sys.exit(1)
 
         if ssh_private_key_file:
