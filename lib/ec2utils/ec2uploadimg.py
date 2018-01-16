@@ -100,6 +100,7 @@ class EC2ImageUploader(EC2Utils):
         self.percent_transferred = 0
         self.ssh_client = None
         self.storage_volume_size = 2 * self.root_volume_size
+        self.temporary_key_created = False
 
         self._prepare_aws_for_upload()
 
