@@ -26,7 +26,6 @@ import time
 
 from ec2utils.ec2utils import EC2Utils
 from ec2utils.ec2UtilsExceptions import EC2UploadImgException
-from tempfile import mkstemp
 
 
 class EC2ImageUploader(EC2Utils):
@@ -100,9 +99,6 @@ class EC2ImageUploader(EC2Utils):
         self.percent_transferred = 0
         self.ssh_client = None
         self.storage_volume_size = 2 * self.root_volume_size
-        self.temporary_key_created = False
-
-        self._prepare_aws_for_upload()
 
     # ---------------------------------------------------------------------
     def _attach_volume(self, volume, device=None):
@@ -240,12 +236,33 @@ class EC2ImageUploader(EC2Utils):
             self.ssh_client.close()
         if self.instance_ids:
             self._connect().terminate_instances(InstanceIds=self.instance_ids)
+            waiter = self._connect().get_waiter('instance_terminated')
+            repeat_count = 1
+            error_msg = 'Instance did not stop within allotted time'
+            while repeat_count <= self.wait_count:
+                try:
+                    wait_status = waiter.wait(
+                        InstanceIds=[self.helper_instance['InstanceId']],
+                        Filters=[
+                            {
+                                'Name': 'instance-state-name',
+                                'Values': ['terminated']
+                            }
+                        ]
+                    )
+                except:
+                    wait_status = 1
+                if self.verbose:
+                    self.progress_timer.cancel()
+                repeat_count = self._check_wait_status(
+                    wait_status,
+                    error_msg,
+                    repeat_count
+                )
         if self.created_volumes:
             for volume in self.created_volumes:
                 self._detach_volume(volume, True)
                 self._remove_volume(volume)
-        if self.temporary_key_created:
-            self._remove_upload_key_pair()
 
         self.created_volumes = []
         self.instance_ids = []
@@ -373,23 +390,6 @@ class EC2ImageUploader(EC2Utils):
         return self._create_volume('%s' % self.root_volume_size)
 
     # ---------------------------------------------------------------------
-    def _create_upload_key_pair(self, key_name='temporary_ec2_uploadkey'):
-        if self.verbose:
-            print('Creating temporary key pair')
-        home_dir = os.path.expanduser('~/')
-        fd, location = mkstemp(prefix='temporary_ec2_uploadkey.', suffix='.key', dir=home_dir)
-        self.ssh_key_pair_name = os.path.basename(location)
-        self.ssh_key_private_key_file = location
-        secret_key_content = self._connect().create_key_pair(KeyName=self.ssh_key_pair_name)
-        if self.verbose:
-            print('Created key pair: ', self.ssh_key_pair_name)
-        with open(location, 'w') as localfile:
-            localfile.write(secret_key_content['KeyMaterial'])
-        if self.verbose:
-            print('Wrote secret key key file to ', location)
-        os.close(fd)
-
-    # ---------------------------------------------------------------------
     def _create_volume(self, size):
         """Create a volume"""
         volume = self._connect().create_volume(
@@ -429,16 +429,6 @@ class EC2ImageUploader(EC2Utils):
         self.created_volumes.append(volume)
 
         return volume
-
-    # ---------------------------------------------------------------------
-    def _remove_upload_key_pair(self):
-        if self.verbose:
-            print('Deleting temporary key pair ', self.ssh_key_pair_name)
-        secret_key = self._connect().delete_key_pair(KeyName=self.ssh_key_pair_name)
-        if os.path.isfile(self.ssh_key_private_key_file):
-            os.remove(self.ssh_key_private_key_file)
-        if self.verbose:
-            print('Deleted temporary key ', self.ssh_key_private_key_file)
 
     # ---------------------------------------------------------------------
     def _detach_volume(self, volume, no_clean_up=False):
@@ -749,12 +739,6 @@ class EC2ImageUploader(EC2Utils):
         result = self._execute_ssh_command(command)
 
         return mount_point
-
-    # ---------------------------------------------------------------------
-    def _prepare_aws_for_upload(self):
-        if not self.ssh_key_private_key_file:
-            self._create_upload_key_pair()
-            self.temporary_key_created = True
 
     # ---------------------------------------------------------------------
     def _register_image(self, snapshot):
