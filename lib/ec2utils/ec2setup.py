@@ -147,7 +147,7 @@ class EC2Setup(EC2Utils):
     def _remove_security_group(self):
         response = self._connect().delete_security_group(GroupId=self.security_group_id)
         if self.verbose:
-            print('Successfully deleted security group %s', % self.security_group_id)
+            print('Successfully deleted security group %s' % self.security_group_id)
 
     # ---------------------------------------------------------------------
     def _remove_upload_key_pair(self):
@@ -165,19 +165,19 @@ class EC2Setup(EC2Utils):
     def _remove_vpc(self):
         self._connect().delete_route(DestinationCidrBlock='0.0.0.0/0', RouteTableId=self.route_table_id)
         if self.verbose:
-            print('Successfully deleted route from route table %s', % self.route_table_id)
+            print('Successfully deleted route from route table %s' % self.route_table_id)
         self._connect().delete_subnet(SubnetId=self.vpc_subnet_id)
         if self.verbose:
-            print('Successfully deleted VPC subnet %s', % self.vpc_subnet_id)
+            print('Successfully deleted VPC subnet %s' % self.vpc_subnet_id)
         self._connect().delete_route_table(RouteTableId=self.route_table_id)
         if self.verbose:
-            print('Successfully deleted route table %s', % self.route_table_id)
+            print('Successfully deleted route table %s' % self.route_table_id)
         self._connect().detach_internet_gateway(InternetGatewayId=self.internet_gateway_id, VpcId=self.vpc_id)
         if self.verbose:
-            print('Successfully deleted detached internet gateway %s', % self.internet_gateway_id)
+            print('Successfully deleted detached internet gateway %s' % self.internet_gateway_id)
         self._connect().delete_internet_gateway(InternetGatewayId=self.internet_gateway_id)
         if self.verbose:
-            print('Successfully deleted internet gateway %s', % self.internet_gateway_id)
+            print('Successfully deleted internet gateway %s' % self.internet_gateway_id)
         self._connect().delete_vpc(VpcId=self.vpc_id)
         if self.verbose:
-            print('Successfully deleted VPC %s', % self.vpc_id)
+            print('Successfully deleted VPC %s' % self.vpc_id)
