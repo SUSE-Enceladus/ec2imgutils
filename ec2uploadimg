@@ -346,9 +346,9 @@ if args.rootVolSize:
 
 regions = args.regions.split(',')
 if (
-        len(regions) > 1
-        and (args.amiID or args.akiID or args.runningID or args.vpcSubnetId)
-):
+    len(regions) > 1 and (args.amiID or args.akiID or args.runningID or
+                          args.vpcSubnetId)
+   ):
     print(
         'Incompatible arguments: multiple regions specified',
         file=sys.stderr
@@ -360,7 +360,8 @@ if (
     print('--instance-id, or --boot-kernel', file=sys.stderr)
     sys.exit(1)
 
-setup = EC2Setup(access_key, region, secret_key, args.sessionToken, args.verbose)
+setup = EC2Setup(access_key, region, secret_key, args.sessionToken,
+                 args.verbose)
 try:
     ami_id = args.amiID
     running_id = args.runningID
@@ -440,8 +441,10 @@ try:
 
         key_pair_name = args.sshName
         ssh_private_key_file = args.privateKey
-        if not key_name and not ssh_private_key_file and not args.accountName:
-            key_pair_name, ssh_private_key_file = setup.create_upload_key_pair()
+        if not key_pair_name and not ssh_private_key_file and not \
+                args.accountName:
+            key_pair_name, ssh_private_key_file = \
+                setup.create_upload_key_pair()
         if not key_pair_name:
             key_pair_name = utils.get_from_config(args.accountName,
                                                   config,
