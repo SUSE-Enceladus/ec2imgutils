@@ -25,6 +25,7 @@ from ec2utils.ec2utils import EC2Utils
 from tempfile import mkstemp
 from tempfile import mkdtemp
 
+
 class EC2Setup(EC2Utils):
     """Class to prepare an Amazon EC2 account with all necessary resources"""
 
@@ -58,15 +59,17 @@ class EC2Setup(EC2Utils):
     def create_security_group(self):
         if self.verbose:
             print('Creating temporary security group')
-        group_name = 'ec2uploadimg-%s' % (random.randint(1,100))
+        group_name = 'ec2uploadimg-%s' % (random.randint(1, 100))
         group_description = 'ec2uploadimg created %s' % datetime.datetime.now()
-        response = self._connect().create_security_group(GroupName=group_name,
-                                     Description=group_description,
-                                     VpcId=self.vpc_id)
+        response = self._connect().create_security_group(
+            GroupName=group_name, Description=group_description,
+            VpcId=self.vpc_id
+        )
 
         self.security_group_id = response['GroupId']
         if self.verbose:
-            print('Temporary Security Group Created %s in vpc %s' % (self.security_group_id, self.vpc_id))
+            print('Temporary Security Group Created %s in vpc %s'
+                  % (self.security_group_id, self.vpc_id))
         data = self._connect().authorize_security_group_ingress(
             GroupId=self.security_group_id,
             IpPermissions=[
@@ -77,7 +80,8 @@ class EC2Setup(EC2Utils):
             ])
 
         if self.verbose:
-            print("Successfully allowed incoming SSH port 22 for security group %s in %s" % (self.security_group_id, self.vpc_id))
+            print("Successfully allowed incoming SSH port 22 for security "
+                  "group %s in %s" % (self.security_group_id, self.vpc_id))
         return self.security_group_id
 
     # ---------------------------------------------------------------------
@@ -88,10 +92,13 @@ class EC2Setup(EC2Utils):
         if not os.access(dir_path, os.W_OK):
             dir_path = mkdtemp()
             self.temp_dir = dir_path
-        fd, location = mkstemp(prefix='temporary_ec2_uploadkey.', suffix='.key', dir=dir_path)
+        fd, location = mkstemp(prefix='temporary_ec2_uploadkey.',
+                               suffix='.key', dir=dir_path)
         self.key_pair_name = os.path.basename(location)
         self.ssh_private_key_file = location
-        secret_key_content = self._connect().create_key_pair(KeyName=self.key_pair_name)
+        secret_key_content = self._connect().create_key_pair(
+            KeyName=self.key_pair_name
+        )
         if self.verbose:
             print('Successfully created key pair: ', self.key_pair_name)
         with open(location, 'w') as localfile:
@@ -112,72 +119,104 @@ class EC2Setup(EC2Utils):
     # ---------------------------------------------------------------------
     def _create_internet_gateway(self):
         response = self._connect().create_internet_gateway()
-        self.internet_gateway_id = response['InternetGateway']['InternetGatewayId']
-        self._connect().attach_internet_gateway(VpcId=self.vpc_id, InternetGatewayId=self.internet_gateway_id)
+        self.internet_gateway_id = \
+            response['InternetGateway']['InternetGatewayId']
+        self._connect().attach_internet_gateway(
+            VpcId=self.vpc_id, InternetGatewayId=self.internet_gateway_id
+        )
         if self.verbose:
-            print("Successfully created internet gateway %s" % (self.internet_gateway_id))
+            print("Successfully created internet gateway %s" %
+                  self.internet_gateway_id)
 
     # ---------------------------------------------------------------------
     def _create_route_table(self):
         response = self._connect().create_route_table(VpcId=self.vpc_id)
         self.route_table_id = response['RouteTable']['RouteTableId']
-        self._connect().create_route(DestinationCidrBlock='0.0.0.0/0', GatewayId=self.internet_gateway_id, RouteTableId=self.route_table_id)
+        self._connect().create_route(
+            DestinationCidrBlock='0.0.0.0/0',
+            GatewayId=self.internet_gateway_id,
+            RouteTableId=self.route_table_id
+        )
         if self.verbose:
-            print("Successfully created route table %s" % (self.route_table_id))
+            print("Successfully created route table %s" % self.route_table_id)
 
     # ---------------------------------------------------------------------
     def _create_vpc(self):
-        vpc_name = 'uploader-%s' % (random.randint(1,100))
+        vpc_name = 'uploader-%s' % (random.randint(1, 100))
         response = self._connect().create_vpc(CidrBlock='192.168.0.0/16')
         self.vpc_id = response['Vpc']['VpcId']
-        self._connect().create_tags(Resources=[self.vpc_id], Tags=[{'Key': 'Name', 'Value': vpc_name}])
+        self._connect().create_tags(
+            Resources=[self.vpc_id],
+            Tags=[{'Key': 'Name', 'Value': vpc_name}]
+        )
         if self.verbose:
             print("Successfully created VPC with id %s" % (self.vpc_id))
 
     # ---------------------------------------------------------------------
     def _create_vpc_subnet(self):
-        response = self._connect().create_subnet(CidrBlock='192.168.1.0/24', VpcId=self.vpc_id)
+        response = self._connect().create_subnet(
+            CidrBlock='192.168.1.0/24', VpcId=self.vpc_id
+        )
         self.vpc_subnet_id = response['Subnet']['SubnetId']
-        self._connect().associate_route_table(SubnetId=self.vpc_subnet_id, RouteTableId=self.route_table_id)
-        self._connect().modify_subnet_attribute(MapPublicIpOnLaunch={ 'Value': True }, SubnetId=self.vpc_subnet_id)
+        self._connect().associate_route_table(
+            SubnetId=self.vpc_subnet_id, RouteTableId=self.route_table_id
+        )
+        self._connect().modify_subnet_attribute(
+            MapPublicIpOnLaunch={'Value': True}, SubnetId=self.vpc_subnet_id
+        )
         if self.verbose:
-            print("Successfully created VPC subnet with id %s" % (self.vpc_subnet_id))
+            print("Successfully created VPC subnet with id %s" %
+                  self.vpc_subnet_id)
 
     # ---------------------------------------------------------------------
     def _remove_security_group(self):
-        response = self._connect().delete_security_group(GroupId=self.security_group_id)
+        response = self._connect().delete_security_group(
+            GroupId=self.security_group_id
+        )
         if self.verbose:
-            print('Successfully deleted security group %s' % self.security_group_id)
+            print('Successfully deleted security group %s' %
+                  self.security_group_id)
 
     # ---------------------------------------------------------------------
     def _remove_upload_key_pair(self):
         if self.verbose:
             print('Deleting temporary key pair ', self.key_pair_name)
-        secret_key = self._connect().delete_key_pair(KeyName=self.key_pair_name)
+        secret_key = self._connect().delete_key_pair(
+            KeyName=self.key_pair_name)
         if os.path.isfile(self.ssh_private_key_file):
             os.remove(self.ssh_private_key_file)
         if self.temp_dir:
             os.rmdir(self.temp_dir)
         if self.verbose:
-            print('Successfully deleted temporary key ', self.ssh_private_key_file)
+            print('Successfully deleted temporary key',
+                  self.ssh_private_key_file)
 
     # ---------------------------------------------------------------------
     def _remove_vpc(self):
-        self._connect().delete_route(DestinationCidrBlock='0.0.0.0/0', RouteTableId=self.route_table_id)
+        self._connect().delete_route(
+            DestinationCidrBlock='0.0.0.0/0', RouteTableId=self.route_table_id
+        )
         if self.verbose:
-            print('Successfully deleted route from route table %s' % self.route_table_id)
+            print('Successfully deleted route from route table %s' %
+                  self.route_table_id)
         self._connect().delete_subnet(SubnetId=self.vpc_subnet_id)
         if self.verbose:
             print('Successfully deleted VPC subnet %s' % self.vpc_subnet_id)
         self._connect().delete_route_table(RouteTableId=self.route_table_id)
         if self.verbose:
             print('Successfully deleted route table %s' % self.route_table_id)
-        self._connect().detach_internet_gateway(InternetGatewayId=self.internet_gateway_id, VpcId=self.vpc_id)
+        self._connect().detach_internet_gateway(
+            InternetGatewayId=self.internet_gateway_id, VpcId=self.vpc_id
+        )
         if self.verbose:
-            print('Successfully deleted detached internet gateway %s' % self.internet_gateway_id)
-        self._connect().delete_internet_gateway(InternetGatewayId=self.internet_gateway_id)
+            print('Successfully deleted detached internet gateway %s' %
+                  self.internet_gateway_id)
+        self._connect().delete_internet_gateway(
+            InternetGatewayId=self.internet_gateway_id
+        )
         if self.verbose:
-            print('Successfully deleted internet gateway %s' % self.internet_gateway_id)
+            print('Successfully deleted internet gateway %s' %
+                  self.internet_gateway_id)
         self._connect().delete_vpc(VpcId=self.vpc_id)
         if self.verbose:
             print('Successfully deleted VPC %s' % self.vpc_id)
