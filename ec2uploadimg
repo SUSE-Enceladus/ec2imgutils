@@ -563,5 +563,4 @@ except Exception as e:
     print(format(e), file=sys.stderr)
     sys.exit(1)
 finally:
-    if setup:
-        setup.clean_up()
+    setup.clean_up()
