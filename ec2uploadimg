@@ -360,12 +360,14 @@ if (
     print('--instance-id, or --boot-kernel', file=sys.stderr)
     sys.exit(1)
 
-setup = EC2Setup(access_key, region, secret_key, args.sessionToken,
-                 args.verbose)
+setup = None
+
 try:
     ami_id = args.amiID
     running_id = args.runningID
     for region in regions:
+        setup = EC2Setup(access_key, region, secret_key, args.sessionToken,
+                         args.verbose)
         if not ami_id and not running_id:
             try:
                 ami_id = utils.get_from_config(args.accountName,
@@ -563,4 +565,5 @@ except Exception as e:
     print(format(e), file=sys.stderr)
     sys.exit(1)
 finally:
-    setup.clean_up()
+    if setup:
+        setup.clean_up()
