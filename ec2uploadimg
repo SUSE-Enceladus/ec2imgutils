@@ -360,213 +360,211 @@ if (
     print('--instance-id, or --boot-kernel', file=sys.stderr)
     sys.exit(1)
 
-setup = None
-
 try:
     ami_id = args.amiID
     running_id = args.runningID
     for region in regions:
-        setup = EC2Setup(access_key, region, secret_key, args.sessionToken,
-                         args.verbose)
-        if not ami_id and not running_id:
-            try:
-                ami_id = utils.get_from_config(args.accountName,
-                                               config,
-                                               region,
-                                               'ami',
-                                               '--ec2-ami')
-            except:
-                print('Could not determine helper AMI-ID', file=sys.stderr)
-                sys.exit(1)
-        bootkernel = args.akiID
-        if args.virtType == 'hvm':
-            bootkernel = None
-
-        if not bootkernel and args.virtType != 'hvm':
-            if args.grub2:
+        try:
+            setup = EC2Setup(access_key, region, secret_key, args.sessionToken,
+                             args.verbose)
+            if not ami_id and not running_id:
                 try:
-                    bootkernel = utils.get_from_config(args.accountName,
-                                                       config,
-                                                       region,
-                                                       'g2_aki_x86_64',
-                                                       '--boot-kernel')
+                    ami_id = utils.get_from_config(args.accountName,
+                                                   config,
+                                                   region,
+                                                   'ami',
+                                                   '--ec2-ami')
                 except:
+                    print('Could not determine helper AMI-ID', file=sys.stderr)
+                    sys.exit(1)
+            bootkernel = args.akiID
+            if args.virtType == 'hvm':
+                bootkernel = None
+
+            if not bootkernel and args.virtType != 'hvm':
+                if args.grub2:
+                    try:
+                        bootkernel = utils.get_from_config(args.accountName,
+                                                           config,
+                                                           region,
+                                                           'g2_aki_x86_64',
+                                                           '--boot-kernel')
+                    except:
+                        print(
+                            'Could not find bootkernel in config',
+                            file=sys.stderr
+                        )
+                        sys.exit(1)
+                elif args.arch == 'x86_64':
+                    try:
+                        bootkernel = utils.get_from_config(args.accountName,
+                                                           config,
+                                                           region,
+                                                           'aki_x86_64',
+                                                           '--boot-kernel')
+                    except:
+                        print(
+                            'Could not find bootkernel in config',
+                            file=sys.stderr
+                        )
+                        sys.exit(1)
+                elif args.arch == 'i386':
+                    try:
+                        bootkernel = utils.get_from_config(args.accountName,
+                                                           config,
+                                                           region,
+                                                           'aki_i386',
+                                                           '--boot-kernel')
+                    except:
+                        print(
+                            'Could not find bootkernel in config',
+                            file=sys.stderr
+                        )
+                        sys.exit(1)
+                else:
                     print(
-                        'Could not find bootkernel in config',
+                        'Could not reliably determine the ',
+                        end=' ',
                         file=sys.stderr
                     )
+                    print('bootkernel to use ', file=sys.stderr)
+                    print('must specify bootkernel, ', end=' ', file=sys.stderr)
+                    print('arch (x86_64|i386) or hvm', file=sys.stderr)
                     sys.exit(1)
-            elif args.arch == 'x86_64':
-                try:
-                    bootkernel = utils.get_from_config(args.accountName,
-                                                       config,
-                                                       region,
-                                                       'aki_x86_64',
-                                                       '--boot-kernel')
-                except:
-                    print(
-                        'Could not find bootkernel in config',
-                        file=sys.stderr
-                    )
-                    sys.exit(1)
-            elif args.arch == 'i386':
-                try:
-                    bootkernel = utils.get_from_config(args.accountName,
-                                                       config,
-                                                       region,
-                                                       'aki_i386',
-                                                       '--boot-kernel')
-                except:
-                    print(
-                        'Could not find bootkernel in config',
-                        file=sys.stderr
-                    )
-                    sys.exit(1)
-            else:
-                print(
-                    'Could not reliably determine the ',
-                    end=' ',
-                    file=sys.stderr
-                )
-                print('bootkernel to use ', file=sys.stderr)
-                print('must specify bootkernel, ', end=' ', file=sys.stderr)
-                print('arch (x86_64|i386) or hvm', file=sys.stderr)
-                sys.exit(1)
 
-        inst_type = args.instType
-        if not inst_type:
-            inst_type = utils.get_from_config(args.accountName,
-                                              config,
-                                              region,
-                                              'instance_type',
-                                              '--type')
-
-        key_pair_name = args.sshName
-        ssh_private_key_file = args.privateKey
-        if (
-            not key_pair_name
-            and not ssh_private_key_file
-            and not args.accountName
-           ):
-            key_pair_name, ssh_private_key_file = \
-                setup.create_upload_key_pair()
-        if not key_pair_name:
-            key_pair_name = utils.get_from_config(args.accountName,
+            inst_type = args.instType
+            if not inst_type:
+                inst_type = utils.get_from_config(args.accountName,
                                                   config,
                                                   region,
-                                                  'ssh_key_name',
-                                                  '--ssh-key-pair')
-        if not key_pair_name:
-            print('Could not determine key pair name', file=sys.stderr)
-            sys.exit(1)
+                                                  'instance_type',
+                                                  '--type')
 
-        if not ssh_private_key_file:
-            ssh_private_key_file = utils.get_from_config(args.accountName,
-                                                         config,
-                                                         region,
-                                                         'ssh_private_key',
-                                                         '--private-key-file')
-
-        if not ssh_private_key_file:
-            print(
-                'Could not determine the private ssh key file',
-                file=sys.stderr
-            )
-
-        ssh_private_key_file = os.path.expanduser(ssh_private_key_file)
-
-        if not os.path.exists(ssh_private_key_file):
-            print(
-                (
-                     'SSH private key file "%s" does not exist'
-                     % ssh_private_key_file
-                ),
-                file=sys.stderr
-            )
-            sys.exit(1)
-
-        ssh_user = args.sshUser
-        if not ssh_user:
-            ssh_user = utils.get_from_config(args.accountName,
-                                             config,
-                                             region,
-                                             'user',
-                                             '--user')
-        if not ssh_user:
-            print('Could not determin ssh user to use', file=sys.stderr)
-            sys.exit(1)
-
-        vpc_subnet_id = args.vpcSubnetId
-        if not vpc_subnet_id and not args.accountName:
-            vpc_subnet_id = setup.create_vpc_subnet()
-        if not vpc_subnet_id and not (args.amiID or args.runningID):
-            # Depending on instance type an instance may possibly only
-            # launch inside a subnet. Look in the config for a subnet if none
-            # is given and the AMI to use was not specified on the command line
-            try:
-                vpc_subnet_id = utils.get_from_config(args.accountName,
+            key_pair_name = args.sshName
+            ssh_private_key_file = args.privateKey
+            if (
+                not key_pair_name
+                and not ssh_private_key_file
+                and not args.accountName
+               ):
+                key_pair_name, ssh_private_key_file = \
+                    setup.create_upload_key_pair()
+            if not key_pair_name:
+                key_pair_name = utils.get_from_config(args.accountName,
                                                       config,
                                                       region,
-                                                      'subnet_id_%s' % region,
-                                                      '--vpc-subnet-id')
-                if args.verbose and vpc_subnet_id:
-                    print('Using VPC subnet: %s' % vpc_subnet_id)
-            except:
-                if args.verbose:
-                    msg = 'Not using a subnet-id, none given on the '
-                    msg += 'command line and none found in config for '
-                    msg += '"subnet_id_%s" value' % region
-                    print(msg)
+                                                      'ssh_key_name',
+                                                      '--ssh-key-pair')
+            if not key_pair_name:
+                print('Could not determine key pair name', file=sys.stderr)
+                sys.exit(1)
 
-        security_group_ids = args.securityGroupIds
-        if not security_group_ids:
-            security_group_ids = setup.create_security_group()
+            if not ssh_private_key_file:
+                ssh_private_key_file = utils.get_from_config(args.accountName,
+                                                             config,
+                                                             region,
+                                                             'ssh_private_key',
+                                                             '--private-key-file')
 
-        uploader = ec2upimg.EC2ImageUploader(
-                          access_key=access_key,
-                          backing_store=args.backingStore,
-                          billing_codes=args.billingCodes,
-                          bootkernel=bootkernel,
-                          ena_support=args.ena,
-                          image_arch=args.arch,
-                          image_description=args.descript,
-                          image_name=args.imgName,
-                          image_virt_type=virtualization_type,
-                          inst_user_name=ssh_user,
-                          launch_ami=ami_id,
-                          launch_inst_type=inst_type,
-                          region=region,
-                          root_volume_size=root_volume_size,
-                          running_id=running_id,
-                          secret_key=secret_key,
-                          security_group_ids=security_group_ids,
-                          session_token=args.sessionToken,
-                          sriov_type=sriov_type,
-                          ssh_key_pair_name=key_pair_name,
-                          ssh_key_private_key_file=ssh_private_key_file,
-                          ssh_timeout=args.sshTimeout,
-                          use_grub2=args.grub2,
-                          use_private_ip=args.usePrivateIP,
-                          verbose=args.verbose,
-                          vpc_subnet_id=vpc_subnet_id,
-                          wait_count=args.waitCount
-        )
+            if not ssh_private_key_file:
+                print(
+                    'Could not determine the private ssh key file',
+                    file=sys.stderr
+                )
 
-        if args.snapOnly:
-            snapshot = uploader.create_snapshot(args.source)
-            print('Created snapshot: ', snapshot['SnapshotId'])
-        elif args.rootSwapMethod:
-            ami = uploader.create_image_use_root_swap(args.source)
-            print('Created image: ', ami)
-        else:
-            ami = uploader.create_image(args.source)
-            print('Created image: ', ami)
+            ssh_private_key_file = os.path.expanduser(ssh_private_key_file)
+
+            if not os.path.exists(ssh_private_key_file):
+                print(
+                    (
+                         'SSH private key file "%s" does not exist'
+                         % ssh_private_key_file
+                    ),
+                    file=sys.stderr
+                )
+                sys.exit(1)
+
+            ssh_user = args.sshUser
+            if not ssh_user:
+                ssh_user = utils.get_from_config(args.accountName,
+                                                 config,
+                                                 region,
+                                                 'user',
+                                                 '--user')
+            if not ssh_user:
+                print('Could not determin ssh user to use', file=sys.stderr)
+                sys.exit(1)
+
+            vpc_subnet_id = args.vpcSubnetId
+            if not vpc_subnet_id and not args.accountName:
+                vpc_subnet_id = setup.create_vpc_subnet()
+            if not vpc_subnet_id and not (args.amiID or args.runningID):
+                # Depending on instance type an instance may possibly only
+                # launch inside a subnet. Look in the config for a subnet if none
+                # is given and the AMI to use was not specified on the command line
+                try:
+                    vpc_subnet_id = utils.get_from_config(args.accountName,
+                                                          config,
+                                                          region,
+                                                          'subnet_id_%s' % region,
+                                                          '--vpc-subnet-id')
+                    if args.verbose and vpc_subnet_id:
+                        print('Using VPC subnet: %s' % vpc_subnet_id)
+                except:
+                    if args.verbose:
+                        msg = 'Not using a subnet-id, none given on the '
+                        msg += 'command line and none found in config for '
+                        msg += '"subnet_id_%s" value' % region
+                        print(msg)
+
+            security_group_ids = args.securityGroupIds
+            if not security_group_ids:
+                security_group_ids = setup.create_security_group()
+
+            uploader = ec2upimg.EC2ImageUploader(
+                              access_key=access_key,
+                              backing_store=args.backingStore,
+                              billing_codes=args.billingCodes,
+                              bootkernel=bootkernel,
+                              ena_support=args.ena,
+                              image_arch=args.arch,
+                              image_description=args.descript,
+                              image_name=args.imgName,
+                              image_virt_type=virtualization_type,
+                              inst_user_name=ssh_user,
+                              launch_ami=ami_id,
+                              launch_inst_type=inst_type,
+                              region=region,
+                              root_volume_size=root_volume_size,
+                              running_id=running_id,
+                              secret_key=secret_key,
+                              security_group_ids=security_group_ids,
+                              session_token=args.sessionToken,
+                              sriov_type=sriov_type,
+                              ssh_key_pair_name=key_pair_name,
+                              ssh_key_private_key_file=ssh_private_key_file,
+                              ssh_timeout=args.sshTimeout,
+                              use_grub2=args.grub2,
+                              use_private_ip=args.usePrivateIP,
+                              verbose=args.verbose,
+                              vpc_subnet_id=vpc_subnet_id,
+                              wait_count=args.waitCount
+            )
+
+            if args.snapOnly:
+                snapshot = uploader.create_snapshot(args.source)
+                print('Created snapshot: ', snapshot['SnapshotId'])
+            elif args.rootSwapMethod:
+                ami = uploader.create_image_use_root_swap(args.source)
+                print('Created image: ', ami)
+            else:
+                ami = uploader.create_image(args.source)
+                print('Created image: ', ami)
+        finally:
+            setup.clean_up()
 except EC2UploadImgException as e:
     print(format(e), file=sys.stderr)
     sys.exit(1)
 except Exception as e:
     print(format(e), file=sys.stderr)
     sys.exit(1)
-finally:
-    if setup:
-        setup.clean_up()
