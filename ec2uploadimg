@@ -443,8 +443,11 @@ try:
 
         key_pair_name = args.sshName
         ssh_private_key_file = args.privateKey
-        if not key_pair_name and not ssh_private_key_file and not \
-                args.accountName:
+        if (
+            not key_pair_name
+            and not ssh_private_key_file
+            and not args.accountName
+           ):
             key_pair_name, ssh_private_key_file = \
                 setup.create_upload_key_pair()
         if not key_pair_name:
