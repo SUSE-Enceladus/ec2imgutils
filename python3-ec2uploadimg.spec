@@ -18,7 +18,7 @@
 
 %define upstream_name ec2uploadimg
 Name:           python3-ec2uploadimg
-Version:        5.0.6
+Version:        6.0.0
 Release:        0
 Summary:        Upload an image to EC2
 License:        GPL-3.0+
@@ -27,11 +27,11 @@ Url:            https://github.com/SUSE/Enceladus
 Source0:        %{upstream_name}-%{version}.tar.bz2
 Requires:       python3
 Requires:       python3-boto3        >= 1.4.1
-Requires:       python3-ec2utilsbase >= 3.0.0
+Requires:       python3-ec2utilsbase >= 3.1.0
 Requires:       python3-ec2utilsbase < 4.0.0
 Requires:       python3-paramiko
 BuildRequires:  python3-boto3        >= 1.4.1
-BuildRequires:  python3-ec2utilsbase >= 3.0.0
+BuildRequires:  python3-ec2utilsbase >= 3.1.0
 BuildRequires:  python3-ec2utilsbase < 4.0.0
 BuildRequires:  python3-paramiko
 BuildRequires:  python3-setuptools
