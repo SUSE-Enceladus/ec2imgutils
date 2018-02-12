@@ -28,6 +28,7 @@ class EC2Utils:
     def __init__(self):
 
         self.region = None
+        self.session_token = None
         self.verbose = None
 
     # ---------------------------------------------------------------------
