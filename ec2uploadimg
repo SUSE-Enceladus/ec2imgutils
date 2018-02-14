@@ -236,8 +236,8 @@ argparse.add_argument(
     dest='version',
     help='Program version'
 )
-help_msg = 'The ID of the VPC subnet in which the helper instance should '
-help_msg += 'run (Optional)'
+help_msg = 'The ID, starts with "subnet-" of the VPC subnet in which the '
+help_msg += 'helper instance should run (Optional)'
 argparse.add_argument(
     '--vpc-subnet-id',
     default='',
