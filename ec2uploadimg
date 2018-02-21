@@ -374,7 +374,7 @@ try:
                                                    region,
                                                    'ami',
                                                    '--ec2-ami')
-                except:
+                except Exception:
                     print('Could not determine helper AMI-ID', file=sys.stderr)
                     sys.exit(1)
             bootkernel = args.akiID
@@ -389,7 +389,7 @@ try:
                                                            region,
                                                            'g2_aki_x86_64',
                                                            '--boot-kernel')
-                    except:
+                    except Exception:
                         print(
                             'Could not find bootkernel in config',
                             file=sys.stderr
@@ -402,7 +402,7 @@ try:
                                                            region,
                                                            'aki_x86_64',
                                                            '--boot-kernel')
-                    except:
+                    except Exception:
                         print(
                             'Could not find bootkernel in config',
                             file=sys.stderr
@@ -415,7 +415,7 @@ try:
                                                            region,
                                                            'aki_i386',
                                                            '--boot-kernel')
-                    except:
+                    except Exception:
                         print(
                             'Could not find bootkernel in config',
                             file=sys.stderr
@@ -428,7 +428,11 @@ try:
                         file=sys.stderr
                     )
                     print('bootkernel to use ', file=sys.stderr)
-                    print('must specify bootkernel, ', end=' ', file=sys.stderr)
+                    print(
+                        'must specify bootkernel, ',
+                        end=' ',
+                        file=sys.stderr
+                    )
                     print('arch (x86_64|i386) or hvm', file=sys.stderr)
                     sys.exit(1)
 
@@ -442,11 +446,10 @@ try:
 
             key_pair_name = args.sshName
             ssh_private_key_file = args.privateKey
-            if (
-                not key_pair_name
-                and not ssh_private_key_file
-                and not args.accountName
-               ):
+            if (not key_pair_name and not
+                ssh_private_key_file and not
+                args.accountName
+            ):
                 key_pair_name, ssh_private_key_file = \
                     setup.create_upload_key_pair()
             if not key_pair_name:
@@ -460,11 +463,13 @@ try:
                 sys.exit(1)
 
             if not ssh_private_key_file:
-                ssh_private_key_file = utils.get_from_config(args.accountName,
-                                                             config,
-                                                             region,
-                                                             'ssh_private_key',
-                                                             '--private-key-file')
+                ssh_private_key_file = utils.get_from_config(
+                    args.accountName,
+                    config,
+                    region,
+                    'ssh_private_key',
+                    '--private-key-file'
+                )
 
             if not ssh_private_key_file:
                 print(
@@ -500,17 +505,20 @@ try:
                 vpc_subnet_id = setup.create_vpc_subnet()
             if not vpc_subnet_id and not (args.amiID or args.runningID):
                 # Depending on instance type an instance may possibly only
-                # launch inside a subnet. Look in the config for a subnet if none
-                # is given and the AMI to use was not specified on the command line
+                # launch inside a subnet. Look in the config for a subnet if
+                # no subnet ID is given and the AMI to use was not
+                # specified on the command line
                 try:
-                    vpc_subnet_id = utils.get_from_config(args.accountName,
-                                                          config,
-                                                          region,
-                                                          'subnet_id_%s' % region,
-                                                          '--vpc-subnet-id')
+                    vpc_subnet_id = utils.get_from_config(
+                        args.accountName,
+                        config,
+                        region,
+                        'subnet_id_%s' % region,
+                        '--vpc-subnet-id'
+                    )
                     if args.verbose and vpc_subnet_id:
                         print('Using VPC subnet: %s' % vpc_subnet_id)
-                except:
+                except Exception:
                     if args.verbose:
                         msg = 'Not using a subnet-id, none given on the '
                         msg += 'command line and none found in config for '
@@ -519,7 +527,40 @@ try:
 
             security_group_ids = args.securityGroupIds
             if not security_group_ids:
-                security_group_ids = setup.create_security_group()
+                if not args.accountName:
+                    security_group_ids = setup.create_security_group()
+                else:
+                    try:
+                        security_group_ids = utils.get_from_config(
+                            args.accountName,
+                            config,
+                            region,
+                            'security_group_ids_%s' % region,
+                            '--security-group-ids'
+                        )
+                        if args.verbose and security_group_ids:
+                            msg = 'Using Seccurity Group IDs: %s'
+                            print(msg % security_group_ids)
+                    except Exception:
+                        if args.verbose:
+                            msg = 'No security group specified in the '
+                            msg += 'configuration, "security_group_ids_%s" or '
+                            msg += 'given on the command line.'
+                            print(msg % region)
+                    if not security_group_ids and vpc_subnet_id:
+                        ec2 = boto3.client(
+                            aws_access_key_id=access_key,
+                            aws_secret_access_key=secret_key,
+                            region_name=region,
+                            service_name='ec2'
+                        )
+                        subnet_data = ec2.describe_subnets(
+                            SubnetIds=[vpc_subnet_id]
+                        )
+                        vpc_id = subnet_data['Subnets'][0]['VpcId']
+                        security_group_ids = setup.create_security_group(
+                            vpc_id
+                        )
 
             uploader = ec2upimg.EC2ImageUploader(
                               access_key=access_key,
