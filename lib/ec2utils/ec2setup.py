@@ -56,20 +56,22 @@ class EC2Setup(EC2Utils):
             self._remove_vpc()
 
     # ---------------------------------------------------------------------
-    def create_security_group(self):
+    def create_security_group(self, vpc_id=None):
         if self.verbose:
             print('Creating temporary security group')
         group_name = 'ec2uploadimg-%s' % (random.randint(1, 100))
         group_description = 'ec2uploadimg created %s' % datetime.datetime.now()
+        if not vpc_id:
+            vpc_id = self.vpc_id
         response = self._connect().create_security_group(
             GroupName=group_name, Description=group_description,
-            VpcId=self.vpc_id
+            VpcId=vpc_id
         )
 
         self.security_group_id = response['GroupId']
         if self.verbose:
             print('Temporary Security Group Created %s in vpc %s'
-                  % (self.security_group_id, self.vpc_id))
+                  % (self.security_group_id, vpc_id))
         data = self._connect().authorize_security_group_ingress(
             GroupId=self.security_group_id,
             IpPermissions=[
