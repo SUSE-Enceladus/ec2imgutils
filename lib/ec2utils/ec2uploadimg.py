@@ -99,10 +99,19 @@ class EC2ImageUploader(EC2Utils):
         self.percent_transferred = 0
         self.ssh_client = None
         self.storage_volume_size = 2 * self.root_volume_size
+        self.aborted = False
+
+    def abort(self):
+        """Set the abort flag to take appropriate action and stop image creation"""
+        if self.verbose:
+            print("Aborted upload, please wait while AWS resources get cleaned up. This may take a few minutes!")
+        self.aborted = True
 
     # ---------------------------------------------------------------------
     def _attach_volume(self, volume, device=None):
         """Attach the given volume to the given instance"""
+        if self.aborted:
+            return
         if not device:
             device = self._get_next_disk_id()
         self._connect().attach_volume(
@@ -270,6 +279,8 @@ class EC2ImageUploader(EC2Utils):
     # ---------------------------------------------------------------------
     def _create_block_device_map(self, snapshot):
         """Create a block device map with the given snapshot"""
+        if self.aborted:
+            return
         # We assume the root image has 1 partition (either case)
         root_device_name = self._determine_root_device()
 
@@ -292,6 +303,8 @@ class EC2ImageUploader(EC2Utils):
 
     # ---------------------------------------------------------------------
     def _create_image_root_volume(self, source):
+        if self.aborted:
+            return
         """Create a root volume from the image"""
         self._check_image_exists()
         if self.vpc_subnet_id:
@@ -332,6 +345,8 @@ class EC2ImageUploader(EC2Utils):
     # ---------------------------------------------------------------------
     def _create_snapshot(self, volume):
         """Create a snapshot from a volume"""
+        if self.aborted:
+            return
         snapshot = self._connect().create_snapshot(
             VolumeId=volume['VolumeId'],
             Description=self.image_description
@@ -392,6 +407,8 @@ class EC2ImageUploader(EC2Utils):
     # ---------------------------------------------------------------------
     def _create_volume(self, size):
         """Create a volume"""
+        if self.aborted:
+            return
         volume = self._connect().create_volume(
             Size=int(size),
             AvailabilityZone=self.zone,
@@ -431,8 +448,10 @@ class EC2ImageUploader(EC2Utils):
         return volume
 
     # ---------------------------------------------------------------------
-    def _detach_volume(self, volume, no_clean_up=False):
+    def _detach_volume(self, volume):
         """Detach the given volume"""
+        if not volume:
+            return
         volume = self._connect().describe_volumes(
             VolumeIds=[volume['VolumeId']])['Volumes'][0]
         if volume['State'] == 'available':
@@ -490,6 +509,8 @@ class EC2ImageUploader(EC2Utils):
     # ---------------------------------------------------------------------
     def _dump_root_fs(self, image_dir, raw_image_name, target_root_device):
         """Dump the raw image to the target device"""
+        if self.aborted:
+            return
         if self.verbose:
             print('Dumping raw image to new target root volume')
         if not self._device_exists(target_root_device):
@@ -517,6 +538,8 @@ class EC2ImageUploader(EC2Utils):
     # ---------------------------------------------------------------------
     def _establish_ssh_connection(self):
         """Connect to the running instance with ssh"""
+        if self.aborted:
+            return
         if self.verbose:
             print('Waiting to obtain instance IP address')
         instance_ip = self.helper_instance.get('PublicIpAddress')
@@ -575,6 +598,8 @@ class EC2ImageUploader(EC2Utils):
     def _execute_ssh_command(self, command):
         """Execute a command on the remote machine, on error raise an exception
            return the result of stdout"""
+        if self.aborted:
+            return
         if self.inst_user_name != 'root':
             command = 'sudo %s' % command
 
@@ -596,6 +621,8 @@ class EC2ImageUploader(EC2Utils):
     def _find_equivalent_device(self, device_id):
         """Try and find a device that should be the same device in the
            instance than the one we attached with a given device id."""
+        if self.aborted:
+            return
         device_letter = device_id[-1]
         expected_name = '/dev/xvd%s' % device_letter
         if self._device_exists(expected_name):
@@ -609,7 +636,8 @@ class EC2ImageUploader(EC2Utils):
     # ---------------------------------------------------------------------
     def _format_storage_volume(self, device_id):
         """Format the storage volume"""
-
+        if self.aborted:
+            return
         if self.verbose:
             print('Formating storage volume')
         parted = self._get_command_from_instance('parted')
@@ -643,6 +671,8 @@ class EC2ImageUploader(EC2Utils):
     # ---------------------------------------------------------------------
     def _get_command_from_instance(self, command):
         """Get the location of the given command from the instance"""
+        if self.aborted:
+            return
         loc_cmd = 'which %s' % command
         location = self._execute_ssh_command(loc_cmd)
 
@@ -674,6 +704,8 @@ class EC2ImageUploader(EC2Utils):
     # ---------------------------------------------------------------------
     def _launch_helper_instance(self):
         """Launch the helper instance that is used to create the new image"""
+        if self.aborted:
+            return
         self._set_zone_to_use()
         if self.security_group_ids:
             instance = self._connect().run_instances(
@@ -743,6 +775,8 @@ class EC2ImageUploader(EC2Utils):
     # ---------------------------------------------------------------------
     def _register_image(self, snapshot):
         """Register an image from the given snapshot"""
+        if self.aborted:
+            return
         block_device_map = self._create_block_device_map(snapshot)
         if self.verbose:
             print('Registering image')
@@ -771,6 +805,8 @@ class EC2ImageUploader(EC2Utils):
     # ---------------------------------------------------------------------
     def _remove_volume(self, volume):
         """Delete the given volume from EC2"""
+        if not volume:
+            return
         self._connect().delete_volume(VolumeId=volume['VolumeId'])
 
         return 1
@@ -818,6 +854,8 @@ class EC2ImageUploader(EC2Utils):
     # ---------------------------------------------------------------------
     def _upload_image(self, target_dir, source):
         """Upload the source file to the instance"""
+        if self.aborted:
+            return
         filename = source.split(os.sep)[-1]
         sftp = self.ssh_client.open_sftp()
         try:
@@ -849,6 +887,8 @@ class EC2ImageUploader(EC2Utils):
     # ---------------------------------------------------------------------
     def _unpack_image(self, image_dir, image_filename):
         """Unpack the uploaded image file"""
+        if self.aborted:
+            return
         if (
                 image_filename.find('.tar') != -1 or
                 image_filename.find('.tbz') != -1 or

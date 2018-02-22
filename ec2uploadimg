@@ -22,11 +22,32 @@ import argparse
 import boto3
 import os
 import sys
+import signal
 
 import ec2utils.ec2utilsutils as utils
 import ec2utils.ec2uploadimg as ec2upimg
 from ec2utils.ec2UtilsExceptions import *
 from ec2utils.ec2setup import EC2Setup
+
+aborted = False
+
+def signal_handler(signum, frame):
+    global aborted
+    if aborted:
+        # if it got already aborted before,
+        # we kill the upload without proper clean up
+        sys.exit(1)
+    aborted = True
+    if uploader:
+        uploader.abort()
+    if not setup and not uploader:
+        # if there is no setup and no uploader
+        # there are no resources we need to cleanup
+        # and we just exit
+        sys.exit(1)
+
+signal.signal(signal.SIGINT, signal_handler)
+signal.signal(signal.SIGTERM, signal_handler)
 
 # Set up command line argument parsing
 argparse = argparse.ArgumentParser(description='Upload image to Amazon EC2')
@@ -562,45 +583,46 @@ try:
                             vpc_id
                         )
 
-            uploader = ec2upimg.EC2ImageUploader(
-                              access_key=access_key,
-                              backing_store=args.backingStore,
-                              billing_codes=args.billingCodes,
-                              bootkernel=bootkernel,
-                              ena_support=args.ena,
-                              image_arch=args.arch,
-                              image_description=args.descript,
-                              image_name=args.imgName,
-                              image_virt_type=virtualization_type,
-                              inst_user_name=ssh_user,
-                              launch_ami=ami_id,
-                              launch_inst_type=inst_type,
-                              region=region,
-                              root_volume_size=root_volume_size,
-                              running_id=running_id,
-                              secret_key=secret_key,
-                              security_group_ids=security_group_ids,
-                              session_token=args.sessionToken,
-                              sriov_type=sriov_type,
-                              ssh_key_pair_name=key_pair_name,
-                              ssh_key_private_key_file=ssh_private_key_file,
-                              ssh_timeout=args.sshTimeout,
-                              use_grub2=args.grub2,
-                              use_private_ip=args.usePrivateIP,
-                              verbose=args.verbose,
-                              vpc_subnet_id=vpc_subnet_id,
-                              wait_count=args.waitCount
-            )
+            if not aborted:
+                uploader = ec2upimg.EC2ImageUploader(
+                                  access_key=access_key,
+                                  backing_store=args.backingStore,
+                                  billing_codes=args.billingCodes,
+                                  bootkernel=bootkernel,
+                                  ena_support=args.ena,
+                                  image_arch=args.arch,
+                                  image_description=args.descript,
+                                  image_name=args.imgName,
+                                  image_virt_type=virtualization_type,
+                                  inst_user_name=ssh_user,
+                                  launch_ami=ami_id,
+                                  launch_inst_type=inst_type,
+                                  region=region,
+                                  root_volume_size=root_volume_size,
+                                  running_id=running_id,
+                                  secret_key=secret_key,
+                                  security_group_ids=security_group_ids,
+                                  session_token=args.sessionToken,
+                                  sriov_type=sriov_type,
+                                  ssh_key_pair_name=key_pair_name,
+                                  ssh_key_private_key_file=ssh_private_key_file,
+                                  ssh_timeout=args.sshTimeout,
+                                  use_grub2=args.grub2,
+                                  use_private_ip=args.usePrivateIP,
+                                  verbose=args.verbose,
+                                  vpc_subnet_id=vpc_subnet_id,
+                                  wait_count=args.waitCount
+                )
 
-            if args.snapOnly:
-                snapshot = uploader.create_snapshot(args.source)
-                print('Created snapshot: ', snapshot['SnapshotId'])
-            elif args.rootSwapMethod:
-                ami = uploader.create_image_use_root_swap(args.source)
-                print('Created image: ', ami)
-            else:
-                ami = uploader.create_image(args.source)
-                print('Created image: ', ami)
+                if args.snapOnly:
+                    snapshot = uploader.create_snapshot(args.source)
+                    print('Created snapshot: ', snapshot['SnapshotId'])
+                elif args.rootSwapMethod:
+                    ami = uploader.create_image_use_root_swap(args.source)
+                    print('Created image: ', ami)
+                else:
+                    ami = uploader.create_image(args.source)
+                    print('Created image: ', ami)
         finally:
             setup.clean_up()
 except EC2UploadImgException as e:
