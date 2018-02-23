@@ -467,9 +467,10 @@ try:
 
             key_pair_name = args.sshName
             ssh_private_key_file = args.privateKey
-            if (not key_pair_name and not
-                ssh_private_key_file and not
-                args.accountName
+            if (
+                    not key_pair_name
+                    and not ssh_private_key_file
+                    and not args.accountName
             ):
                 key_pair_name, ssh_private_key_file = \
                     setup.create_upload_key_pair()
@@ -560,7 +561,7 @@ try:
                             '--security-group-ids'
                         )
                         if args.verbose and security_group_ids:
-                            msg = 'Using Seccurity Group IDs: %s'
+                            msg = 'Using Security Group IDs: %s'
                             print(msg % security_group_ids)
                     except Exception:
                         if args.verbose:
@@ -578,7 +579,14 @@ try:
                         subnet_data = ec2.describe_subnets(
                             SubnetIds=[vpc_subnet_id]
                         )
-                        vpc_id = subnet_data['Subnets'][0]['VpcId']
+                        subnets = subnet_data.get('Subnets')
+                        if not subnets:
+                            msg = 'Unable to obtain VPC information for '
+                            msg += 'provided subnet "%s". ' % vpc_subnet_id
+                            msg += 'Subnet ID is invalid.'
+                            print(msg, file=sys.stderr)
+                            sys.exit(1)
+                        vpc_id = subnets[0]['VpcId']
                         security_group_ids = setup.create_security_group(
                             vpc_id
                         )
