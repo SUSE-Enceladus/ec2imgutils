@@ -270,7 +270,7 @@ class EC2ImageUploader(EC2Utils):
                 )
         if self.created_volumes:
             for volume in self.created_volumes:
-                self._detach_volume(volume, True)
+                self._detach_volume(volume)
                 self._remove_volume(volume)
 
         self.created_volumes = []
