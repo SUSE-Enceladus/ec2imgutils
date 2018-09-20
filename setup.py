@@ -20,19 +20,16 @@
 
 import sys
 
-import sys
-
 try:
     import setuptools
 except ImportError:
     sys.stderr.write('Python setuptools required, please install.')
     sys.exit(1)
 
-version = open('lib/ec2utils/base_VERSION').read().strip()
+version = open('lib/ec2utils/VERSION').read().strip()
 requires = [
-    'boto3',
+    'boto3>=1.3.0',
     'python-dateutil',
-    'ec2utilsbase>=3.0.0,<4.0.0'
 ]
 
 if __name__ == '__main__':
@@ -51,7 +48,7 @@ if __name__ == '__main__':
         author_email='public-cloud-dev@susecloud.net',
         version=version,
         packages=setuptools.find_packages('lib'),
-        package_data={'ec2utils': ['base_VERSION', 'deprecate_VERSION']},
+        package_data={'ec2utils': ['VERSION']},
         package_dir={
             '': 'lib',
         },

@@ -7,8 +7,6 @@ Utilities:
 
 # ec2deprecateimg
 
-## Description
-
 A command line utility to deprecate images in Amazon EC2. The platform does
 not support a formal deprecation mechanism. The mechansim implemented by this
 tool is a convention. Unfortunately the tags are not sticky, i.e. not visible
@@ -30,7 +28,7 @@ _--image-name-match_ cannot match the replacement image.
 ### openSUSE and SUSE Linux Enterprise
 
 ```
-zypper in python-ec2imgutils
+zypper in python3-ec2imgutils
 ```
 
 ## Usage

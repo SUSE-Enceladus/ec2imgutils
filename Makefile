@@ -5,7 +5,6 @@ MANPATH=/usr/share/man
 dirs = lib man
 files = Makefile README.md LICENSE ec2deprecateimg setup.py
 
-nv = $(shell rpm -q --specfile --qf '%{NAME}-%{VERSION}\n' *.spec)
 verSpec = $(shell rpm -q --specfile --qf '%{VERSION}' *.spec)
 verSrc = $(shell cat lib/ec2utils/VERSION)
 
@@ -36,7 +35,7 @@ test:
 	py.test tests/ec2utilsutilstest.py
 
 install:
-	python setup.py install --prefix="$(PREFIX)" --root="$(DESTDIR)"
+	python3 setup.py install --prefix="$(PREFIX)" --root="$(DESTDIR)"
 	install -d -m 755 "$(DESTDIR)"/"$(MANDIR)"/man1
 	install -m 644 man/man1/ec2deprecateimg.1 "$(DESTDIR)"/"$(MANDIR)"/man1
 	gzip "$(DESTDIR)"/"$(MANDIR)"/man1/ec2deprecateimg.1
