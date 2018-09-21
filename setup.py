@@ -27,6 +27,7 @@ except ImportError:
     sys.exit(1)
 
 version = open('lib/ec2utils/VERSION').read().strip()
+
 requires = [
     'boto3>=1.3.0',
     'python-dateutil',
@@ -38,15 +39,8 @@ if __name__ == '__main__':
         description=(
             'Command-line tools to manage images in AWS EC2'),
         long_description=open('README.md').read(),
-<<<<<<< HEAD
         url='https://github.com/SUSE-Enceladus/tree/master/ec2imgutils',
-        license='GPL-3.0+',
-        long_description=open('README.md').read(),
-        url='https://github.com/SUSE-Enceladus/tree/master/ec2imgutils',
-=======
-        url='https://github.com/SUSE/Enceladus/tree/master/ec2utils',
         license='GPLv3+',
->>>>>>> Fix imports for ec2publishimg.
         install_requires=requires,
         author='SUSE Public Cloud Team',
         author_email='public-cloud-dev@susecloud.net',
@@ -57,7 +51,7 @@ if __name__ == '__main__':
             '': 'lib',
         },
         scripts=['ec2deprecateimg', 'ec2publishimg'],
-        classifiers=(
+        classifiers=[
             'Development Status :: 5 - Production/Stable',
             'Intended Audience :: Developers',
             'Natural Language :: English',

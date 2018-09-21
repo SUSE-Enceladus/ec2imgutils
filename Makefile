@@ -3,14 +3,14 @@ PREFIX=/usr
 NAME=ec2imgutils
 MANPATH=/usr/share/man
 dirs = lib man
-<<<<<<< HEAD
 files = Makefile README.md LICENSE ec2deprecateimg ec2publishimg setup.py
-=======
-files = Makefile README.md LICENSE ec2publishimg setup.py
->>>>>>> - ec2utils -- ec2publishimg
 
 verSpec = $(shell rpm -q --specfile --qf '%{VERSION}' *.spec)
 verSrc = $(shell cat lib/ec2utils/VERSION)
+
+ifneq "$(verSpec)" "$(verSrc)"
+$(error "Version mismatch, will not take any action")
+endif
 
 clean:
 	@find . -name "*.pyc" | xargs rm -f 
@@ -18,7 +18,6 @@ clean:
 	@find . -name "*.cache" | xargs rm -rf
 	@find . -name "*.egg-info" | xargs rm -rf
 
-<<<<<<< HEAD
 pep8: clean
 	@pep8 -v --statistics lib/ec2utils/*
 	@pep8 -v --statistics --ignore=E402 tests/*.py
@@ -26,19 +25,6 @@ pep8: clean
 tar: clean
 	rm -rf $(NAME)-$(verSrc)
 	mkdir $(NAME)-$(verSrc)
-=======
-clean:
-	@find . -name "*.pyc" | xargs rm -f 
-	@find . -name "__pycache__" | xargs rm -rf
-	@find . -name "*.cache" | xargs rm -rf
-	@find . -name "*.egg-info" | xargs rm -rf
-
-pep8: clean
-	@pep8 -v --statistics lib/ec2utils/*
-
-
-tar:
->>>>>>> - ec2utils
 	mkdir -p "$(NAME)-$(verSrc)"/man/man1
 	cp -r $(dirs) $(files) "$(NAME)-$(verSrc)"
 	tar -cjf "$(NAME)-$(verSrc).tar.bz2" "$(NAME)-$(verSrc)"

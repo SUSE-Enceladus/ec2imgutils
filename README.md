@@ -26,9 +26,11 @@ _--image-name-match_ cannot match the replacement image.
 
 # ec2publishimg
 
-Sets the visibility of an AMI to allow others to use the
-image or to make the image private, i.e. only available to the account
-owner.
+A command line utility to control the visibility of an image in AWS EC2.
+The utility sets the visibility of an AMI to allow others to use the
+image, making it public or sharing it with sepecific accounts, or setting
+the image to private, i.e. only available to the account owner.
+
 
 ## Installation
 
