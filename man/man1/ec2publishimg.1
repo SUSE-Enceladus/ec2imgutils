@@ -1,0 +1,114 @@
+.\" Process this file with
+.\" groff -man -Tascii ec2publishimg.1
+.\"
+.TH ec2publishimg.1
+.SH NAME
+ec2publishimg \- Modify the visibility permissions for an AMI
+.SH SYNOPSIS
+.B ec2publishimg [option]
+.SH DESCRIPTION
+.B ec2publishimg
+Set the visibility of an AMI to allow others to use the image or to make the
+image private, i.e. only available to the account owner.
+.SH OPTIONS
+.IP "-a --account ACCOUNT_NAME"
+Specifies the account to use to connect to EC2. The account is specified
+in the config file
+.IR ~/.ec2utils.conf .
+The account is specified as a section with [account-ACCOUNT_NAME] delimiter.
+The options of the sections are:
+.IR access_key_id ,
+.IR secret_access_key ,
+.I ssh_key_name
+and
+.IR ssh_private_key .
+These allow the program to connect to EC2.
+.IP "--access-id AWS_ACCESS_KEY"
+Specifies the AWS access key and overrides the value given for the
+.I account
+with the
+.I access_key_id
+in the configuration file.
+.IP "--allow-copy"
+Flag to enable the account(s) with which the image is shared to copy the image
+by allowing copy access to the underlying snapshot. The default behavior is
+to disallow copying of the image.
+.IP "-n --dry-run"
+The program will not perform any action. It will provide information on
+.I stdout
+about the actions it would perform.
+.IP "-f --file CONFIG_FILE"
+Specifies the configuration file to use. The default is
+.IR ~/.ec2utils.conf .
+.IP "--image-id AMI_ID"
+Specify the AMI ID of the image to be published. This option is
+mutually exclusive with
+.IR --image-name ,
+.IR --image-name-frag ,
+and
+.IR --image-name-match .
+.IP "--image-name IMAGE_NAME"
+Specify the name of the image to be published. The program will look for
+an exact match of the name. This option is mutually exclusive with
+.IR --image-id ,
+.IR --image-name-frag ,
+and
+.I --image-name-match
+options.
+.IP "--image-name-frag IMAGE_NAME_FRAGMENT"
+Specify a section of an image name for the image(s) to be published. Every
+image that matches the name fragment will be published. This
+option is mutually exclusive with the
+.IR --image-id ,
+.IR --image-name-name ,
+and
+.I --image-name-match
+options.
+.IP "--image-name-match REGEX"
+Specify a regular expression to match an image name. Every image matching the
+regular expression will be published. This option is mutually
+exclusive with the
+.IR --image-id ,
+.IR --image-name-name ,
+and
+.I --image-name-frag
+options.
+.IP "-r --regions EC2_REGIONS"
+A comma separated list of Amazon EC2 regions, or a single region. If no
+region argument is specified all EC2 connected regions will be processed.
+EC2 disconnected regions have different API keys and thus the specified
+.I account
+would not work with the disconnected regions. If a disconnected region is to
+be processed specify the region explicitly on the command line, and only the
+region of interest along with the matching
+.IR account .
+.IP "-s --secret-key AWS_SECRET_KEY"
+Specifies the AWS secret access key and overrides the value given for the
+.I account
+with the
+.I secret_access_key
+in the configuration file.
+.IP "--share-with SHARE"
+Specify the scope of the image publishing/sharing. The option supports the
+keyword
+.I all
+to set the image to public, the keyword
+.I none
+to set the image private, or expects an AWS account number to share the image
+with a specific account. Use a comma separated list with no white space to
+specify multiple account numbers. By default the selected image will be
+published, i.e.
+.I all
+is the default value.
+.IP "--verbose"
+Print extra output about the operations performed to STDOUT.
+.IP "--version"
+Print the version of he program
+.SH EXAMPLE
+ec2publishimg --account example --image-name-match production-v2 --share-with all
+
+Will set all images in all connected regions that match the 
+.I production-v2
+regular expression as public.
+.SH AUTHOR
+Robert Schweikert (rjschwei@suse.com)

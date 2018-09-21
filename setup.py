@@ -27,6 +27,7 @@ except ImportError:
     sys.exit(1)
 
 version = open('lib/ec2utils/VERSION').read().strip()
+
 requires = [
     'boto3>=1.3.0',
     'python-dateutil',
@@ -40,9 +41,6 @@ if __name__ == '__main__':
         long_description=open('README.md').read(),
         url='https://github.com/SUSE-Enceladus/tree/master/ec2imgutils',
         license='GPLv3+',
-        long_description=open('README.md').read(),
-        url='https://github.com/SUSE-Enceladus/tree/master/ec2imgutils',
-        license='GPL-3.0+',
         install_requires=requires,
         author='SUSE Public Cloud Team',
         author_email='public-cloud-dev@susecloud.net',
@@ -52,7 +50,7 @@ if __name__ == '__main__':
         package_dir={
             '': 'lib',
         },
-        scripts=['ec2deprecateimg'],
+        scripts=['ec2deprecateimg', 'ec2publishimg'],
         classifiers=[
             'Development Status :: 5 - Production/Stable',
             'Intended Audience :: Developers',

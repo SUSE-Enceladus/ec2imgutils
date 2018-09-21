@@ -19,7 +19,7 @@
 %define upstream_name ec2imgutils
 
 Name:           python3-ec2imgutils
-Version:        4.9.95
+Version:        4.9.96
 Release:        0
 Summary:        Image management utilities for AWS EC2
 License:        GPL-3.0+
@@ -41,6 +41,8 @@ Provides:       python-ec2utilsbase = %{version}
 Obsoletes:      python-ec2utilsbase < %{version}
 Provides:       python-ec2deprecateimg = %{version}
 Obsoletes:      python-ec2deprecateimg < %{version}
+Provides:       python-ec2publishimg = %{version}
+Obsoletes:      python-ec2publishimg < %{version}
 
 # Package rename in SLE 15 GA do not remove Provides, Obsolete
 # directives until after SLE 15 SP3 EOL
@@ -48,10 +50,13 @@ Provides:       python3-ec2utilsbase = %{version}
 Obsoletes:      python3-ec2utilsbase < %{version}
 Provides:       python3-ec2deprecateimg = %{version}
 Obsoletes:      python3-ec2deprecateimg < %{version}
+Provides:       python3-ec2publishimg = %{version}
+Obsoletes:      python3-ec2publishimg < %{version}
 
 %description
 A collection of image manipulation utilities for AWS EC2. These include:
 - ec2deprecateimg: Deprecates images by applying tags per convention
+- ec2publishimg: Set image visibility
 
 %prep
 %setup -q -n %{upstream_name}-%{version}
@@ -62,8 +67,8 @@ python3 setup.py build
 %install
 python3 setup.py install --prefix=%{_prefix} --root=%{buildroot}
 install -d -m 755 %{buildroot}/%{_mandir}/man1
-install -m 644 man/man1/ec2deprecateimg.1 %{buildroot}/%{_mandir}/man1
-gzip %{buildroot}/%{_mandir}/man1/ec2deprecateimg.1
+install -m 644 man/man1/* %{buildroot}/%{_mandir}/man1
+gzip %{buildroot}/%{_mandir}/man1/*
 
 %files
 %defattr(-,root,root,-)
