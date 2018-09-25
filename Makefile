@@ -3,7 +3,7 @@ PREFIX=/usr
 NAME=ec2imgutils
 MANPATH=/usr/share/man
 dirs = lib man
-files = Makefile README.md LICENSE ec2deprecateimg ec2publishimg setup.py
+files = Makefile README.md LICENSE ec2deprecateimg ec2publishimg ec2uploadimg setup.py
 
 verSpec = $(shell rpm -q --specfile --qf '%{VERSION}' *.spec)
 verSrc = $(shell cat lib/ec2utils/VERSION)
@@ -39,3 +39,4 @@ install:
 	install -m 644 man/man1/* "$(DESTDIR)"/"$(MANDIR)"/man1
 	gzip "$(DESTDIR)"/"$(MANDIR)"/man1/ec2deprecateimg.1
 	gzip "$(DESTDIR)"/"$(MANDIR)"/man1/ec2publishimg.1
+	gzip "$(DESTDIR)"/"$(MANDIR)"/man1/ec2uploadimg.1

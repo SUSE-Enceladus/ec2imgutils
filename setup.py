@@ -29,7 +29,8 @@ except ImportError:
 version = open('lib/ec2utils/VERSION').read().strip()
 
 requires = [
-    'boto3>=1.3.0',
+    'boto3>=1.4.1',
+    'paramiko',
     'python-dateutil',
 ]
 
@@ -50,7 +51,7 @@ if __name__ == '__main__':
         package_dir={
             '': 'lib',
         },
-        scripts=['ec2deprecateimg', 'ec2publishimg'],
+        scripts=['ec2deprecateimg', 'ec2publishimg', 'ec2uploadimg'],
         classifiers=[
             'Development Status :: 5 - Production/Stable',
             'Intended Audience :: Developers',
@@ -58,7 +59,6 @@ if __name__ == '__main__':
             'License :: OSI Approved :: GNU General Public License v3 or later (GPLv3+)',
             'Programming Language :: Python',
             'Programming Language :: Python :: 3',
-            'Programming Language :: Python :: 3.3',
             'Programming Language :: Python :: 3.4',
             'Programming Language :: Python :: 3.5',
             'Programming Language :: Python :: 3.6',
