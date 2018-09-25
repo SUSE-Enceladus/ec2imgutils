@@ -19,7 +19,7 @@
 %define upstream_name ec2imgutils
 
 Name:           python3-ec2imgutils
-Version:        4.9.96
+Version:        6.9.97
 Release:        0
 Summary:        Image management utilities for AWS EC2
 License:        GPL-3.0+
@@ -27,10 +27,12 @@ Group:          System/Management
 Url:            https://github.com/SUSE-Enceladus/ec2imgutils
 Source0:        %{upstream_name}-%{version}.tar.bz2
 Requires:       python3
-Requires:       python3-boto3 >= 1.3.0
+Requires:       python3-boto3 >= 1.4.1
 Requires:       python3-dateutil
-BuildRequires:  python3-boto3 >= 1.3.0
+Requires:       python3-paramiko
+BuildRequires:  python3-boto3 >= 1.4.1
 BuildRequires:  python3-dateutil
+Requires:       python3-paramiko
 BuildRequires:  python3-setuptools
 BuildRoot:      %{_tmppath}/%{name}-%{version}-build
 BuildArch:      noarch
@@ -43,6 +45,8 @@ Provides:       python-ec2deprecateimg = %{version}
 Obsoletes:      python-ec2deprecateimg < %{version}
 Provides:       python-ec2publishimg = %{version}
 Obsoletes:      python-ec2publishimg < %{version}
+Provides:       python-ec2uploadimg = %{version}
+Obsoletes:      python-ec2uploadimg < %{version}
 
 # Package rename in SLE 15 GA do not remove Provides, Obsolete
 # directives until after SLE 15 SP3 EOL
@@ -52,11 +56,14 @@ Provides:       python3-ec2deprecateimg = %{version}
 Obsoletes:      python3-ec2deprecateimg < %{version}
 Provides:       python3-ec2publishimg = %{version}
 Obsoletes:      python3-ec2publishimg < %{version}
+Provides:       python3-ec2uploadimg = %{version}
+Obsoletes:      python3-ec2uploadimg < %{version}
 
 %description
 A collection of image manipulation utilities for AWS EC2. These include:
 - ec2deprecateimg: Deprecates images by applying tags per convention
 - ec2publishimg: Set image visibility
+- ec2uploadimg: Upload an image to AWS EC2
 
 %prep
 %setup -q -n %{upstream_name}-%{version}

@@ -61,7 +61,6 @@ follows:
 zypper in python3-ec2imgutils
 ```
 
-
 ## Usage
 
 ```
