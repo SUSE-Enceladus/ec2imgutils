@@ -1,0 +1,112 @@
+.\" Process this file with
+.\" groff -man -Tascii ec2removeimg.1
+.\"
+.TH ec2removeimg 1
+.SH NAME
+ec2removeimg \- Remove images in EC2
+.SH SYNOPSIS
+.B ec2removeimg [option]
+.SH DESCRIPTION
+.B ec2removeimg
+Remove an image in EC2 by deregistering the AMI and deleting the associated
+snapshot.
+.SH OPTIONS
+.IP "-a --account ACCOUNT_NAME"
+Specifies the account to use to connect to EC2. The account is specified
+in the config file
+.IR ~/.ec2utils.conf.
+The account is specified as a section with [account-ACCOUNT_NAME] delimiter.
+The options of the sections are:
+.IR access_key_id
+.IR secret_access_key
+.I ssh_key_name
+and
+.IR ssh_private_key .
+this allows the program to connect to EC2. Only the
+.IR access_key_id
+and
+.IR secret_access_key
+options are used by this tool.
+.IP "--access-id AWS_ACCESS_KEY"
+Specifies the AWS access key and overrides the value given for the
+.I account
+with the
+.I access_key_id
+in the configuration file.
+.IP "--all"
+Deletes all images that match the criteria for image lookup. By default the
+tool will only delete an image if there is a singular match.
+.IP "-n --dry-run"
+The program will not perform any action. It will provide information on
+.I stdout
+about the actions it would perform.
+.IP "--no-confirm"
+Delete the image without waiting for confirmation input. This will only
+delete the image without confirmation if there is a unique match of the
+image selection criteria given or if the
+.IR --all
+option is specified, all matches will be deleted.
+.IP "-f --file CONFIG_FILE"
+Specifies the configuration file to use. The default is
+.IR ~/.ec2utils.conf .
+.IP "--image-id AMI_ID"
+Specify the AMI ID of the image to be marked as deprecated. This option is
+mutually exclusive with the
+.IR --image-name ,
+.IR --image-name-frag ,
+and
+.IR --image-name-match .
+.IP "--image-name IMAGE_NAME"
+Specify the name of the image to be deprecated. The program will look for
+an exact match of the name. This option is mutually exclusive with
+.IR --image-id ,
+.IR --image-name-frag ,
+and
+.IR --image-name-match .
+.IP "--image-name-frag IMAGE_NAME_FRAGMENT"
+Specify a section of an image name for the image(s) to be deprecated. Every
+image that matches the name fragment will be marked as deprecated. This
+option is mutually exclusive with
+.IR --image-id ,
+.IR --image-name-name ,
+and
+.IR --image-name-match .
+.IP "--image-name-match REGEX"
+Specify a regular expression to match an image name. Every image matching the
+regular expression will be deprecated. This option is mutually
+exclusive with
+.IR --image-id ,
+.IR --image-name-name ,
+and
+.IR --image-name-frag .
+.IP "--preserve-snap"
+This options will preserve the snapshot associated with the AMI.
+.IP "-r --regions EC2_REGIONS"
+A comma separated list of Amazon EC2 regions, or a single region. If no
+region argument is specified all EC2 connected regions will be processed.
+EC2 disconnected regions have different API keys and thus the specified
+.I account
+would not work with the disconnected regions. If a disconnected region is to
+be processed specify the region explicitly on the command line, and only the
+region of interest along with the matching
+.IR account .
+.IP "-s --secret-key AWS_SECRET_KEY"
+Specifies the AWS secret access key and overrides the value given for the
+.I account
+with the
+.I secret_access_key
+in the configuration file.
+.IP "--verbose"
+Print extra output about the operations performed to STDOUT.
+.IP "--version"
+Print the version of he program
+.SH EXAMPLE
+ec2removeimg --account example --image-name-match v15 --all --no-confirm --verbose
+
+Will delete all images in all connected regions that match the
+.I v15
+regular expression in the image name. All associated snapshots will be
+deleted as well, no confirmation of the delete operation is required by
+the user and progress will be written to STDOUT.
+.SH AUTHOR
+SUSE Public Cloud Team (public-cloud-dev@susecloud.net)

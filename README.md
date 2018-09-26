@@ -31,6 +31,15 @@ The utility sets the visibility of an AMI to allow others to use the
 image, making it public or sharing it with sepecific accounts, or setting
 the image to private, i.e. only available to the account owner.
 
+# ec2removeimg
+
+A command line utility to remove images in Amazon EC2. Removing an image,
+in the sense that all traces of a given image are gone, means the image
+(AMI) has to be deregistered and the associated snapshot has to be deleted.
+Having to do this in multiple regions in the UI is tedious and from the
+the command line is a bookkeeping annoyance. This tool handles the clean up
+of images.
+
 # ec2uploadimg
 
 A command line utility to upload a compressed raw image file, as created by
@@ -68,16 +77,20 @@ ec2deprecateimg --account example --image-name-match v15 --image-virt-type hvm -
 
 ec2publishimg --account example --image-name-match production-v2 --share-with all
 
+ec2removeimg --account example --image-name-match v15
+
 ec2uploadimg --account example -d "My first image" -m x86_64 -n my_linux_image -r us-east-1 PATH_TO_COMPRESSED_FILE
 ```
 
 
 See the [man page](man/man1/ec2deprecateimg.1) for more information.
 See the [man page](man/man1/ec2publishimg.1) for more information.
+See the [man page](man/man1/ec2removeimg.1) for more information.
 See the [man page](man/man1/ec2uploadimg.1) for more information.
 
 ```
 man ec2deprecateimg
 man ec2publishimg
+man ec2removeimg
 man ec2uploadimg
 ```
