@@ -19,7 +19,7 @@
 %define upstream_name ec2imgutils
 
 Name:           python3-ec2imgutils
-Version:        6.9.97
+Version:        6.9.98
 Release:        0
 Summary:        Image management utilities for AWS EC2
 License:        GPL-3.0+
@@ -82,7 +82,7 @@ gzip %{buildroot}/%{_mandir}/man1/*
 %doc README.md
 %license LICENSE
 %{_mandir}/man*/*
-%dir %{python3_sitelib}/ec2utils
+%dir %{python3_sitelib}/ec2imgutils
 %{python3_sitelib}/*
 %{_bindir}/*
 

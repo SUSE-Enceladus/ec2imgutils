@@ -1,15 +1,15 @@
 #!/usr/bin/python
 
-# Copyright 2015 SUSE LLC, Robert Schweikert
+# Copyright 2015 SUSE LLC
 #
-# This file is part of ec2deprecateimg.
+# This file is part of ec2imgutils
 #
-# ec2deprecateimg is free software: you can redistribute it and/or modify
+# ec2imgutils is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
 # the Free Software Foundation, either version 3 of the License, or
 # (at your option) any later version.
 #
-# ec2deprecateimg is distributed in the hope that it will be useful,
+# ec2imgutils is distributed in the hope that it will be useful,
 # but WITHOUT ANY WARRANTY; without even the implied warranty of
 # MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 # GNU General Public License for more details.
@@ -22,9 +22,9 @@ import argparse
 import os
 import sys
 
-import ec2utils.ec2utilsutils as utils
-import ec2utils.ec2deprecateimg as ec2depimg
-from ec2utils.ec2UtilsExceptions import (
+import ec2imgutils.ec2utils as utils
+import ec2imgutils.ec2deprecateimg as ec2depimg
+from ec2imgutils.ec2imgutilsExceptions import (
     EC2AccountException,
     EC2DeprecateImgException
 )
@@ -198,9 +198,8 @@ argparse.add_argument(
 args = argparse.parse_args()
 
 if args.version:
-    import ec2utils
-    version_file_name = 'deprecate_VERSION'
-    base_path = os.path.dirname(ec2utils.__file__)
+    version_file_name = 'VERSION'
+    base_path = os.path.dirname(utils.__file__)
     version = open(base_path + os.sep + version_file_name, 'r').read()
     print(version)
     sys.exit(0)

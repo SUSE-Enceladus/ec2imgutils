@@ -1,36 +1,36 @@
-# Copyright (c) 2018 SUSE LLC, Christian Bruckmayer <cbruckmayer@suse.com>
+# Copyright (c) 2018 SUSE LLC
 #
-# This file is part of ec2utilsbase.
+# This file is part of ec2imgutils.
 #
-# ec2utilsbase is free software: you can redistribute it and/or modify
+# ec2imgutils is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
 # the Free Software Foundation, either version 3 of the License, or
 # (at your option) any later version.
 #
-# ec2utilsbase is distributed in the hope that it will be useful,
+# ec2imgutils is distributed in the hope that it will be useful,
 # but WITHOUT ANY WARRANTY; without even the implied warranty of
 # MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 # GNU General Public License for more details.
 #
 # You should have received a copy of the GNU General Public License
-# along with ec2utilsbase.  If not, see <http://www.gnu.org/licenses/>.
+# along with ec2imgutils.ase.  If not, see <http://www.gnu.org/licenses/>.
 
 import boto3
 import os
 import random
 import datetime
 
-from ec2utils.ec2UtilsExceptions import EC2ConnectionException
-from ec2utils.ec2utils import EC2Utils
+from ec2imgutils.ec2imgutilsExceptions import EC2ConnectionException
+from ec2imgutils.ec2imgutils import EC2ImgUtils
 from tempfile import mkstemp
 from tempfile import mkdtemp
 
 
-class EC2Setup(EC2Utils):
+class EC2Setup(EC2ImgUtils):
     """Class to prepare an Amazon EC2 account with all necessary resources"""
 
     def __init__(self, access_key, region, secret_key, session_token, verbose):
-        EC2Utils.__init__(self)
+        EC2ImgUtils.__init__(self)
         self.access_key = access_key
         self.region = region
         self.secret_key = secret_key
