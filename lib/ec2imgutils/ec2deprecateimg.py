@@ -1,13 +1,13 @@
-# Copyright 2018 SUSE LLC, Robert Schweikert
+# Copyright 2018 SUSE LLC
 #
-# This file is part of ec2deprecateimg.
+# This file is part of ec2imgutils
 #
-# ec2deprecateimg is free software: you can redistribute it and/or modify
+# ec2imgutils is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
 # the Free Software Foundation, either version 3 of the License, or
 # (at your option) any later version.
 #
-# ec2deprecateimg is distributed in the hope that it will be useful,
+# ec2imgutils is distributed in the hope that it will be useful,
 # but WITHOUT ANY WARRANTY; without even the implied warranty of
 # MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 # GNU General Public License for more details.
@@ -20,12 +20,12 @@ import datetime
 import dateutil.relativedelta
 import re
 
-import ec2utils.ec2utilsutils as utils
-from ec2utils.ec2utils import EC2Utils
-from ec2utils.ec2UtilsExceptions import EC2DeprecateImgException
+import ec2imgutils.ec2utils as utils
+from ec2imgutils.ec2imgutils import EC2ImgUtils
+from ec2imgutils.ec2imgutilsExceptions import EC2DeprecateImgException
 
 
-class EC2DeprecateImg(EC2Utils):
+class EC2DeprecateImg(EC2ImgUtils):
     """Deprecate EC2 image(s) by tagging the image with 3 tags, Deprecated on,
        Removal date, and Replacement image."""
 
@@ -46,7 +46,7 @@ class EC2DeprecateImg(EC2Utils):
             replacement_image_name_match=None,
             secret_key=None,
             verbose=None):
-        EC2Utils.__init__(self)
+        EC2ImgUtils.__init__(self)
 
         self.access_key = access_key
         self.deprecation_period = deprecation_period

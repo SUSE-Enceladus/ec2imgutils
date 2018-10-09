@@ -6,7 +6,7 @@ dirs = lib man
 files = Makefile README.md LICENSE ec2deprecateimg ec2publishimg ec2uploadimg setup.py
 
 verSpec = $(shell rpm -q --specfile --qf '%{VERSION}' *.spec)
-verSrc = $(shell cat lib/ec2utils/VERSION)
+verSrc = $(shell cat lib/ec2imgutils/VERSION)
 
 ifneq "$(verSpec)" "$(verSrc)"
 $(error "Version mismatch, will not take any action")

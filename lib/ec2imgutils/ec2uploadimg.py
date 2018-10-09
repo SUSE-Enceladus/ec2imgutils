@@ -1,13 +1,13 @@
-# Copyright 2017 SUSE LLC, Robert Schweikert
+# Copyright 2018 SUSE LLC
 #
-# This file is part of ec2uploadimg.
+# This file is part of ec2imgutils
 #
-# ec2uploadimg is free software: you can redistribute it and/or modify
+# eec2imgutils is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
 # the Free Software Foundation, either version 3 of the License, or
 # (at your option) any later version.
 #
-# ec2uploadimg is distributed in the hope that it will be useful,
+# ec2imgutils is distributed in the hope that it will be useful,
 # but WITHOUT ANY WARRANTY; without even the implied warranty of
 # MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 # GNU General Public License for more details.
@@ -24,11 +24,11 @@ import threading
 import time
 
 
-from ec2utils.ec2utils import EC2Utils
-from ec2utils.ec2UtilsExceptions import EC2UploadImgException
+from ec2imgutils.ec2imgutils import EC2ImgUtils
+from ec2imgutils.ec2imgutilsExceptions import EC2UploadImgException
 
 
-class EC2ImageUploader(EC2Utils):
+class EC2ImageUploader(EC2ImgUtils):
     """Upload the given image to Amazon EC2"""
 
     def __init__(self,
@@ -60,7 +60,7 @@ class EC2ImageUploader(EC2Utils):
                  verbose=None,
                  vpc_subnet_id='',
                  wait_count=1):
-        EC2Utils.__init__(self)
+        EC2ImgUtils.__init__(self)
 
         self.access_key = access_key
         self.backing_store = backing_store
