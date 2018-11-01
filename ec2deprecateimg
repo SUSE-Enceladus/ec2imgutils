@@ -1,6 +1,6 @@
-#!/usr/bin/python
+#!/usr/bin/python3
 
-# Copyright 2015 SUSE LLC
+# Copyright 2018 SUSE LLC
 #
 # This file is part of ec2imgutils
 #

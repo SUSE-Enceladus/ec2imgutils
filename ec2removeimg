@@ -22,34 +22,32 @@ import os
 import sys
 
 import ec2imgutils.ec2utils as utils
-import ec2imgutils.ec2publishimg as ec2pubimg
+import ec2imgutils.ec2removeimg as ec2rmimg
 from ec2imgutils.ec2imgutilsExceptions import (
     EC2AccountException,
-    EC2PublishImgException
+    EC2RemoveImgException
 )
 
 # Set up command line argument parsing
-argparse = argparse.ArgumentParser(description='Publish (share) images in EC2')
+argparse = argparse.ArgumentParser(description='Remove images in EC2')
 argparse.add_argument(
     '-a', '--account',
-    dest='accountName',
+    dest='account_name',
     help='Account to use',
     metavar='ACCOUNT_NAME',
 )
 argparse.add_argument(
     '--access-id',
-    dest='accessKey',
+    dest='access_key',
     help='AWS access key (Optional)',
     metavar='AWS_ACCESS_KEY'
 )
-help_msg = 'Allow the image to be copied into the account(s) the image is '
-help_msg += 'shared with (Optional)'
 argparse.add_argument(
-    '--allow-copy',
+    '--all',
     action='store_true',
     default=False,
-    dest='allowCopy',
-    help=help_msg
+    dest='all',
+    help='Delete all image that match the search criteria'
 )
 help_msg = 'Do not perform any action, print information about actions that '
 help_msg += 'would be performed instead (Optional)'
@@ -57,13 +55,13 @@ argparse.add_argument(
     '-n', '--dry-run',
     action='store_true',
     default=False,
-    dest='dryRun',
+    dest='dry_run',
     help=help_msg
 )
 argparse.add_argument(
     '-f', '--file',
     default=os.path.expanduser('~') + os.sep + '.ec2utils.conf',
-    dest='configFilePath',
+    dest='config_file_path',
     help='Path to configuration file, default ~/.ec2utils.conf (Optional)',
     metavar='CONFIG_FILE'
 )
@@ -75,13 +73,13 @@ argparse.add_argument(
 publish_image_condition_group = argparse.add_mutually_exclusive_group()
 publish_image_condition_group.add_argument(
     '--image-id',
-    dest='pubImgID',
+    dest='image_id',
     help='The AMI ID of the image to be published (Optional)',
     metavar='AMI_ID'
 )
 publish_image_condition_group.add_argument(
     '--image-name',
-    dest='pubImgName',
+    dest='image_name',
     help='The image name of the image to be published (Optional)',
     metavar='IMAGE_NAME'
 )
@@ -89,7 +87,7 @@ help_msg = 'An image name fragment to match the image name of the image to be '
 help_msg += 'published (Optional)'
 publish_image_condition_group.add_argument(
     '--image-name-frag',
-    dest='pubImgNameFrag',
+    dest='image_name_frag',
     help=help_msg,
     metavar='IMAGE_NAME_FRAGMENT'
 )
@@ -97,9 +95,23 @@ help_msg = 'A regular expression to match the image name of the image to be '
 help_msg += 'published (Optional)'
 publish_image_condition_group.add_argument(
     '--image-name-match',
-    dest='pubImgNameMatch',
+    dest='image_name_match',
     help=help_msg,
     metavar='REGEX'
+)
+argparse.add_argument(
+    '--no-confirm',
+    action='store_true',
+    default=False,
+    dest='no_confirm',
+    help='Remove matched images with confirmation of action'
+)
+argparse.add_argument(
+    '--preserve-snap',
+    action='store_true',
+    default=False,
+    dest='preserve_snap',
+    help='Do not remove the snapshot associated with the image'
 )
 help_msg = 'Comma separated list of regions for publishing, all integrated '
 help_msg += 'regions if not given (Optional)'
@@ -111,16 +123,9 @@ argparse.add_argument(
 )
 argparse.add_argument(
     '-s', '--secret-key',
-    dest='secretKey',
+    dest='secret_key',
     help='AWS secret access key (Optional)',
     metavar='AWS_SECRET_KEY'
-)
-argparse.add_argument(
-    '--share-with',
-    default='all',
-    dest='share',
-    help='all, none, or a AWS account number to share the image(s) with',
-    metavar='SHARE'
 )
 argparse.add_argument(
     '--verbose',
@@ -148,18 +153,18 @@ if args.version:
 
 # Explicit check required to to the group issue, see comment above
 if (
-        not args.pubImgID and not
-        args.pubImgName and not
-        args.pubImgNameFrag and not
-        args.pubImgNameMatch):
-    error_msg = 'ec2publishimg: error: one of the arguments '
+        not args.image_id and not
+        args.image_name and not
+        args.image_name_frag and not
+        args.image_name_match):
+    error_msg = 'ec2removeimg: error: one of the arguments '
     error_msg += '--image-id --image-name --image-name-frag '
     error_msg += '--image-name-match is required'
     print(error_msg, file=sys.stderr)
     sys.exit(1)
 
 
-config_file = args.configFilePath
+config_file = args.config_file_path
 config = None
 if not os.path.isfile(config_file):
     print('Configuration file "%s" not found.' % config_file)
@@ -170,10 +175,10 @@ except Exception as e:
     print(format(e), file=sys.stderr)
     sys.exit(1)
 
-access_key = args.accessKey
+access_key = args.access_key
 if not access_key:
     try:
-        access_key = utils.get_from_config(args.accountName,
+        access_key = utils.get_from_config(args.account_name,
                                            config,
                                            None,
                                            'access_key_id',
@@ -186,10 +191,10 @@ if not access_key:
     print('Could not determine account access key', file=sys.stderr)
     sys.exit(1)
 
-secret_key = args.secretKey
+secret_key = args.secret_key
 if not secret_key:
     try:
-        secret_key = utils.get_from_config(args.accountName,
+        secret_key = utils.get_from_config(args.account_name,
                                            config,
                                            None,
                                            'secret_access_key',
@@ -204,41 +209,28 @@ if not secret_key:
 
 regions = utils.get_regions(args, access_key, secret_key)
 
-visibility = args.share.lower()
-if (
-    visibility != 'all' and
-    visibility != 'none' and not
-    utils.validate_account_numbers(visibility)
-):
-    msg = 'Expecting "all", "none", or comma separated list of 12 digit AWS '
-    msg += 'account numbers as value of --share'
-    print(msg, file=sys.stderr)
-    sys.exit(1)
+remover = ec2rmimg.EC2RemoveImage(
+    access_key=access_key,
+    image_id=args.image_id,
+    image_name=args.image_name,
+    image_name_fragment=args.image_name_frag,
+    image_name_match=args.image_name_match,
+    keep_snap=args.preserve_snap,
+    no_confirm=args.no_confirm,
+    remove_all=args.all,
+    secret_key=secret_key,
+    verbose=args.verbose)
 
-if visibility[-1] == ',':
-    visibility = visibility[:-1]
-
-publisher = ec2pubimg.EC2PublishImage(
-        access_key=access_key,
-        allow_copy=args.allowCopy,
-        image_id=args.pubImgID,
-        image_name=args.pubImgName,
-        image_name_fragment=args.pubImgNameFrag,
-        image_name_match=args.pubImgNameMatch,
-        secret_key=secret_key,
-        verbose=args.verbose,
-        visibility=visibility)
-
-if args.dryRun:
-    print('Dry run, image attributes will not be modified')
+if args.dry_run:
+    print('Dry run, the following images would be removed')
 try:
     for region in regions:
-        publisher.set_region(region)
-        if args.dryRun:
-            publisher.print_publish_info()
+        remover.set_region(region)
+        if args.dry_run:
+            remover.print_remove_info()
         else:
-            publisher.publish_images()
-except EC2PublishImgException as e:
+            remover.remove_images()
+except EC2RemoveImgException as e:
     print(format(e), file=sys.stderr)
     sys.exit(1)
 except Exception as e:

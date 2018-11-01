@@ -40,12 +40,6 @@ tool will only delete an image if there is a singular match.
 The program will not perform any action. It will provide information on
 .I stdout
 about the actions it would perform.
-.IP "--no-confirm"
-Delete the image without waiting for confirmation input. This will only
-delete the image without confirmation if there is a unique match of the
-image selection criteria given or if the
-.IR --all
-option is specified, all matches will be deleted.
 .IP "-f --file CONFIG_FILE"
 Specifies the configuration file to use. The default is
 .IR ~/.ec2utils.conf .
@@ -79,6 +73,12 @@ exclusive with
 .IR --image-name-name ,
 and
 .IR --image-name-frag .
+.IP "--no-confirm"
+Delete the image without waiting for confirmation input. This will only
+delete the image without confirmation if there is a unique match of the
+image selection criteria given or if the
+.IR --all
+option is specified, all matches will be deleted.
 .IP "--preserve-snap"
 This options will preserve the snapshot associated with the AMI.
 .IP "-r --regions EC2_REGIONS"

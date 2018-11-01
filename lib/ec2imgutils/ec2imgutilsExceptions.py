@@ -35,6 +35,8 @@ class EC2DeprecateImgException(Exception):
 class EC2PublishImgException(Exception):
     pass
 
+class EC2RemoveImgException(Exception):
+    pass
 
 class EC2UploadImgException(Exception):
     pass
