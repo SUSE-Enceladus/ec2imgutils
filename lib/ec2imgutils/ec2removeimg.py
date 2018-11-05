@@ -17,6 +17,7 @@
 
 import boto3
 import re
+import time
 
 import ec2imgutils.ec2utils as utils
 from ec2imgutils.ec2imgutils import EC2ImgUtils
@@ -59,8 +60,6 @@ class EC2RemoveImage(EC2ImgUtils):
         
         if not images:
             print('No images to remove found in region', self.region)
-            # Nothing to do, move on
-            return True
 
         if len(images) > 1 and not self.remove_all:
             msg = 'Found multiple images to remove, but "all" is '
@@ -117,7 +116,6 @@ class EC2RemoveImage(EC2ImgUtils):
     # ---------------------------------------------------------------------
     def print_remove_info(self):
         """Print information about images that would be deleted"""
-        self._connect()
         images = self._get_images_to_remove()
         images_ok = self._check_images_boundary_condition(images)
 
@@ -147,7 +145,7 @@ class EC2RemoveImage(EC2ImgUtils):
     # ---------------------------------------------------------------------
     def remove_images(self):
         """Remove the images"""
-        self._connect()
+        ec2 = self._connect()
         images = self._get_images_to_remove()
         images_ok = self._check_images_boundary_condition(images)
 
@@ -155,10 +153,12 @@ class EC2RemoveImage(EC2ImgUtils):
             raise EC2RemoveImgException('Image ambiguity')
 
         for image in images:
-            self._connect().deregister_image(ImageId=image['ImageId'])
+            ec2.deregister_image(ImageId=image['ImageId'])
             if not self.keep_snap:
                 snapshot = self._get_snapshot_id(image)
-                self._connect().delete_snapshot(SnapshotId=snapshot)
+                # Give the EC2 backend a little bit of time to catch up
+                time.sleep(1)
+                ec2.delete_snapshot(SnapshotId=snapshot)
             if self.verbose:
                 print('Removing in region: ', self.region)
                 print('\tImage: %s\t%s' % (image['ImageId'], image['Name']))
