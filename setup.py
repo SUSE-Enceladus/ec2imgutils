@@ -51,7 +51,12 @@ if __name__ == '__main__':
         package_dir={
             '': 'lib',
         },
-        scripts=['ec2deprecateimg', 'ec2publishimg', 'ec2uploadimg'],
+        scripts=[
+            'ec2deprecateimg',
+            'ec2publishimg',
+            'ec2removeimg',
+            'ec2uploadimg'
+        ],
         classifiers=[
             'Development Status :: 5 - Production/Stable',
             'Intended Audience :: Developers',
