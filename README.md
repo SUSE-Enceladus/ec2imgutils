@@ -83,10 +83,12 @@ ec2uploadimg --account example -d "My first image" -m x86_64 -n my_linux_image -
 ```
 
 
-See the [man page](man/man1/ec2deprecateimg.1) for more information.
-See the [man page](man/man1/ec2publishimg.1) for more information.
-See the [man page](man/man1/ec2removeimg.1) for more information.
-See the [man page](man/man1/ec2uploadimg.1) for more information.
+See the man pages for more information:
+
+* [ec2deprecateimg](man/man1/ec2deprecateimg.1)
+* [ec2publishimg](man/man1/ec2publishimg.1)
+* [ec2removeimg](man/man1/ec2removeimg.1)
+* [ec2uploadimg](man/man1/ec2uploadimg.1)
 
 ```
 man ec2deprecateimg
