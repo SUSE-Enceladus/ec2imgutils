@@ -62,7 +62,7 @@ argparse.add_argument(
 )
 argparse.add_argument(
     '-f', '--file',
-    default=os.sep.join(['~','.ec2utils.conf'])
+    default=os.sep.join(['~','.ec2utils.conf']),
     dest='configFilePath',
     help='Path to configuration file, default ~/.ec2utils.conf (Optional)',
     metavar='CONFIG_FILE'
