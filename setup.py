@@ -16,7 +16,7 @@
 # GNU General Public License for more details.
 #
 # You should have received a copy of the GNU General Public License
-# along with ec2utilsbase. If not, see <http://www.gnu.org/licenses/>.
+# along with ec2imgutils. If not, see <http://www.gnu.org/licenses/>.
 
 import sys
 
@@ -40,7 +40,7 @@ if __name__ == '__main__':
         description=(
             'Command-line tools to manage images in AWS EC2'),
         long_description=open('README.md').read(),
-        url='https://github.com/SUSE-Enceladus/tree/master/ec2imgutils',
+        url='https://github.com/SUSE-Enceladus/ec2imgutils',
         license='GPLv3+',
         install_requires=requires,
         author='SUSE Public Cloud Team',
