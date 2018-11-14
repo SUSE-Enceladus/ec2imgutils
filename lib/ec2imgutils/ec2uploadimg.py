@@ -15,10 +15,8 @@
 # You should have received a copy of the GNU General Public License
 # along with ec2uploadimg. If not, see <http://www.gnu.org/licenses/>.
 
-import boto3
 import os
 import paramiko
-import string
 import sys
 import threading
 import time
@@ -102,9 +100,14 @@ class EC2ImageUploader(EC2ImgUtils):
         self.aborted = False
 
     def abort(self):
-        """Set the abort flag to take appropriate action and stop image creation"""
+        """
+        Set the abort flag to take appropriate action and stop image creation.
+        """
         if self.verbose:
-            print("Aborted upload, please wait while AWS resources get cleaned up. This may take a few minutes!")
+            print(
+                "Aborted upload, please wait while AWS resources get cleaned"
+                " up. This may take a few minutes!"
+            )
         self.aborted = True
 
     # ---------------------------------------------------------------------
@@ -136,7 +139,7 @@ class EC2ImageUploader(EC2ImgUtils):
                         }
                     ]
                 )
-            except:
+            except Exception:
                 wait_status = 1
             if self.verbose:
                 self.progress_timer.cancel()
@@ -154,7 +157,7 @@ class EC2ImageUploader(EC2ImgUtils):
         command = 'chmod %s %s' % (permissions, target)
         result = self._execute_ssh_command(command)
 
-        return 1
+        return result
 
     # ---------------------------------------------------------------------
     def _check_image_exists(self):
@@ -172,7 +175,7 @@ class EC2ImageUploader(EC2ImgUtils):
             self._connect().describe_security_groups(
                 GroupIds=self.security_group_ids.split(',')
             )
-        except:
+        except Exception:
             error_msg = 'One or more of the specified security groups '
             error_msg += 'could not be found: %s' % self.security_group_ids
             raise EC2UploadImgException(error_msg)
@@ -183,7 +186,7 @@ class EC2ImageUploader(EC2ImgUtils):
            exists"""
         try:
             self._connect().describe_subnets(SubnetIds=[self.vpc_subnet_id])
-        except:
+        except Exception:
             error_msg = 'Specified subnet %s not found' % self.vpc_subnet_id
             raise EC2UploadImgException(error_msg)
 
@@ -259,7 +262,7 @@ class EC2ImageUploader(EC2ImgUtils):
                             }
                         ]
                     )
-                except:
+                except Exception:
                     wait_status = 1
                 if self.verbose:
                     self.progress_timer.cancel()
@@ -369,7 +372,7 @@ class EC2ImageUploader(EC2ImgUtils):
                         }
                     ]
                 )
-            except:
+            except Exception:
                 wait_status = 1
             if self.verbose:
                 self.progress_timer.cancel()
@@ -390,7 +393,7 @@ class EC2ImageUploader(EC2ImgUtils):
         command = 'mkfs -t ext3 %s' % filesystem_partition
         result = self._execute_ssh_command(command)
 
-        return 1
+        return result
 
     # ---------------------------------------------------------------------
     def _create_storge_volume(self):
@@ -433,7 +436,7 @@ class EC2ImageUploader(EC2ImgUtils):
                         }
                     ]
                 )
-            except:
+            except Exception:
                 wait_status = 1
             if self.verbose:
                 self.progress_timer.cancel()
@@ -477,7 +480,7 @@ class EC2ImageUploader(EC2ImgUtils):
                         }
                     ]
                 )
-            except:
+            except Exception:
                 wait_status = 1
             if self.verbose:
                 self.progress_timer.cancel()
@@ -521,7 +524,7 @@ class EC2ImageUploader(EC2ImgUtils):
                                                 target_root_device)
         result = self._execute_ssh_command(command)
 
-        return 1
+        return result
 
     # ---------------------------------------------------------------------
     def _end_ssh_session(self):
@@ -575,7 +578,7 @@ class EC2ImageUploader(EC2ImgUtils):
                     username=self.inst_user_name,
                     hostname=instance_ip
                 )
-            except:
+            except Exception:
                 if self.verbose:
                     print('. ', end=' ')
                     sys.stdout.flush()
@@ -612,7 +615,7 @@ class EC2ImageUploader(EC2ImgUtils):
         if cmd_error:
             self._clean_up()
             msg = 'Execution of "%s" failed with the following error' % command
-            msg += '\n%s' % cmd_err
+            msg += '\n%s' % cmd_error
             raise EC2UploadImgException(msg)
 
         return stdout.read().strip().decode('utf-8')
@@ -641,7 +644,7 @@ class EC2ImageUploader(EC2ImgUtils):
         if self.verbose:
             print('Formating storage volume')
         parted = self._get_command_from_instance('parted')
-        sfdifk = None
+        sfdisk = None
         if not parted:
             sfdisk = self._get_command_from_instance('sfdisk')
 
@@ -666,7 +669,7 @@ class EC2ImageUploader(EC2ImgUtils):
             command = '%s %s < /tmp/partition.txt' % (sfdisk, device_id)
             result = self._execute_ssh_command(command)
 
-        return 1
+        return result
 
     # ---------------------------------------------------------------------
     def _get_command_from_instance(self, command):
@@ -750,7 +753,7 @@ class EC2ImageUploader(EC2ImgUtils):
                         }
                     ]
                 )
-            except:
+            except Exception:
                 wait_status = 1
             if self.verbose:
                 self.progress_timer.cancel()
@@ -768,7 +771,7 @@ class EC2ImageUploader(EC2ImgUtils):
         mount_point = '/mnt'
         mount_device = '%s1' % device_id
         command = 'mount %s %s' % (mount_device, mount_point)
-        result = self._execute_ssh_command(command)
+        self._execute_ssh_command(command)
 
         return mount_point
 
@@ -861,9 +864,9 @@ class EC2ImageUploader(EC2ImgUtils):
         try:
             if self.verbose:
                 print('Uploading image file: ', source)
-            sftp_attrs = sftp.put(source,
-                                  '%s/%s' % (target_dir, filename),
-                                  self._upload_progress)
+            sftp.put(source,
+                     '%s/%s' % (target_dir, filename),
+                     self._upload_progress)
             if self.verbose:
                 print()
         except Exception as e:
@@ -908,7 +911,7 @@ class EC2ImageUploader(EC2ImgUtils):
                     if self.verbose:
                         print('Inflating image: ', fl)
                     command = 'xz -d %s/%s' % (image_dir, fl)
-                    result = self._execute_ssh_command(command)
+                    self._execute_ssh_command(command)
                     raw_image_file = fl.strip()[:-3]
                     break
                 if fl.strip()[-4:] == '.raw':
@@ -956,7 +959,7 @@ class EC2ImageUploader(EC2ImgUtils):
                         }
                     ]
                 )
-            except:
+            except Exception:
                 wait_status = 1
             if self.verbose:
                 self.progress_timer.cancel()
@@ -1029,7 +1032,7 @@ class EC2ImageUploader(EC2ImgUtils):
                         }
                     ]
                 )
-            except:
+            except Exception:
                 wait_status = 1
             if self.verbose:
                 self.progress_timer.cancel()

@@ -15,9 +15,6 @@
 # You should have received a copy of the GNU General Public License
 # along with ec2publishimg. If not, see <http://www.gnu.org/licenses/>.
 
-import boto3
-import re
-
 import ec2imgutils.ec2utils as utils
 from ec2imgutils.ec2imgutils import EC2ImgUtils
 from ec2imgutils.ec2imgutilsExceptions import EC2PublishImgException
@@ -75,7 +72,7 @@ class EC2PublishImage(EC2ImgUtils):
                 return utils.find_images_by_name_regex_match(
                     owned_images,
                     self.image_name_match)
-            except:
+            except Exception:
                 msg = 'Unable to complie regular expression "%s"'
                 msg = msg % self.image_name_match
                 raise EC2PublishImgException(msg)

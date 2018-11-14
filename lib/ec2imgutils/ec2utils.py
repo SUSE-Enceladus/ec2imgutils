@@ -136,7 +136,7 @@ def get_config(configFilePath):
     parsed = None
     try:
         parsed = config.read(configFilePath)
-    except:
+    except Exception:
         msg = 'Could not parse configuration file "%s"\n' % configFilePath
         e_type, value, tb = sys.exc_info()
         msg += format(value)
@@ -167,7 +167,7 @@ def get_from_config(account, config, region, entry, cmd_line_arg):
         account_name = generate_config_account_name(account)
         try:
             value = config.get(account_name, entry)
-        except:
+        except Exception:
             msg = 'Unable to get %s value from account section %s'
             raise EC2AccountException(msg % (entry, account))
 
@@ -217,5 +217,5 @@ def _no_name_warning(image):
 def validate_account_numbers(share_with):
     accounts = list(filter(None, share_with.split(',')))
     if accounts:
-        return all(map(re.match, repeat('^\d{12}$'), accounts))
+        return all(map(re.match, repeat(r'^\d{12}$'), accounts))
     return False
