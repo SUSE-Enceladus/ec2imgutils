@@ -3,9 +3,23 @@ ec2imgutils
 
 A collection of utilities for image management in AWS EC2
 
-Utilities:
+## Installation
 
-# ec2deprecateimg
+### openSUSE and SUSE Linux Enterprise
+
+```
+> zypper in python3-ec2imgutils
+```
+
+### PyPI
+
+```
+> pip install ec2imgutils
+```
+
+## Utilities
+
+### ec2deprecateimg
 
 A command line utility to deprecate images in Amazon EC2. The platform does
 not support a formal deprecation mechanism. The mechansim implemented by this
@@ -23,15 +37,38 @@ images to be deprecated before any matching takes place. Therefore, the
 deprecation search criteria specified with _--image-name-frag_ or
 _--image-name-match_ cannot match the replacement image.
 
+#### Usage
 
-# ec2publishimg
+```
+> ec2deprecateimg --account example --image-name-match v15 --image-virt-type hvm --replacement-name exampleimage_v16
+```
+
+See the [man pages](man/man1/ec2deprecateimg.1) for more information.
+
+```
+man ec2deprecateimg
+```
+
+### ec2publishimg
 
 A command line utility to control the visibility of an image in AWS EC2.
 The utility sets the visibility of an AMI to allow others to use the
 image, making it public or sharing it with sepecific accounts, or setting
 the image to private, i.e. only available to the account owner.
 
-# ec2removeimg
+#### Usage
+
+```
+> ec2publishimg --account example --image-name-match production-v2 --share-with all
+```
+
+See the [man pages](man/man1/ec2publishimg.1) for more information.
+
+```
+man ec2publishimg
+```
+
+### ec2removeimg
 
 A command line utility to remove images in Amazon EC2. Removing an image,
 in the sense that all traces of a given image are gone, means the image
@@ -40,7 +77,19 @@ Having to do this in multiple regions in the UI is tedious and from the
 the command line is a bookkeeping annoyance. This tool handles the clean up
 of images.
 
-# ec2uploadimg
+#### Usage
+
+```
+> ec2removeimg --account example --image-name-match v15
+```
+
+See the [man pages](man/man1/ec2uploadimg.1) for more information.
+
+```
+man ec2removeimg
+```
+
+### ec2uploadimg
 
 A command line utility to upload a compressed raw image file, as created by
 KIWI for example to Amazon EC2 and create a snapshot or register an EBS
@@ -61,38 +110,14 @@ follows:
 * Register a new AMI
 * Clean up
 
-
-## Installation
-
-### openSUSE and SUSE Linux Enterprise
+#### Usage
 
 ```
-zypper in python3-ec2imgutils
+> ec2uploadimg --account example -d "My first image" -m x86_64 -n my_linux_image -r us-east-1 PATH_TO_COMPRESSED_FILE
 ```
 
-## Usage
+See the [man pages](man/man1/ec2uploadimg.1) for more information.
 
 ```
-ec2deprecateimg --account example --image-name-match v15 --image-virt-type hvm --replacement-name exampleimage_v16
-
-ec2publishimg --account example --image-name-match production-v2 --share-with all
-
-ec2removeimg --account example --image-name-match v15
-
-ec2uploadimg --account example -d "My first image" -m x86_64 -n my_linux_image -r us-east-1 PATH_TO_COMPRESSED_FILE
-```
-
-
-See the man pages for more information:
-
-* [ec2deprecateimg](man/man1/ec2deprecateimg.1)
-* [ec2publishimg](man/man1/ec2publishimg.1)
-* [ec2removeimg](man/man1/ec2removeimg.1)
-* [ec2uploadimg](man/man1/ec2uploadimg.1)
-
-```
-man ec2deprecateimg
-man ec2publishimg
-man ec2removeimg
 man ec2uploadimg
 ```
