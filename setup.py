@@ -38,8 +38,10 @@ if __name__ == '__main__':
     setuptools.setup(
         name='ec2imgutils',
         description=(
-            'Command-line tools to manage images in AWS EC2'),
+            'Command-line tools to manage images in AWS EC2'
+        ),
         long_description=open('README.md').read(),
+        long_description_content_type="text/markdown",
         url='https://github.com/SUSE-Enceladus/ec2imgutils',
         license='GPLv3+',
         install_requires=requires,
