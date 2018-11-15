@@ -17,7 +17,6 @@
 # You should have received a copy of the GNU General Public License
 # along with ec2uploadimg. If not, see <http://www.gnu.org/licenses/>.
 
-import configparser
 import argparse
 import boto3
 import os
@@ -26,10 +25,14 @@ import signal
 
 import ec2imgutils.ec2utils as utils
 import ec2imgutils.ec2uploadimg as ec2upimg
-from ec2imgutils.ec2imgutilsExceptions import *
+from ec2imgutils.ec2imgutilsExceptions import (
+    EC2AccountException,
+    EC2UploadImgException
+)
 from ec2imgutils.ec2setup import EC2Setup
 
 aborted = False
+
 
 def signal_handler(signum, frame):
     global aborted
@@ -45,6 +48,7 @@ def signal_handler(signum, frame):
         # there are no resources we need to cleanup
         # and we just exit
         sys.exit(1)
+
 
 signal.signal(signal.SIGINT, signal_handler)
 signal.signal(signal.SIGTERM, signal_handler)
@@ -104,7 +108,7 @@ argparse.add_argument(
 )
 argparse.add_argument(
     '-f', '--file',
-    default=os.sep.join(['~','.ec2utils.conf']),
+    default=os.sep.join(['~', '.ec2utils.conf']),
     dest='configFilePath',
     help='Path to configuration file, default ~/.ec2utils.conf (Optional)',
     metavar='CONFIG_FILE'
@@ -593,33 +597,33 @@ try:
 
             if not aborted:
                 uploader = ec2upimg.EC2ImageUploader(
-                                  access_key=access_key,
-                                  backing_store=args.backingStore,
-                                  billing_codes=args.billingCodes,
-                                  bootkernel=bootkernel,
-                                  ena_support=args.ena,
-                                  image_arch=args.arch,
-                                  image_description=args.descript,
-                                  image_name=args.imgName,
-                                  image_virt_type=virtualization_type,
-                                  inst_user_name=ssh_user,
-                                  launch_ami=ami_id,
-                                  launch_inst_type=inst_type,
-                                  region=region,
-                                  root_volume_size=root_volume_size,
-                                  running_id=running_id,
-                                  secret_key=secret_key,
-                                  security_group_ids=security_group_ids,
-                                  session_token=args.sessionToken,
-                                  sriov_type=sriov_type,
-                                  ssh_key_pair_name=key_pair_name,
-                                  ssh_key_private_key_file=ssh_private_key_file,
-                                  ssh_timeout=args.sshTimeout,
-                                  use_grub2=args.grub2,
-                                  use_private_ip=args.usePrivateIP,
-                                  verbose=args.verbose,
-                                  vpc_subnet_id=vpc_subnet_id,
-                                  wait_count=args.waitCount
+                    access_key=access_key,
+                    backing_store=args.backingStore,
+                    billing_codes=args.billingCodes,
+                    bootkernel=bootkernel,
+                    ena_support=args.ena,
+                    image_arch=args.arch,
+                    image_description=args.descript,
+                    image_name=args.imgName,
+                    image_virt_type=virtualization_type,
+                    inst_user_name=ssh_user,
+                    launch_ami=ami_id,
+                    launch_inst_type=inst_type,
+                    region=region,
+                    root_volume_size=root_volume_size,
+                    running_id=running_id,
+                    secret_key=secret_key,
+                    security_group_ids=security_group_ids,
+                    session_token=args.sessionToken,
+                    sriov_type=sriov_type,
+                    ssh_key_pair_name=key_pair_name,
+                    ssh_key_private_key_file=ssh_private_key_file,
+                    ssh_timeout=args.sshTimeout,
+                    use_grub2=args.grub2,
+                    use_private_ip=args.usePrivateIP,
+                    verbose=args.verbose,
+                    vpc_subnet_id=vpc_subnet_id,
+                    wait_count=args.waitCount
                 )
 
                 if args.snapOnly:
