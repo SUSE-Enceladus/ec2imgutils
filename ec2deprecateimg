@@ -17,7 +17,6 @@
 # You should have received a copy of the GNU General Public License
 # along with ec2deprecateimg. If not, see <http://www.gnu.org/licenses/>.
 
-import boto3
 import argparse
 import os
 import sys
@@ -66,7 +65,7 @@ argparse.add_argument(
 )
 argparse.add_argument(
     '-f', '--file',
-    default=os.sep.join(['~','.ec2utils.conf']),
+    default=os.sep.join(['~', '.ec2utils.conf']),
     dest='configFilePath',
     help='Path to configuration file, default ~/.ec2utils.conf (Optional)',
     metavar='CONFIG_FILE'

@@ -15,12 +15,10 @@
 # You should have received a copy of the GNU General Public License
 # along with ec2imgutils.ase.  If not, see <http://www.gnu.org/licenses/>.
 
-import boto3
 import os
 import random
 import datetime
 
-from ec2imgutils.ec2imgutilsExceptions import EC2ConnectionException
 from ec2imgutils.ec2imgutils import EC2ImgUtils
 from tempfile import mkstemp
 from tempfile import mkdtemp
@@ -72,7 +70,7 @@ class EC2Setup(EC2ImgUtils):
         if self.verbose:
             print('Temporary Security Group Created %s in vpc %s'
                   % (self.security_group_id, vpc_id))
-        data = self._connect().authorize_security_group_ingress(
+        self._connect().authorize_security_group_ingress(
             GroupId=self.security_group_id,
             IpPermissions=[
                 {'IpProtocol': 'tcp',
@@ -172,7 +170,7 @@ class EC2Setup(EC2ImgUtils):
 
     # ---------------------------------------------------------------------
     def _remove_security_group(self):
-        response = self._connect().delete_security_group(
+        self._connect().delete_security_group(
             GroupId=self.security_group_id
         )
         if self.verbose:
@@ -183,7 +181,7 @@ class EC2Setup(EC2ImgUtils):
     def _remove_upload_key_pair(self):
         if self.verbose:
             print('Deleting temporary key pair ', self.key_pair_name)
-        secret_key = self._connect().delete_key_pair(
+        self._connect().delete_key_pair(
             KeyName=self.key_pair_name)
         if os.path.isfile(self.ssh_private_key_file):
             os.remove(self.ssh_private_key_file)

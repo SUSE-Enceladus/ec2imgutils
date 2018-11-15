@@ -15,10 +15,8 @@
 # You should have received a copy of the GNU General Public License
 # along with ec2deprecateimg. If not, see <http://www.gnu.org/licenses/>.
 
-import boto3
 import datetime
 import dateutil.relativedelta
-import re
 
 import ec2imgutils.ec2utils as utils
 from ec2imgutils.ec2imgutils import EC2ImgUtils
@@ -130,7 +128,7 @@ class EC2DeprecateImg(EC2ImgUtils):
                     continue
             if self.image_virt_type:
                 if self.image_virt_type == image['VirtualizationType']:
-                    images.append(img)
+                    images.append(image)
                 else:
                     continue
             if self.public_only:
@@ -151,7 +149,6 @@ class EC2DeprecateImg(EC2ImgUtils):
     def _get_images_to_deprecate(self):
         """Find images to deprecate"""
         images = None
-        condition = None
         if self.deprecation_image_id:
             images = self._find_images_by_id(self.deprecation_image_id, True)
         elif self.deprecation_image_name:
@@ -266,7 +263,9 @@ class EC2DeprecateImg(EC2ImgUtils):
                 removal_date_data,
                 replacement_image_data
             ]
-            self._connect().create_tags(Resources=[image['ImageId']], Tags=tags)
+            self._connect().create_tags(
+                Resources=[image['ImageId']], Tags=tags
+            )
             if self.verbose:
                 print('\t\ttagged:%s\t%s' % (image['ImageId'], image['Name']))
 

@@ -66,7 +66,8 @@ if __name__ == '__main__':
             'Development Status :: 5 - Production/Stable',
             'Intended Audience :: Developers',
             'Natural Language :: English',
-            'License :: OSI Approved :: GNU General Public License v3 or later (GPLv3+)',
+            'License :: OSI Approved :: '
+            'GNU General Public License v3 or later (GPLv3+)',
             'Programming Language :: Python',
             'Programming Language :: Python :: 3',
             'Programming Language :: Python :: 3.4',

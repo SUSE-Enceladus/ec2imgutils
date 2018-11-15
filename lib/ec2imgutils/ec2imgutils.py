@@ -16,8 +16,6 @@
 # along with ec2imgutils.ase.  If not, see <http://www.gnu.org/licenses/>.
 
 import boto3
-import configparser
-import os
 
 from ec2imgutils.ec2imgutilsExceptions import EC2ConnectionException
 
@@ -68,7 +66,7 @@ class EC2ImgUtils:
         return self._connect().describe_images(Owners=['self'])['Images']
 
     # ---------------------------------------------------------------------
-    def _set_access_keys():
+    def _set_access_keys(self):
         """Set the access keys for the connection"""
         if not self.access_key:
             self.access_key = self.config.get_option(self.account,
@@ -85,7 +83,7 @@ class EC2ImgUtils:
 
         if self.verbose:
             print('Using EC2 region: ', region)
-            
+
         self.region = region
 
         return True

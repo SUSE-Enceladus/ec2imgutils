@@ -15,13 +15,12 @@
 # You should have received a copy of the GNU General Public License
 # along with ec2publishimg. If not, see <http://www.gnu.org/licenses/>.
 
-import boto3
-import re
 import time
 
 import ec2imgutils.ec2utils as utils
 from ec2imgutils.ec2imgutils import EC2ImgUtils
 from ec2imgutils.ec2imgutilsExceptions import EC2RemoveImgException
+
 
 class EC2RemoveImage(EC2ImgUtils):
     """Remove images from EC2."""
@@ -57,7 +56,7 @@ class EC2RemoveImage(EC2ImgUtils):
         """Check if the images found meet operating conditions:
            If all is true we delete all found images if not we should have
            found only one image"""
-        
+
         if not images:
             print('No images to remove found in region', self.region)
 
@@ -86,7 +85,7 @@ class EC2RemoveImage(EC2ImgUtils):
                 return utils.find_images_by_name_regex_match(
                     owned_images,
                     self.image_name_match)
-            except:
+            except Exception:
                 msg = 'Unable to complie regular expression "%s"'
                 msg = msg % self.image_name_match
                 raise EC2RemoveImgException(msg)
@@ -105,11 +104,11 @@ class EC2RemoveImage(EC2ImgUtils):
         # The image snapshot should be the first device
         ebs_info = device_map[0].get('Ebs')
         if not ebs_info:
-            error_msg = 'Image "%s" is not EBS backed'  % image.get('Name')
+            error_msg = 'Image "%s" is not EBS backed' % image.get('Name')
             raise EC2RemoveImgException(error_msg)
         snapshot_id = ebs_info.get('SnapshotId')
         if not snapshot_id:
-            error_msg = 'No snapshot found for image "%s"'  % image.get('Name')
+            error_msg = 'No snapshot found for image "%s"' % image.get('Name')
             raise EC2RemoveImgException(error_msg)
         return snapshot_id
 
@@ -123,7 +122,7 @@ class EC2RemoveImage(EC2ImgUtils):
             # While the boundary conditions are not met, we are just printing
             # information thus this is not considered a failure
             return True
-        
+
         header_msg = 'Would remove image '
         if not self.keep_snap:
             header_msg += 'and snapshot '
