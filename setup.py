@@ -28,11 +28,11 @@ except ImportError:
 
 version = open('lib/ec2imgutils/VERSION').read().strip()
 
-requires = [
-    'boto3>=1.4.1',
-    'paramiko',
-    'python-dateutil',
-]
+with open('requirements.txt') as req_file:
+    requirements = req_file.read().splitlines()
+
+with open('requirements-dev.txt') as req_file:
+    dev_requirements = req_file.read().splitlines()[2:]
 
 if __name__ == '__main__':
     setuptools.setup(
@@ -44,7 +44,10 @@ if __name__ == '__main__':
         long_description_content_type="text/markdown",
         url='https://github.com/SUSE-Enceladus/ec2imgutils',
         license='GPLv3+',
-        install_requires=requires,
+        install_requires=requirements,
+        extras_require={
+            'dev': dev_requirements
+        },
         author='SUSE Public Cloud Team',
         author_email='public-cloud-dev@susecloud.net',
         version=version,
