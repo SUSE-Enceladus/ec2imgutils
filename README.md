@@ -1,3 +1,5 @@
+[![Build Status](https://www.travis-ci.com/SUSE-Enceladus/ec2imgutils.svg?branch=master)](https://www.travis-ci.com/SUSE-Enceladus/ec2imgutils)
+
 ec2imgutils
 ===========
 
