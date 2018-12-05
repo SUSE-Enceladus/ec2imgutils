@@ -723,7 +723,7 @@ class EC2ImageUploader(EC2ImgUtils):
                         'DeviceIndex': 0,
                         'AssociatePublicIpAddress': True,
                         'SubnetId': self.vpc_subnet_id,
-                        'Groups' :self.security_group_ids.split(',')
+                        'Groups': self.security_group_ids.split(',')
                     }
                 ]
             )['Instances'][0]
