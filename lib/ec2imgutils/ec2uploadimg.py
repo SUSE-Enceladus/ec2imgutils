@@ -718,8 +718,14 @@ class EC2ImageUploader(EC2ImgUtils):
                 KeyName=self.ssh_key_pair_name,
                 InstanceType=self.launch_ins_type,
                 Placement={'AvailabilityZone': self.zone},
-                SubnetId=self.vpc_subnet_id,
-                SecurityGroupIds=self.security_group_ids.split(',')
+                NetworkInterfaces=[
+                    {
+                        'DeviceIndex': 0,
+                        'AssociatePublicIpAddress': not self.use_private_ip,
+                        'SubnetId': self.vpc_subnet_id,
+                        'Groups': self.security_group_ids.split(',')
+                    }
+                ]
             )['Instances'][0]
         else:
             instance = self._connect().run_instances(
@@ -729,7 +735,13 @@ class EC2ImageUploader(EC2ImgUtils):
                 KeyName=self.ssh_key_pair_name,
                 InstanceType=self.launch_ins_type,
                 Placement={'AvailabilityZone': self.zone},
-                SubnetId=self.vpc_subnet_id,
+                NetworkInterfaces=[
+                    {
+                        'DeviceIndex': 0,
+                        'AssociatePublicIpAddress': not self.use_private_ip,
+                        'SubnetId': self.vpc_subnet_id
+                    }
+                ]
             )['Instances'][0]
 
         self.instance_ids.append(instance['InstanceId'])
