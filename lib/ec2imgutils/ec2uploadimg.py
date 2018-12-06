@@ -721,7 +721,7 @@ class EC2ImageUploader(EC2ImgUtils):
                 NetworkInterfaces=[
                     {
                         'DeviceIndex': 0,
-                        'AssociatePublicIpAddress': True,
+                        'AssociatePublicIpAddress': not self.use_private_ip,
                         'SubnetId': self.vpc_subnet_id,
                         'Groups': self.security_group_ids.split(',')
                     }
@@ -738,7 +738,7 @@ class EC2ImageUploader(EC2ImgUtils):
                 NetworkInterfaces=[
                     {
                         'DeviceIndex': 0,
-                        'AssociatePublicIpAddress': True,
+                        'AssociatePublicIpAddress': not self.use_private_ip,
                         'SubnetId': self.vpc_subnet_id
                     }
                 ]
