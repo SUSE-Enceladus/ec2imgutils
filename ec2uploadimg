@@ -129,7 +129,7 @@ argparse.add_argument(
 argparse.add_argument(
     '-m', '--machine',
     dest='arch',
-    help='Machine architecture i386|x86_64 for the uploaded image',
+    help='Machine architecture arm64|i386|x86_64 for the uploaded image',
     metavar='ARCH',
     required=True
 )
@@ -343,6 +343,11 @@ if not secret_key:
     print('Could not determine account secret access key', file=sys.stderr)
     sys.exit(1)
 
+supported_arch = ['arm64', 'i386', 'x86_64']
+if args.arch not in supported_arch:
+    print('Specified architecture must be one of %s' % str(supported_arch))
+    sys.exit(1)
+
 sriov_type = args.sriov
 if sriov_type:
     sriov_type = 'simple'
@@ -446,6 +451,12 @@ try:
                             file=sys.stderr
                         )
                         sys.exit(1)
+                elif args.arch == 'arm64' and args.virtType != 'hvm':
+                    print(
+                        'Images for arm64 must use hvm virtualization',
+                        file=sys.stderr
+                    )
+                    sys.exit(1)
                 else:
                     print(
                         'Could not reliably determine the ',
