@@ -84,6 +84,17 @@ user = ec2-user
 # ssk_key_name =
 # ssh_private_key =
 
+[region-eu-north-1]
+ami = ami-4abe3234
+instance_type = t2.micro
+aki_i386 = None
+aki_x86_64 = None
+g2_aki_x86_64 = None
+user = ec2-user
+# Allow a region to overwrite the account key
+# ssk_key_name =
+# ssh_private_key =
+
 [region-eu-west-1]
 ami = ami-bff32ccc
 instance_type = t2.micro
@@ -128,6 +139,17 @@ aki_i386 = aki-da055ebf
 aki_x86_64 = aki-d83a61bd
 user = ec2-user
 backing-store = ssd
+# Allow a region to overwrite the account key
+# ssk_key_name =
+# ssh_private_key =
+
+[region-us-gov-east-1]
+ami = ami-43896f32
+instance_type = t2.micro
+aki_i386 = None
+aki_x86_64 = None
+g2_aki_x86_64 = None
+user = ec2-user
 # Allow a region to overwrite the account key
 # ssk_key_name =
 # ssh_private_key =
