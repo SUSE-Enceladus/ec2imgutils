@@ -44,7 +44,8 @@ class EC2ImgUtils:
                     service_name='ec2'
                 )
             else:
-                ec2 = boto3.client(
+                session = boto3.session.Session()
+                ec2 = session.client(
                     aws_access_key_id=self.access_key,
                     aws_secret_access_key=self.secret_key,
                     region_name=self.region,
