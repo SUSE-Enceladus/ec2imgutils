@@ -57,7 +57,15 @@ class EC2Setup(EC2ImgUtils):
     def create_security_group(self, vpc_id=None):
         if self.verbose:
             print('Creating temporary security group')
-        group_name = 'ec2uploadimg-%s' % (random.randint(1, 100))
+        group_name = ''
+        # Avoid name collisions
+        while not group_name:
+            group_name = 'ec2uploadimg-%s' % (random.randint(1, 100))
+            groups = self._connect().describe_security_groups()
+            for group in groups['SecurityGroups']:
+                if group_name == group.get('GroupName'):
+                    group_name = ''
+                    break
         group_description = 'ec2uploadimg created %s' % datetime.datetime.now()
         if not vpc_id:
             vpc_id = self.vpc_id
