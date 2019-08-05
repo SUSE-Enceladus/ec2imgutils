@@ -59,7 +59,6 @@ class EC2Setup(EC2ImgUtils):
     def create_security_group(self, vpc_id=None):
         if self.verbose:
             print('Creating temporary security group')
-        group_name = 'ec2uploadimg-%s' % (random.randint(1, 100))
         group_description = 'ec2uploadimg created %s' % datetime.datetime.now()
         if not vpc_id:
             vpc_id = self.vpc_id
@@ -67,16 +66,17 @@ class EC2Setup(EC2ImgUtils):
         group_created = False
         response = None
         while not group_created:
+            group_name = 'ec2uploadimg-%s' % (random.randint(1, 100))
             try:
                 response = self._connect().create_security_group(
                     GroupName=group_name, Description=group_description,
                     VpcId=vpc_id
                 )
             except ClientError as e:
-                if e.response['Error']['Code'] == 'InvalidGroup.Duplicate':
-                    group_name = 'ec2uploadimg-%s' % (random.randint(1, 100))
-                else:
+                if not e.response['Error']['Code'] == 'InvalidGroup.Duplicate':
                     raise e
+                # Generate a new group name and try again
+                continue
             group_created = True
         self.security_group_id = response['GroupId']
         if self.verbose:
