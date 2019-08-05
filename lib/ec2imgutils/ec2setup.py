@@ -1,4 +1,4 @@
-# Copyright (c) 2018 SUSE LLC
+# Copyright (c) 2019 SUSE LLC
 #
 # This file is part of ec2imgutils.
 #
@@ -19,9 +19,11 @@ import os
 import random
 import datetime
 
+from tempfile import mkstemp, mkdtemp
+
+from botocore.exceptions import ClientError
+
 from ec2imgutils.ec2imgutils import EC2ImgUtils
-from tempfile import mkstemp
-from tempfile import mkdtemp
 
 
 class EC2Setup(EC2ImgUtils):
@@ -57,15 +59,25 @@ class EC2Setup(EC2ImgUtils):
     def create_security_group(self, vpc_id=None):
         if self.verbose:
             print('Creating temporary security group')
-        group_name = 'ec2uploadimg-%s' % (random.randint(1, 100))
         group_description = 'ec2uploadimg created %s' % datetime.datetime.now()
         if not vpc_id:
             vpc_id = self.vpc_id
-        response = self._connect().create_security_group(
-            GroupName=group_name, Description=group_description,
-            VpcId=vpc_id
-        )
-
+        # Avoid name collisions
+        group_created = False
+        response = None
+        while not group_created:
+            group_name = 'ec2uploadimg-%s' % (random.randint(1, 100))
+            try:
+                response = self._connect().create_security_group(
+                    GroupName=group_name, Description=group_description,
+                    VpcId=vpc_id
+                )
+            except ClientError as e:
+                if not e.response['Error']['Code'] == 'InvalidGroup.Duplicate':
+                    raise e
+                # Generate a new group name and try again
+                continue
+            group_created = True
         self.security_group_id = response['GroupId']
         if self.verbose:
             print('Temporary Security Group Created %s in vpc %s'
