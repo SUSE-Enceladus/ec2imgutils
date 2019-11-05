@@ -1055,6 +1055,7 @@ class EC2ImageUploader(EC2ImgUtils):
                 True
             )
 
+        self._clean_up()
         return ami['ImageId']
 
     # ---------------------------------------------------------------------
