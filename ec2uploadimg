@@ -348,6 +348,14 @@ if args.arch not in supported_arch:
     print('Specified architecture must be one of %s' % str(supported_arch))
     sys.exit(1)
 
+# All arm64 images must support ENA
+# Choosing to assume the image has a sufficiently new kernel with the
+# ENA driver rather than to error out
+if args.arch == 'arm64':
+    if not args.ena:
+        print('Enabling ENA support, required by arm64', file=sys.stdout)
+        args.ena = True
+
 sriov_type = args.sriov
 if sriov_type:
     sriov_type = 'simple'
