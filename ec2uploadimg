@@ -1,6 +1,6 @@
 #!/usr/bin/python3
 
-# Copyright 2018 SUSE LLC
+# Copyright 2020 SUSE LLC
 #
 # This file is part of ec2imgutils
 #
@@ -156,7 +156,7 @@ argparse.add_argument(
 argparse.add_argument(
     '--root-volume-size',
     dest='rootVolSize',
-    help='Size of root volume for new image (Optional)',
+    help='Size of root volume for new image in GB (Optional)',
     metavar='ROOT_VOLUME_SIZE',
 )
 argparse.add_argument(
@@ -571,7 +571,7 @@ try:
                         print(msg)
 
             security_group_ids = args.securityGroupIds
-            if not security_group_ids:
+            if not security_group_ids and not args.runningID:
                 if not args.accountName:
                     security_group_ids = setup.create_security_group()
                 else:

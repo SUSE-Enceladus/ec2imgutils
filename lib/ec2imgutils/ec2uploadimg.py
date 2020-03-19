@@ -15,6 +15,7 @@
 # You should have received a copy of the GNU General Public License
 # along with ec2uploadimg. If not, see <http://www.gnu.org/licenses/>.
 
+import json
 import os
 import paramiko
 import sys
@@ -92,6 +93,8 @@ class EC2ImageUploader(EC2ImgUtils):
         self.default_sleep = 10
         self.device_ids = ['f', 'g', 'h', 'i', 'j']
         self.instance_ids = []
+        if self.running_id:
+            self.instance_ids.append(self.running_id)
         self.next_device_id = 0
         self.operation_complete = False
         self.percent_transferred = 0
@@ -149,8 +152,6 @@ class EC2ImageUploader(EC2ImgUtils):
                 repeat_count
             )
 
-        return device
-
     # ---------------------------------------------------------------------
     def _change_mount_point_permissions(self, target, permissions):
         """Change the permissions of the given target to the given value"""
@@ -194,9 +195,20 @@ class EC2ImageUploader(EC2ImgUtils):
     def _check_virt_type_consistent(self):
         """When using root swap the virtualization type of the helper
            image and the target image must be the same"""
-        image = self._connect().describe_images(
-            ImageIds=[self.launch_ami_id]
-        )['Images'][0]
+        if self.launch_ami_id:
+            image = self._connect().describe_images(
+                ImageIds=[self.launch_ami_id]
+            )['Images'][0]
+        elif self.running_id:
+            helper_instance = self._get_helper_instance()
+            image = self._connect().describe_images(
+                ImageIds=[helper_instance['ImageId']]
+            )['Images'][0]
+        else:
+            error_msg = 'Could not determine helper image virtualization '
+            error_msg += 'type necessary for root swap method'
+            raise EC2UploadImgException(error_msg)
+
         if not self.image_virt_type == image['VirtualizationType']:
             error_msg = 'Virtualization type of the helper image and the '
             error_msg += 'target image must be the same when using '
@@ -321,12 +333,12 @@ class EC2ImageUploader(EC2ImgUtils):
             helper_instance = self._launch_helper_instance()
         self.helper_instance = helper_instance
         store_volume = self._create_storge_volume()
-        store_device_id = self._attach_volume(store_volume)
-        target_root_volume = self._create_target_root_volume()
-        target_root_device_id = self._attach_volume(target_root_volume)
+        self._attach_volume(store_volume)
         self._establish_ssh_connection()
-        if not self._device_exists(store_device_id):
-            store_device_id = self._find_equivalent_device(store_device_id)
+        store_device_id = self._find_device_name(self.storage_volume_size)
+        target_root_volume = self._create_target_root_volume()
+        self._attach_volume(target_root_volume)
+        target_root_device_id = self._find_device_name(self.root_volume_size)
         self._format_storage_volume(store_device_id)
         self._create_storage_filesystem(store_device_id)
         mount_point = self._mount_storage_volume(store_device_id)
@@ -516,9 +528,6 @@ class EC2ImageUploader(EC2ImgUtils):
             return
         if self.verbose:
             print('Dumping raw image to new target root volume')
-        if not self._device_exists(target_root_device):
-            target_root_device = self._find_equivalent_device(
-                target_root_device)
         command = 'dd if=%s/%s of=%s bs=32k' % (image_dir,
                                                 raw_image_name,
                                                 target_root_device)
@@ -568,7 +577,7 @@ class EC2ImageUploader(EC2ImgUtils):
         client = paramiko.client.SSHClient()
         client.set_missing_host_key_policy(paramiko.WarningPolicy())
         if self.verbose:
-            print('Attempt ssh connection')
+            print('Attempt ssh connection to %s' % instance_ip)
         ssh_connection = None
         timeout_counter = 1
         while not ssh_connection:
@@ -621,19 +630,27 @@ class EC2ImageUploader(EC2ImgUtils):
         return stdout.read().strip().decode('utf-8')
 
     # ---------------------------------------------------------------------
-    def _find_equivalent_device(self, device_id):
-        """Try and find a device that should be the same device in the
-           instance than the one we attached with a given device id."""
-        if self.aborted:
-            return
-        device_letter = device_id[-1]
-        expected_name = '/dev/xvd%s' % device_letter
-        if self._device_exists(expected_name):
-            return expected_name
+    def _find_device_name(self, device_size):
+        """Match an attached volume by size"""
+        lsblk_out = json.loads(self._execute_ssh_command('lsblk -a -J'))
+        for device in lsblk_out['blockdevices']:
+            if device.get('children'):
+                continue
+            this_device_size = device['size']
+            unit = this_device_size[-1]
+            size = int(this_device_size[:-1])
+            size_multiplier = 1
+            if unit == 'T':
+                size_multiplier = 1024
+            disk_size = size * size_multiplier
+            if disk_size == device_size:
+                # We do not need to worry about finding the same device twice
+                # Only 2 disks get attached and they are known to have
+                # different sizes
+                return '/dev/%s' % device['name']
 
         self._clean_up()
-        msg = 'Could not find disk device in helper instance with path '
-        msg += '%s or %s' % (device_id, expected_name)
+        msg = 'Could not find attached disk device with size %sG' % device_size
         raise EC2UploadImgException(msg)
 
     # ---------------------------------------------------------------------
@@ -687,12 +704,14 @@ class EC2ImageUploader(EC2ImgUtils):
     # ---------------------------------------------------------------------
     def _get_helper_instance(self):
         """Returns handle to running instance"""
-        self._set_zone_to_use()
         helper_instance = self._connect().describe_instances(
             InstanceIds=[self.running_id])['Reservations'][0]['Instances'][0]
         if helper_instance['State']['Name'] != 'running':
             msg = 'Helper instance %s is not running' % self.running_id
             raise EC2UploadImgException(msg)
+
+        self.vpc_subnet_id = helper_instance['SubnetId']
+        self._set_zone_to_use()
 
         return helper_instance
 
