@@ -25,10 +25,7 @@ import signal
 
 import ec2imgutils.ec2utils as utils
 import ec2imgutils.ec2uploadimg as ec2upimg
-from ec2imgutils.ec2imgutilsExceptions import (
-    EC2AccountException,
-    EC2UploadImgException
-)
+from ec2imgutils.ec2imgutilsExceptions import EC2AccountException
 from ec2imgutils.ec2setup import EC2Setup
 
 aborted = False
@@ -654,11 +651,10 @@ try:
                 else:
                     ami = uploader.create_image(args.source)
                     print('Created image: ', ami)
+        except Exception as e:
+            print("{}: {}".format(type(e).__name__, e), file=sys.stderr)
         finally:
             setup.clean_up()
-except EC2UploadImgException as e:
-    print(format(e), file=sys.stderr)
-    sys.exit(1)
 except Exception as e:
-    print(format(e), file=sys.stderr)
+    print("{}: {}".format(type(e).__name__, e), file=sys.stderr)
     sys.exit(1)
