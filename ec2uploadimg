@@ -22,16 +22,28 @@ import boto3
 import os
 import sys
 import signal
+import traceback
 
 import ec2imgutils.ec2utils as utils
 import ec2imgutils.ec2uploadimg as ec2upimg
-from ec2imgutils.ec2imgutilsExceptions import (
-    EC2AccountException,
-    EC2UploadImgException
-)
+from ec2imgutils.ec2imgutilsExceptions import EC2AccountException
 from ec2imgutils.ec2setup import EC2Setup
 
 aborted = False
+
+
+def print_ex(verbose, msg=None):
+    (type, value, tb) = sys.exc_info()
+    if (verbose > 1):
+        traceback.print_exc(file=sys.stderr)
+        if msg:
+            print(msg, file=sys.stderr)
+
+    else:
+        if msg is None:
+            print("{}: {}".format(type.__name__, value), file=sys.stderr)
+        else:
+            print(msg, file=sys.stderr)
 
 
 def signal_handler(signum, frame):
@@ -247,13 +259,15 @@ argparse.add_argument(
     help=help_msg,
     metavar='AWS_VIRT_TYPE'
 )
+help_msg = 'Enable verbose output (Optional). Multiple -v options increase '
+help_msg += 'the verbosity. The maximum is 2.'
 argparse.add_argument(
     '--verbose',
-    action='store_true',
-    default=False,
+    '-v',
+    action='count',
+    default=0,
     dest='verbose',
-    help='Enable verbose output (Optional)'
-)
+    help=help_msg)
 argparse.add_argument(
     '--version',
     action='store_true',
@@ -297,8 +311,8 @@ if not os.path.isfile(config_file):
 
 try:
     config = utils.get_config(config_file)
-except Exception as e:
-    print(format(e), file=sys.stderr)
+except Exception:
+    print_ex(args.verbose)
     sys.exit(1)
 
 if not os.path.isfile(args.source):
@@ -307,8 +321,8 @@ if not os.path.isfile(args.source):
 
 try:
     utils.check_account_keys(config, args)
-except Exception as e:
-    print(format(e), file=sys.stderr)
+except Exception:
+    print_ex(args.verbose)
     sys.exit(1)
 
 access_key = args.accessKey
@@ -319,8 +333,8 @@ if not access_key:
                                            None,
                                            'access_key_id',
                                            '--access-id')
-    except EC2AccountException as e:
-        print(format(e), file=sys.stderr)
+    except EC2AccountException:
+        print_ex(args.verbose)
         sys.exit(1)
 
 if not access_key:
@@ -335,8 +349,8 @@ if not secret_key:
                                            None,
                                            'secret_access_key',
                                            '--secret-key')
-    except EC2AccountException as e:
-        print(format(e), file=sys.stderr)
+    except EC2AccountException:
+        print_ex(args.verbose)
         sys.exit(1)
 
 if not secret_key:
@@ -413,7 +427,7 @@ try:
                                                    'ami',
                                                    '--ec2-ami')
                 except Exception:
-                    print('Could not determine helper AMI-ID', file=sys.stderr)
+                    print_ex(args.verbose, 'Could not determine helper AMI-ID')
                     sys.exit(1)
             bootkernel = args.akiID
             if args.virtType == 'hvm':
@@ -428,10 +442,8 @@ try:
                                                            'g2_aki_x86_64',
                                                            '--boot-kernel')
                     except Exception:
-                        print(
-                            'Could not find bootkernel in config',
-                            file=sys.stderr
-                        )
+                        print_ex(args.verbose,
+                                 'Could not find bootkernel in config')
                         sys.exit(1)
                 elif args.arch == 'x86_64':
                     try:
@@ -441,10 +453,8 @@ try:
                                                            'aki_x86_64',
                                                            '--boot-kernel')
                     except Exception:
-                        print(
-                            'Could not find bootkernel in config',
-                            file=sys.stderr
-                        )
+                        print_ex(args.verbose,
+                                 'Could not find bootkernel in config')
                         sys.exit(1)
                 elif args.arch == 'i386':
                     try:
@@ -454,10 +464,8 @@ try:
                                                            'aki_i386',
                                                            '--boot-kernel')
                     except Exception:
-                        print(
-                            'Could not find bootkernel in config',
-                            file=sys.stderr
-                        )
+                        print_ex(args.verbose,
+                                 'Could not find bootkernel in config')
                         sys.exit(1)
                 elif args.arch == 'arm64' and args.virtType != 'hvm':
                     print(
@@ -568,7 +576,7 @@ try:
                         msg = 'Not using a subnet-id, none given on the '
                         msg += 'command line and none found in config for '
                         msg += '"subnet_id_%s" value' % region
-                        print(msg)
+                        print_ex(args.verbose, msg)
 
             security_group_ids = args.securityGroupIds
             if not security_group_ids and not args.runningID:
@@ -591,7 +599,7 @@ try:
                             msg = 'No security group specified in the '
                             msg += 'configuration, "security_group_ids_%s" or '
                             msg += 'given on the command line.'
-                            print(msg % region)
+                            print_ex(args.verbose, msg % region)
                     if not security_group_ids and vpc_subnet_id:
                         ec2 = boto3.client(
                             aws_access_key_id=access_key,
@@ -654,11 +662,10 @@ try:
                 else:
                     ami = uploader.create_image(args.source)
                     print('Created image: ', ami)
+        except Exception:
+            print_ex(args.verbose)
         finally:
             setup.clean_up()
-except EC2UploadImgException as e:
-    print(format(e), file=sys.stderr)
-    sys.exit(1)
-except Exception as e:
-    print(format(e), file=sys.stderr)
+except Exception:
+    print_ex(args.verbose)
     sys.exit(1)
