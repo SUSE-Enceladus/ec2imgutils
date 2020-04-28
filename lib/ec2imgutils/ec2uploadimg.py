@@ -632,7 +632,15 @@ class EC2ImageUploader(EC2ImgUtils):
     # ---------------------------------------------------------------------
     def _find_device_name(self, device_size):
         """Match an attached volume by size"""
-        lsblk_out = json.loads(self._execute_ssh_command('lsblk -a -J'))
+        try:
+            lsblk_out = json.loads(self._execute_ssh_command('lsblk -a -J'))
+        except Exception:
+            print(
+                '"lsblk -a -J" command failed on helper instance. Ensure the '
+                'helper instance has lsblk >= 2.27 which has the json option.'
+            )
+            lsblk_out = {'blockdevices': tuple()}
+
         for device in lsblk_out['blockdevices']:
             if device.get('children'):
                 continue
