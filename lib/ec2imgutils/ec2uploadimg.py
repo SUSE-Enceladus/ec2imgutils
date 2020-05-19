@@ -752,6 +752,17 @@ class EC2ImageUploader(EC2ImgUtils):
                         'SubnetId': self.vpc_subnet_id,
                         'Groups': self.security_group_ids.split(',')
                     }
+                ],
+                TagSpecifications=[
+                    {
+                        'ResourceType': 'instance',
+                        'Tags': [
+                            {
+                                'Key': 'Name',
+                                'Value': 'ec2uploadimg-helper-instance'
+                            }
+                        ]
+                    }
                 ]
             )['Instances'][0]
         else:
@@ -767,6 +778,17 @@ class EC2ImageUploader(EC2ImgUtils):
                         'DeviceIndex': 0,
                         'AssociatePublicIpAddress': not self.use_private_ip,
                         'SubnetId': self.vpc_subnet_id
+                    }
+                ],
+                TagSpecifications=[
+                    {
+                        'ResourceType': 'instance',
+                        'Tags': [
+                            {
+                                'Key': 'Name',
+                                'Value': 'ec2uploadimg-helper-instance'
+                            }
+                        ]
                     }
                 ]
             )['Instances'][0]
