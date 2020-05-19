@@ -759,10 +759,10 @@ class EC2ImageUploader(EC2ImgUtils):
                         'Tags': [
                             {
                                 'Key': 'Name',
-                                'Value': 'ec2uploadimg-helper-instance',
-                            },
-                        ],
-                    },
+                                'Value': 'ec2uploadimg-helper-instance'
+                            }
+                        ]
+                    }
                 ]
             )['Instances'][0]
         else:
@@ -786,10 +786,10 @@ class EC2ImageUploader(EC2ImgUtils):
                         'Tags': [
                             {
                                 'Key': 'Name',
-                                'Value': 'ec2uploadimg-helper-instance',
-                            },
-                        ],
-                    },
+                                'Value': 'ec2uploadimg-helper-instance'
+                            }
+                        ]
+                    }
                 ]
             )['Instances'][0]
 
