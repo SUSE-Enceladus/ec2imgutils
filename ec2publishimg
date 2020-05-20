@@ -1,6 +1,6 @@
 #!/usr/bin/python3
 
-# Copyright 2018 SUSE LLC
+# Copyright 2020 SUSE LLC
 #
 # This file is part of ec2imgutils
 #
@@ -42,17 +42,16 @@ argparse.add_argument(
     help='AWS access key (Optional)',
     metavar='AWS_ACCESS_KEY'
 )
-help_msg = 'Allow the image to be copied into the account(s) the image is '
-help_msg += 'shared with (Optional)'
+help_msg = 'Allow the image to be copied. image, none, or a comma '
+help_msg += 'separated list of AWS account numbers, default "none". (Optional)'
 argparse.add_argument(
     '--allow-copy',
-    action='store_true',
-    default=False,
+    default='none',
     dest='allowCopy',
     help=help_msg
 )
 help_msg = 'Do not perform any action, print information about actions that '
-help_msg += 'would be performed instead (Optional)'
+help_msg += 'would be performed instead, default "False" (Optional)'
 argparse.add_argument(
     '-n', '--dry-run',
     action='store_true',
@@ -115,11 +114,13 @@ argparse.add_argument(
     help='AWS secret access key (Optional)',
     metavar='AWS_SECRET_KEY'
 )
+help_msg = 'all, none, or a comma separated list of AWS account numbers '
+help_msg += 'to share the image(s) with, default "all"'
 argparse.add_argument(
     '--share-with',
     default='all',
     dest='share',
-    help='all, none, or a AWS account number to share the image(s) with',
+    help=help_msg,
     metavar='SHARE'
 )
 argparse.add_argument(
@@ -127,7 +128,7 @@ argparse.add_argument(
     action='store_true',
     default=False,
     dest='verbose',
-    help='Enable on verbose output'
+    help='Enable verbose output, default "False"'
 )
 argparse.add_argument(
     '--version',
@@ -203,6 +204,16 @@ if not secret_key:
     sys.exit(1)
 
 regions = utils.get_regions(args, access_key, secret_key)
+snap_copy = args.allowCopy.lower()
+if (
+        snap_copy != 'image' and
+        snap_copy != 'none' and not
+        utils.validate_account_numbers(snap_copy)
+):
+    msg = 'Expecting "image", "none", or comma separated list of 12 digit AWS '
+    msg += 'account numbers as value of --allow-copy'
+    print(msg, file=sys.stderr)
+    sys.exit(1)
 
 visibility = args.share.lower()
 if (
@@ -220,7 +231,7 @@ if visibility[-1] == ',':
 
 publisher = ec2pubimg.EC2PublishImage(
         access_key=access_key,
-        allow_copy=args.allowCopy,
+        allow_copy=snap_copy,
         image_id=args.pubImgID,
         image_name=args.pubImgName,
         image_name_fragment=args.pubImgNameFrag,
