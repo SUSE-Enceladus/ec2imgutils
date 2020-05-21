@@ -30,9 +30,14 @@ with the
 .I access_key_id
 in the configuration file.
 .IP "--allow-copy"
-Flag to enable the account(s) with which the image is shared to copy the image
-by allowing copy access to the underlying snapshot. The default behavior is
-to disallow copying of the image.
+Set the image copy permissions. The option supports the keyword
+.I image
+to allow those that the image is shared with to copy it; the keyword
+.I none
+which does not allow copy access and is the default behavior. The option
+allows the specification of an AWS account number or a comma separated list
+with no white space to specify multiple account numbers to allow those
+accounts to copy the image.
 .IP "-n --dry-run"
 The program will not perform any action. It will provide information on
 .I stdout
@@ -94,7 +99,7 @@ keyword
 .I all
 to set the image to public, the keyword
 .I none
-to set the image private, or expects an AWS account number to share the image
+to set the image private, or expects a AWS account number to share the image
 with a specific account. Use a comma separated list with no white space to
 specify multiple account numbers. By default the selected image will be
 published, i.e.

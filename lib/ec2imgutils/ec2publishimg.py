@@ -27,7 +27,7 @@ class EC2PublishImage(EC2ImgUtils):
     def __init__(
             self,
             access_key=None,
-            allow_copy=False,
+            allow_copy='none',
             image_id=None,
             image_name=None,
             image_name_fragment=None,
@@ -38,7 +38,6 @@ class EC2PublishImage(EC2ImgUtils):
         EC2ImgUtils.__init__(self)
 
         self.access_key = access_key
-        self.allow_copy = allow_copy
         self.image_id = image_id
         self.image_name = image_name
         self.image_name_fragment = image_name_fragment
@@ -53,6 +52,11 @@ class EC2PublishImage(EC2ImgUtils):
             self.publish_msg = '\tSet to private: %s\t\t%s'
         else:
             self.publish_msg = '\tShared: %s\t\t%s\t with: %s'
+
+        if allow_copy == 'image':
+            self.allow_copy = self.visibility
+        else:
+            self.allow_copy = allow_copy
 
     # --------------------------------------------------------------------
     def _get_images(self):
@@ -95,7 +99,7 @@ class EC2PublishImage(EC2ImgUtils):
 
         snapshot_ids = self._get_snapshot_ids_for_image(image)
         for snapshot_id in snapshot_ids:
-            if self.visibility == 'all':
+            if self.allow_copy == 'all':
                 self._connect().modify_snapshot_attribute(
                     SnapshotId=snapshot_id,
                     Attribute='createVolumePermission',
@@ -107,7 +111,7 @@ class EC2PublishImage(EC2ImgUtils):
                     SnapshotId=snapshot_id,
                     Attribute='createVolumePermission',
                     OperationType='add',
-                    UserIds=self.visibility.split(',')
+                    UserIds=self.allow_copy.split(',')
                 )
 
     # --------------------------------------------------------------------
@@ -142,7 +146,7 @@ class EC2PublishImage(EC2ImgUtils):
                     OperationType='add',
                     UserGroups=['all']
                 )
-                if self.allow_copy:
+                if self.allow_copy != 'none':
                     self._share_snapshot(image)
             elif self.visibility == 'none':
                 launch_attributes = self._connect().describe_image_attribute(
