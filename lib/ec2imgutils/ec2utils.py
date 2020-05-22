@@ -17,6 +17,7 @@
 
 import boto3
 import configparser
+import logging
 import re
 import sys
 
@@ -72,12 +73,12 @@ def find_images_by_id(images, image_id):
 
 
 # ----------------------------------------------------------------------------
-def find_images_by_name(images, image_name):
+def find_images_by_name(images, image_name, log_callback):
     """Return a list of images that match the given name."""
     matching_images = []
     for image in images:
         if not image.get('Name'):
-            print(_no_name_warning(image))
+            _no_name_warning(image, log_callback)
             continue
         if image_name == image['Name']:
             matching_images.append(image)
@@ -86,13 +87,13 @@ def find_images_by_name(images, image_name):
 
 
 # ----------------------------------------------------------------------------
-def find_images_by_name_fragment(images, image_name_fragment):
+def find_images_by_name_fragment(images, image_name_fragment, log_callback):
     """Return a list of images that match the given fragment in any part
        of the image name."""
     matching_images = []
     for image in images:
         if not image.get('Name'):
-            print(_no_name_warning(image))
+            _no_name_warning(image, log_callback)
             continue
         if image['Name'].find(image_name_fragment) != -1:
             matching_images.append(image)
@@ -101,14 +102,14 @@ def find_images_by_name_fragment(images, image_name_fragment):
 
 
 # ----------------------------------------------------------------------------
-def find_images_by_name_regex_match(images, image_name_regex):
+def find_images_by_name_regex_match(images, image_name_regex, log_callback):
     """Return a list of images that match the given regular expression in
        their name."""
     matching_images = []
     image_name_exp = re.compile(image_name_regex)
     for image in images:
         if not image.get('Name'):
-            print(_no_name_warning(image))
+            _no_name_warning(image, log_callback)
             continue
         if image_name_exp.match(image['Name']):
             matching_images.append(image)
@@ -206,11 +207,11 @@ def _basic_account_check(config, command_args):
 
 
 # ----------------------------------------------------------------------------
-def _no_name_warning(image):
+def _no_name_warning(image, log_callback):
     """Print a warning for images that have no name"""
     msg = 'WARNING: Found image with no name, ignoring for search results. '
     msg += 'Image ID: %s' % image['ImageId']
-    print(msg)
+    log_callback.info(msg)
 
 
 # ----------------------------------------------------------------------------
@@ -219,3 +220,24 @@ def validate_account_numbers(share_with):
     if accounts:
         return all(map(re.match, repeat(r'^\d{12}$'), accounts))
     return False
+
+
+# ----------------------------------------------------------------------------
+def get_logger(verbose):
+    """
+    Return new console logger at provided log level.
+    """
+    if verbose:
+        log_level = logging.DEBUG
+    else:
+        log_level = logging.INFO
+
+    logger = logging.getLogger('obs_img_utils')
+    logger.setLevel(log_level)
+
+    console_handler = logging.StreamHandler()
+    console_handler.setLevel(log_level)
+    console_handler.setFormatter(logging.Formatter('%(message)s'))
+
+    logger.addHandler(console_handler)
+    return logger

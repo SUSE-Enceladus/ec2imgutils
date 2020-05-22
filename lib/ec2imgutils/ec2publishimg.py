@@ -15,6 +15,8 @@
 # You should have received a copy of the GNU General Public License
 # along with ec2publishimg. If not, see <http://www.gnu.org/licenses/>.
 
+import logging
+
 import ec2imgutils.ec2utils as utils
 from ec2imgutils.ec2imgutils import EC2ImgUtils
 from ec2imgutils.ec2imgutilsExceptions import EC2PublishImgException
@@ -33,9 +35,15 @@ class EC2PublishImage(EC2ImgUtils):
             image_name_fragment=None,
             image_name_match=None,
             secret_key=None,
-            verbose=None,
-            visibility='all'):
-        EC2ImgUtils.__init__(self)
+            visibility='all',
+            log_level=logging.INFO,
+            log_callback=None
+    ):
+        EC2ImgUtils.__init__(
+            self,
+            log_level=log_level,
+            log_callback=log_callback
+        )
 
         self.access_key = access_key
         self.image_id = image_id
@@ -43,7 +51,6 @@ class EC2PublishImage(EC2ImgUtils):
         self.image_name_fragment = image_name_fragment
         self.image_name_match = image_name_match
         self.secret_key = secret_key
-        self.verbose = verbose
         self.visibility = visibility
 
         if self.visibility == 'all':
@@ -66,16 +73,24 @@ class EC2PublishImage(EC2ImgUtils):
         if self.image_id:
             return utils.find_images_by_id(owned_images, self.image_id)
         elif self.image_name:
-            return utils.find_images_by_name(owned_images, self.image_name)
+            return utils.find_images_by_name(
+                owned_images,
+                self.image_name,
+                self.log
+            )
         elif self.image_name_fragment:
             return utils.find_images_by_name_fragment(
                 owned_images,
-                self.image_name_fragment)
+                self.image_name_fragment,
+                self.log
+            )
         elif self.image_name_match:
             try:
                 return utils.find_images_by_name_regex_match(
                     owned_images,
-                    self.image_name_match)
+                    self.image_name_match,
+                    self.log
+                )
             except Exception:
                 msg = 'Unable to complie regular expression "%s"'
                 msg = msg % self.image_name_match
@@ -115,12 +130,14 @@ class EC2PublishImage(EC2ImgUtils):
                 )
 
     # --------------------------------------------------------------------
-    def _print_image_info(self, image):
+    def _print_image_info(self, image, log_callback):
         """Print a message about the image that would be modified"""
         if self.visibility == 'all' or self.visibility == 'none':
-            print(self.publish_msg % (image['ImageId'], image['Name']))
+            log_callback(
+                self.publish_msg % (image['ImageId'], image['Name'])
+            )
         else:
-            print(self.publish_msg % (
+            log_callback(self.publish_msg % (
                         image['ImageId'],
                         image['Name'],
                         self.visibility
@@ -131,7 +148,7 @@ class EC2PublishImage(EC2ImgUtils):
         """Print information about images that would be published"""
         images = self._get_images()
         for image in images:
-            self._print_image_info(image)
+            self._print_image_info(image, log_callback=self.log.info)
 
     # --------------------------------------------------------------------
     def publish_images(self):
@@ -159,7 +176,7 @@ class EC2PublishImage(EC2ImgUtils):
                 if not launch_attributes:
                     msg = '\tImage with ID: %s  ' % image['ImageId']
                     msg += 'is already private, nothing to do'
-                    print(msg)
+                    self.log.info(msg)
                     continue
                 self._connect().modify_image_attribute(
                     ImageId=image['ImageId'],
@@ -191,5 +208,5 @@ class EC2PublishImage(EC2ImgUtils):
                 )
                 if self.allow_copy:
                     self._share_snapshot(image)
-            if self.verbose:
-                self._print_image_info(image)
+
+            self._print_image_info(image, log_callback=self.log.debug)

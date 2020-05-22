@@ -22,7 +22,6 @@ import boto3
 import os
 import sys
 import signal
-import traceback
 
 import ec2imgutils.ec2utils as utils
 import ec2imgutils.ec2uploadimg as ec2upimg
@@ -30,20 +29,17 @@ from ec2imgutils.ec2imgutilsExceptions import EC2AccountException
 from ec2imgutils.ec2setup import EC2Setup
 
 aborted = False
+logger = None
 
 
-def print_ex(verbose, msg=None):
-    (type, value, tb) = sys.exc_info()
-    if (verbose > 1):
-        traceback.print_exc(file=sys.stderr)
-        if msg:
-            print(msg, file=sys.stderr)
+def print_ex(msg=None):
+    exc_type, value, tb = sys.exc_info()
+    logger.debug(value, exc_info=True)
 
+    if msg:
+        logger.info(msg)
     else:
-        if msg is None:
-            print("{}: {}".format(type.__name__, value), file=sys.stderr)
-        else:
-            print(msg, file=sys.stderr)
+        logger.info("{}: {}".format(exc_type.__name__, value))
 
 
 def signal_handler(signum, frame):
@@ -295,34 +291,36 @@ argparse.add_argument(
     type=int
 )
 
+args = argparse.parse_args()
+logger = utils.get_logger(args.verbose)
+
 if '--version' in sys.argv:
     version_file_name = 'VERSION'
     base_path = os.path.dirname(utils.__file__)
     version = open(base_path + os.sep + version_file_name, 'r').read()
-    print(version)
+    logger.info(version)
     sys.exit(0)
 
-args = argparse.parse_args()
 config_file = os.path.expanduser(args.configFilePath)
 config = None
 if not os.path.isfile(config_file):
-    print('Configuration file "%s" not found.' % config_file)
+    logger.error('Configuration file "%s" not found.' % config_file)
     sys.exit(1)
 
 try:
     config = utils.get_config(config_file)
 except Exception:
-    print_ex(args.verbose)
+    print_ex()
     sys.exit(1)
 
 if not os.path.isfile(args.source):
-    print('Could not find specified image file: %s' % args.source)
+    logger.error('Could not find specified image file: %s' % args.source)
     sys.exit(1)
 
 try:
     utils.check_account_keys(config, args)
 except Exception:
-    print_ex(args.verbose)
+    print_ex()
     sys.exit(1)
 
 access_key = args.accessKey
@@ -334,11 +332,11 @@ if not access_key:
                                            'access_key_id',
                                            '--access-id')
     except EC2AccountException:
-        print_ex(args.verbose)
+        print_ex()
         sys.exit(1)
 
 if not access_key:
-    print('Could not determine account access key', file=sys.stderr)
+    logger.error('Could not determine account access key')
     sys.exit(1)
 
 secret_key = args.secretKey
@@ -350,16 +348,18 @@ if not secret_key:
                                            'secret_access_key',
                                            '--secret-key')
     except EC2AccountException:
-        print_ex(args.verbose)
+        print_ex()
         sys.exit(1)
 
 if not secret_key:
-    print('Could not determine account secret access key', file=sys.stderr)
+    logger.error('Could not determine account secret access key')
     sys.exit(1)
 
 supported_arch = ['arm64', 'i386', 'x86_64']
 if args.arch not in supported_arch:
-    print('Specified architecture must be one of %s' % str(supported_arch))
+    logger.error(
+        'Specified architecture must be one of %s' % str(supported_arch)
+    )
     sys.exit(1)
 
 # All arm64 images must support ENA
@@ -367,7 +367,7 @@ if args.arch not in supported_arch:
 # ENA driver rather than to error out
 if args.arch == 'arm64':
     if not args.ena:
-        print('Enabling ENA support, required by arm64', file=sys.stdout)
+        logger.info('Enabling ENA support, required by arm64')
         args.ena = True
 
 sriov_type = args.sriov
@@ -379,17 +379,18 @@ if virtualization_type == 'para':
     virtualization_type = 'paravirtual'
 
 if sriov_type and virtualization_type != 'hvm':
-    print('SRIOV support is only possible with HVM images', file=sys.stderr)
+    logger.error('SRIOV support is only possible with HVM images')
     sys.exit(1)
 
 if args.ena and virtualization_type != 'hvm':
-    print('ENA is only possible with HVM images', file=sys.stderr)
+    logger.error('ENA is only possible with HVM images')
     sys.exit(1)
 
 if args.amiID and args.runningID:
-    msg = 'Specify either AMI ID to start instance or running '
-    msg += ' ID to use already running instance'
-    print(msg, file=sys.stderr)
+    logger.error(
+        'Specify either AMI ID to start instance or running '
+        ' ID to use already running instance'
+    )
     sys.exit(1)
 
 root_volume_size = 10
@@ -401,15 +402,13 @@ if (
     len(regions) > 1 and (args.amiID or args.akiID or args.runningID or
                           args.vpcSubnetId)
    ):
-    print(
-        'Incompatible arguments: multiple regions specified',
-        file=sys.stderr
+    logger.error(
+        'Incompatible arguments: multiple regions specified'
     )
-    print(
-        'Cannot process region unique argument for --ec2-ami,',
-        file=sys.stderr
+    logger.error(
+        'Cannot process region unique argument for --ec2-ami,'
     )
-    print('--instance-id, or --boot-kernel', file=sys.stderr)
+    logger.error('--instance-id, or --boot-kernel')
     sys.exit(1)
 
 try:
@@ -417,8 +416,13 @@ try:
     running_id = args.runningID
     for region in regions:
         try:
-            setup = EC2Setup(access_key, region, secret_key, args.sessionToken,
-                             args.verbose)
+            setup = EC2Setup(
+                access_key,
+                region,
+                secret_key,
+                args.sessionToken,
+                log_callback=logger
+            )
             if not ami_id and not running_id:
                 try:
                     ami_id = utils.get_from_config(args.accountName,
@@ -427,7 +431,7 @@ try:
                                                    'ami',
                                                    '--ec2-ami')
                 except Exception:
-                    print_ex(args.verbose, 'Could not determine helper AMI-ID')
+                    print_ex('Could not determine helper AMI-ID')
                     sys.exit(1)
             bootkernel = args.akiID
             if args.virtType == 'hvm':
@@ -442,8 +446,7 @@ try:
                                                            'g2_aki_x86_64',
                                                            '--boot-kernel')
                     except Exception:
-                        print_ex(args.verbose,
-                                 'Could not find bootkernel in config')
+                        print_ex('Could not find bootkernel in config')
                         sys.exit(1)
                 elif args.arch == 'x86_64':
                     try:
@@ -453,8 +456,7 @@ try:
                                                            'aki_x86_64',
                                                            '--boot-kernel')
                     except Exception:
-                        print_ex(args.verbose,
-                                 'Could not find bootkernel in config')
+                        print_ex('Could not find bootkernel in config')
                         sys.exit(1)
                 elif args.arch == 'i386':
                     try:
@@ -464,28 +466,18 @@ try:
                                                            'aki_i386',
                                                            '--boot-kernel')
                     except Exception:
-                        print_ex(args.verbose,
-                                 'Could not find bootkernel in config')
+                        print_ex('Could not find bootkernel in config')
                         sys.exit(1)
                 elif args.arch == 'arm64' and args.virtType != 'hvm':
-                    print(
-                        'Images for arm64 must use hvm virtualization',
-                        file=sys.stderr
+                    logger.error(
+                        'Images for arm64 must use hvm virtualization'
                     )
                     sys.exit(1)
                 else:
-                    print(
-                        'Could not reliably determine the ',
-                        end=' ',
-                        file=sys.stderr
+                    logger.error(
+                        'Could not reliably determine the bootkernel to use '
+                        'must specify bootkernel, arch (x86_64|i386) or hvm'
                     )
-                    print('bootkernel to use ', file=sys.stderr)
-                    print(
-                        'must specify bootkernel, ',
-                        end=' ',
-                        file=sys.stderr
-                    )
-                    print('arch (x86_64|i386) or hvm', file=sys.stderr)
                     sys.exit(1)
 
             inst_type = args.instType
@@ -512,7 +504,7 @@ try:
                                                       'ssh_key_name',
                                                       '--ssh-key-pair')
             if not key_pair_name:
-                print('Could not determine key pair name', file=sys.stderr)
+                logger.error('Could not determine key pair name')
                 sys.exit(1)
 
             if not ssh_private_key_file:
@@ -525,20 +517,16 @@ try:
                 )
 
             if not ssh_private_key_file:
-                print(
-                    'Could not determine the private ssh key file',
-                    file=sys.stderr
+                logger.error(
+                    'Could not determine the private ssh key file'
                 )
 
             ssh_private_key_file = os.path.expanduser(ssh_private_key_file)
 
             if not os.path.exists(ssh_private_key_file):
-                print(
-                    (
-                         'SSH private key file "%s" does not exist'
-                         % ssh_private_key_file
-                    ),
-                    file=sys.stderr
+                logger.error(
+                    'SSH private key file "%s" does not exist'
+                    % ssh_private_key_file
                 )
                 sys.exit(1)
 
@@ -550,7 +538,7 @@ try:
                                                  'user',
                                                  '--user')
             if not ssh_user:
-                print('Could not determin ssh user to use', file=sys.stderr)
+                logger.error('Could not determin ssh user to use')
                 sys.exit(1)
 
             vpc_subnet_id = args.vpcSubnetId
@@ -569,14 +557,13 @@ try:
                         'subnet_id_%s' % region,
                         '--vpc-subnet-id'
                     )
-                    if args.verbose and vpc_subnet_id:
-                        print('Using VPC subnet: %s' % vpc_subnet_id)
+                    if vpc_subnet_id:
+                        logger.debug('Using VPC subnet: %s' % vpc_subnet_id)
                 except Exception:
-                    if args.verbose:
-                        msg = 'Not using a subnet-id, none given on the '
-                        msg += 'command line and none found in config for '
-                        msg += '"subnet_id_%s" value' % region
-                        print_ex(args.verbose, msg)
+                    msg = 'Not using a subnet-id, none given on the '
+                    msg += 'command line and none found in config for '
+                    msg += '"subnet_id_%s" value' % region
+                    print_ex(msg)
 
             security_group_ids = args.securityGroupIds
             if not security_group_ids and not args.runningID:
@@ -591,15 +578,14 @@ try:
                             'security_group_ids_%s' % region,
                             '--security-group-ids'
                         )
-                        if args.verbose and security_group_ids:
+                        if security_group_ids:
                             msg = 'Using Security Group IDs: %s'
-                            print(msg % security_group_ids)
+                            logger.debug(msg % security_group_ids)
                     except Exception:
-                        if args.verbose:
-                            msg = 'No security group specified in the '
-                            msg += 'configuration, "security_group_ids_%s" or '
-                            msg += 'given on the command line.'
-                            print_ex(args.verbose, msg % region)
+                        msg = 'No security group specified in the '
+                        msg += 'configuration, "security_group_ids_%s" or '
+                        msg += 'given on the command line.'
+                        print_ex(msg % region)
                     if not security_group_ids and vpc_subnet_id:
                         ec2 = boto3.client(
                             aws_access_key_id=access_key,
@@ -648,9 +634,9 @@ try:
                     ssh_timeout=args.sshTimeout,
                     use_grub2=args.grub2,
                     use_private_ip=args.usePrivateIP,
-                    verbose=args.verbose,
                     vpc_subnet_id=vpc_subnet_id,
-                    wait_count=args.waitCount
+                    wait_count=args.waitCount,
+                    log_callback=logger
                 )
 
                 if args.snapOnly:
@@ -663,9 +649,9 @@ try:
                     ami = uploader.create_image(args.source)
                     print('Created image: ', ami)
         except Exception:
-            print_ex(args.verbose)
+            print_ex()
         finally:
             setup.clean_up()
 except Exception:
-    print_ex(args.verbose)
+    print_ex()
     sys.exit(1)

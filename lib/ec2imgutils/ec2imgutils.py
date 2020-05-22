@@ -16,6 +16,7 @@
 # along with ec2imgutils.ase.  If not, see <http://www.gnu.org/licenses/>.
 
 import boto3
+import logging
 
 from ec2imgutils.ec2imgutilsExceptions import EC2ConnectionException
 
@@ -23,11 +24,17 @@ from ec2imgutils.ec2imgutilsExceptions import EC2ConnectionException
 class EC2ImgUtils:
     """Base class for EC2 Image Utilities"""
 
-    def __init__(self):
+    def __init__(self, log_level=logging.INFO, log_callback=None):
 
         self.region = None
         self.session_token = None
-        self.verbose = None
+
+        if log_callback:
+            self.log = log_callback
+        else:
+            logger = logging.getLogger('ec2imgutils')
+            logger.setLevel(log_level)
+            self.log = logger
 
     # ---------------------------------------------------------------------
     def _connect(self):
@@ -82,9 +89,7 @@ class EC2ImgUtils:
         if self.region and self.region == region:
             return True
 
-        if self.verbose:
-            print('Using EC2 region: ', region)
-
+        self.log.debug('Using EC2 region: {}'.format(region))
         self.region = region
 
         return True

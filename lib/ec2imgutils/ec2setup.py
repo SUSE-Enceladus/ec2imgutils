@@ -15,6 +15,7 @@
 # You should have received a copy of the GNU General Public License
 # along with ec2imgutils.ase.  If not, see <http://www.gnu.org/licenses/>.
 
+import logging
 import os
 import random
 import datetime
@@ -29,13 +30,25 @@ from ec2imgutils.ec2imgutils import EC2ImgUtils
 class EC2Setup(EC2ImgUtils):
     """Class to prepare an Amazon EC2 account with all necessary resources"""
 
-    def __init__(self, access_key, region, secret_key, session_token, verbose):
-        EC2ImgUtils.__init__(self)
+    def __init__(
+            self,
+            access_key,
+            region,
+            secret_key,
+            session_token,
+            log_level=logging.INFO,
+            log_callback=None
+    ):
+        EC2ImgUtils.__init__(
+            self,
+            log_level=log_level,
+            log_callback=log_callback
+        )
+
         self.access_key = access_key
         self.region = region
         self.secret_key = secret_key
         self.session_token = session_token
-        self.verbose = verbose
 
         self.internet_gateway_id = ''
         self.key_pair_name = ''
@@ -57,8 +70,7 @@ class EC2Setup(EC2ImgUtils):
 
     # ---------------------------------------------------------------------
     def create_security_group(self, vpc_id=None):
-        if self.verbose:
-            print('Creating temporary security group')
+        self.log.debug('Creating temporary security group')
         group_description = 'ec2uploadimg created %s' % datetime.datetime.now()
         if not vpc_id:
             vpc_id = self.vpc_id
@@ -79,9 +91,10 @@ class EC2Setup(EC2ImgUtils):
                 continue
             group_created = True
         self.security_group_id = response['GroupId']
-        if self.verbose:
-            print('Temporary Security Group Created %s in vpc %s'
-                  % (self.security_group_id, vpc_id))
+        self.log.debug(
+            'Temporary Security Group Created %s in vpc %s'
+            % (self.security_group_id, vpc_id)
+        )
         self._connect().authorize_security_group_ingress(
             GroupId=self.security_group_id,
             IpPermissions=[
@@ -91,15 +104,15 @@ class EC2Setup(EC2ImgUtils):
                  'IpRanges': [{'CidrIp': '0.0.0.0/0'}]}
             ])
 
-        if self.verbose:
-            print("Successfully allowed incoming SSH port 22 for security "
-                  "group %s in %s" % (self.security_group_id, self.vpc_id))
+        self.log.debug(
+            "Successfully allowed incoming SSH port 22 for security "
+            "group %s in %s" % (self.security_group_id, self.vpc_id)
+        )
         return self.security_group_id
 
     # ---------------------------------------------------------------------
     def create_upload_key_pair(self, key_name='temporary_ec2_uploadkey'):
-        if self.verbose:
-            print('Creating temporary key pair')
+        self.log.debug('Creating temporary key pair')
         dir_path = os.path.expanduser('~/')
         if not os.access(dir_path, os.W_OK):
             dir_path = mkdtemp()
@@ -111,12 +124,14 @@ class EC2Setup(EC2ImgUtils):
         secret_key_content = self._connect().create_key_pair(
             KeyName=self.key_pair_name
         )
-        if self.verbose:
-            print('Successfully created key pair: ', self.key_pair_name)
+        self.log.debug(
+            'Successfully created key pair: {}'.format(self.key_pair_name)
+        )
         with open(location, 'w') as localfile:
             localfile.write(secret_key_content['KeyMaterial'])
-        if self.verbose:
-            print('Successfully wrote secret key key file to ', location)
+        self.log.debug(
+            'Successfully wrote secret key key file to {}'.format(location)
+        )
         os.close(fd)
         return self.key_pair_name, self.ssh_private_key_file
 
@@ -136,9 +151,10 @@ class EC2Setup(EC2ImgUtils):
         self._connect().attach_internet_gateway(
             VpcId=self.vpc_id, InternetGatewayId=self.internet_gateway_id
         )
-        if self.verbose:
-            print("Successfully created internet gateway %s" %
-                  self.internet_gateway_id)
+        self.log.debug(
+            "Successfully created internet gateway %s"
+            % self.internet_gateway_id
+        )
 
     # ---------------------------------------------------------------------
     def _create_route_table(self):
@@ -149,8 +165,9 @@ class EC2Setup(EC2ImgUtils):
             GatewayId=self.internet_gateway_id,
             RouteTableId=self.route_table_id
         )
-        if self.verbose:
-            print("Successfully created route table %s" % self.route_table_id)
+        self.log.debug(
+            "Successfully created route table %s" % self.route_table_id
+        )
 
     # ---------------------------------------------------------------------
     def _create_vpc(self):
@@ -161,8 +178,7 @@ class EC2Setup(EC2ImgUtils):
             Resources=[self.vpc_id],
             Tags=[{'Key': 'Name', 'Value': vpc_name}]
         )
-        if self.verbose:
-            print("Successfully created VPC with id %s" % (self.vpc_id))
+        self.log.debug("Successfully created VPC with id %s" % self.vpc_id)
 
     # ---------------------------------------------------------------------
     def _create_vpc_subnet(self):
@@ -176,59 +192,65 @@ class EC2Setup(EC2ImgUtils):
         self._connect().modify_subnet_attribute(
             MapPublicIpOnLaunch={'Value': True}, SubnetId=self.vpc_subnet_id
         )
-        if self.verbose:
-            print("Successfully created VPC subnet with id %s" %
-                  self.vpc_subnet_id)
+        self.log.debug(
+            "Successfully created VPC subnet with id %s" % self.vpc_subnet_id
+        )
 
     # ---------------------------------------------------------------------
     def _remove_security_group(self):
         self._connect().delete_security_group(
             GroupId=self.security_group_id
         )
-        if self.verbose:
-            print('Successfully deleted security group %s' %
-                  self.security_group_id)
+        self.log.debug(
+            'Successfully deleted security group %s' % self.security_group_id
+        )
 
     # ---------------------------------------------------------------------
     def _remove_upload_key_pair(self):
-        if self.verbose:
-            print('Deleting temporary key pair ', self.key_pair_name)
+        self.log.debug(
+            'Deleting temporary key pair {}'.format(self.key_pair_name)
+        )
         self._connect().delete_key_pair(
             KeyName=self.key_pair_name)
         if os.path.isfile(self.ssh_private_key_file):
             os.remove(self.ssh_private_key_file)
         if self.temp_dir:
             os.rmdir(self.temp_dir)
-        if self.verbose:
-            print('Successfully deleted temporary key',
-                  self.ssh_private_key_file)
+        self.log.debug(
+            'Successfully deleted temporary key %s'
+            % self.ssh_private_key_file
+        )
 
     # ---------------------------------------------------------------------
     def _remove_vpc(self):
         self._connect().delete_route(
             DestinationCidrBlock='0.0.0.0/0', RouteTableId=self.route_table_id
         )
-        if self.verbose:
-            print('Successfully deleted route from route table %s' %
-                  self.route_table_id)
+        self.log.debug(
+            'Successfully deleted route from route table %s'
+            % self.route_table_id
+        )
         self._connect().delete_subnet(SubnetId=self.vpc_subnet_id)
-        if self.verbose:
-            print('Successfully deleted VPC subnet %s' % self.vpc_subnet_id)
+        self.log.debug(
+            'Successfully deleted VPC subnet %s' % self.vpc_subnet_id
+        )
         self._connect().delete_route_table(RouteTableId=self.route_table_id)
-        if self.verbose:
-            print('Successfully deleted route table %s' % self.route_table_id)
+        self.log.debug(
+            'Successfully deleted route table %s' % self.route_table_id
+        )
         self._connect().detach_internet_gateway(
             InternetGatewayId=self.internet_gateway_id, VpcId=self.vpc_id
         )
-        if self.verbose:
-            print('Successfully deleted detached internet gateway %s' %
-                  self.internet_gateway_id)
+        self.log.debug(
+            'Successfully deleted detached internet gateway %s'
+            % self.internet_gateway_id
+        )
         self._connect().delete_internet_gateway(
             InternetGatewayId=self.internet_gateway_id
         )
-        if self.verbose:
-            print('Successfully deleted internet gateway %s' %
-                  self.internet_gateway_id)
+        self.log.debug(
+            'Successfully deleted internet gateway %s'
+            % self.internet_gateway_id
+        )
         self._connect().delete_vpc(VpcId=self.vpc_id)
-        if self.verbose:
-            print('Successfully deleted VPC %s' % self.vpc_id)
+        self.log.debug('Successfully deleted VPC %s' % self.vpc_id)

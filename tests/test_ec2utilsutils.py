@@ -19,6 +19,7 @@
 # <http://www.gnu.org/licenses/>.
 #
 
+import logging
 import os
 import pytest
 
@@ -30,6 +31,9 @@ from ec2imgutils.ec2imgutilsExceptions import (
 
 this_path = os.path.dirname(os.path.abspath(__file__))
 data_path = this_path + os.sep + 'data'
+
+logger = logging.getLogger('ec2imgutils')
+logger.setLevel(logging.INFO)
 
 
 class Turncoat:
@@ -117,7 +121,7 @@ def test_find_images_by_name_find_some():
     image = {}
     image['Name'] = 'testimage-1'
     images.append(image)
-    found_images = ec2utils.find_images_by_name(images, 'testimage-1')
+    found_images = ec2utils.find_images_by_name(images, 'testimage-1', logger)
     assert 2 == len(found_images)
     assert 'testimage-1' == found_images[1]['Name']
 
@@ -133,13 +137,13 @@ def test_find_images_by_name_pending_image():
     image['Status'] = 'pending'
     image['ImageId'] = 'testimage-3'
     images.append(image)
-    ec2utils.find_images_by_name(images, 'testimage-1')
+    ec2utils.find_images_by_name(images, 'testimage-1', logger)
 
 
 def test_find_images_by_name_find_none():
     """Test find_images_by_name finds nothing and does not error"""
     images = _get_test_images()
-    found_images = ec2utils.find_images_by_name(images, 'test')
+    found_images = ec2utils.find_images_by_name(images, 'test', logger)
     assert 0 == len(found_images)
 
 
@@ -155,21 +159,33 @@ def test_find_images_by_name_fragment_find_some():
     image = {}
     image['Name'] = 'testimg'
     images.append(image)
-    found_images = ec2utils.find_images_by_name_fragment(images, 'this')
+    found_images = ec2utils.find_images_by_name_fragment(
+        images,
+        'this',
+        logger
+    )
     assert 2 == len(found_images)
 
 
 def test_find_images_by_name_fragment_find_none():
     """Test find_images_by_name_fragment finds nothing and does not error"""
     images = _get_test_images()
-    found_images = ec2utils.find_images_by_name_fragment(images, 'foo')
+    found_images = ec2utils.find_images_by_name_fragment(
+        images,
+        'foo',
+        logger
+    )
     assert 0 == len(found_images)
 
 
 def test_find_images_by_name_regex_match_find_some():
     """Test find_images_by_name_regex_match finds images"""
     images = _get_test_images()
-    found_images = ec2utils.find_images_by_name_regex_match(images, '^test')
+    found_images = ec2utils.find_images_by_name_regex_match(
+        images,
+        '^test',
+        logger
+    )
     assert 2 == len(found_images)
 
 
@@ -177,7 +193,11 @@ def test_find_images_by_name_regex_match_find_none():
     """Test find_images_by_name_regex_match finds  nothing and
        does not error"""
     images = _get_test_images()
-    found_images = ec2utils.find_images_by_name_regex_match(images, '^-1')
+    found_images = ec2utils.find_images_by_name_regex_match(
+        images,
+        '^-1',
+        logger
+    )
     assert 0 == len(found_images)
 
 
@@ -186,7 +206,11 @@ def test_find_images_by_name_regex_match_invalid_re():
     images = _get_test_images()
 
     with pytest.raises(Exception):
-        ec2utils.find_images_by_name_regex_match(images, 't*{2}')
+        ec2utils.find_images_by_name_regex_match(
+            images,
+            't*{2}',
+            logger
+        )
 
 
 def test_generate_config_account_name():
