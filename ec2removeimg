@@ -209,7 +209,10 @@ if not secret_key:
     logger.error('Could not determine account secret access key')
     sys.exit(1)
 
-regions = utils.get_regions(args, access_key, secret_key)
+if not args.regions:
+    regions = utils.get_regions(args, access_key, secret_key)
+else:
+    regions = args.regions.split(',')
 
 remover = ec2rmimg.EC2RemoveImage(
     access_key=access_key,
