@@ -1,0 +1,105 @@
+.\" Process this file with
+.\" groff -man -Tascii ec2listimg.1
+.\"
+.TH ec2listimg
+.SH NAME
+ec2listimg \- List images in EC2
+.SH SYNOPSIS
+.B ec2listimg [option]
+.SH DESCRIPTION
+.B ec2listimg
+List an image in EC2. When no filter is specified all images in the account
+will be listed. It is possible to list only the image name, the image name and
+image id, or the complete image description.
+.SH OPTIONS
+.IP "-a --account ACCOUNT_NAME"
+Specifies the account to use to connect to EC2. The account is specified
+in the config file
+.IR ~/.ec2utils.conf.
+The account is specified as a section with [account-ACCOUNT_NAME] delimiter.
+The options of the sections are:
+.IR access_key_id
+.IR secret_access_key
+.I ssh_key_name
+and
+.IR ssh_private_key .
+this allows the program to connect to EC2. Only the
+.IR access_key_id
+and
+.IR secret_access_key
+options are used by this tool.
+.IP "--access-id AWS_ACCESS_KEY"
+Specifies the AWS access key and overrides the value given for the
+.I account
+with the
+.I access_key_id
+in the configuration file.
+.IP "-f --file CONFIG_FILE"
+Specifies the configuration file to use. The default is
+.IR ~/.ec2utils.conf .
+.IP "--image-id AMI_ID"
+Specify the AMI ID of the image to be listed. This option is
+mutually exclusive with the
+.IR --image-name ,
+.IR --image-name-frag ,
+and
+.IR --image-name-match .
+It will only return a result in a specific region as image ids are unique per
+region.
+.IP "--image-name IMAGE_NAME"
+Specify the name of the image to be listed. The program will look for
+an exact match of the name. This option is mutually exclusive with
+.IR --image-id ,
+.IR --image-name-frag ,
+and
+.IR --image-name-match .
+.IP "--image-name-frag IMAGE_NAME_FRAGMENT"
+Specify a section of an image name for the image(s) to be listed. Every
+image that matches the name fragment will be marked as listed. This
+option is mutually exclusive with
+.IR --image-id ,
+.IR --image-name-name ,
+and
+.IR --image-name-match .
+.IP "--image-name-match REGEX"
+Specify a regular expression to match an image name. Every image matching the
+regular expression will be listed. This option is mutually
+exclusive with
+.IR --image-id ,
+.IR --image-name-name ,
+and
+.IR --image-name-frag .
+.IP "-r --regions EC2_REGIONS"
+A comma separated list of Amazon EC2 regions, or a single region. If no
+region argument is specified all EC2 connected regions will be processed.
+EC2 disconnected regions have different API keys and thus the specified
+.I account
+would not work with the disconnected regions. If a disconnected region is to
+be processed specify the region explicitly on the command line, and only the
+region of interest along with the matching
+.IR account .
+.IP "-s --secret-key AWS_SECRET_KEY"
+Specifies the AWS secret access key and overrides the value given for the
+.I account
+with the
+.I secret_access_key
+in the configuration file.
+.IP "--verbose"
+Supported values are 0 (default), 1, and 2. With the default setting the
+output will be the image name. Setting the verbosity to 1 will list the image
+name and the image id. A value of 2 will provide the full image description as
+it is known to EC2.
+.IP "--version"
+Print the version of he program
+.SH EXAMPLE
+ec2listimg --account example --image-name-match test --verbose 1 --region us-west-1
+
+Will list all images in the account
+.IR example
+that match the
+.IR test
+in the image name in the
+.IR us-west-1
+region.
+.SH AUTHOR
+SUSE Public Cloud Team (public-cloud-dev@susecloud.net)

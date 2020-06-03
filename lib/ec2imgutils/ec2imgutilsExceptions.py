@@ -1,4 +1,4 @@
-# Copyright (c) 2018 SUSE LLC
+# Copyright (c) 2020 SUSE LLC
 #
 # This file is part of ec2imgutils.
 #
@@ -29,6 +29,10 @@ class EC2ConnectionException(Exception):
 
 
 class EC2DeprecateImgException(Exception):
+    pass
+
+
+class EC2ListImgException(Exception):
     pass
 
 

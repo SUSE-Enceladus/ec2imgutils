@@ -51,6 +51,22 @@ See the [man pages](man/man1/ec2deprecateimg.1) for more information.
 man ec2deprecateimg
 ```
 
+### ec2listimg
+
+A command line utility to list the AMIs in an account.
+
+#### Usage
+
+```
+> ec2listimg --account example --image-name-frag foo --region us-west-2
+```
+
+See the [man pages](man/man1/ec2listimg.1) for more information.
+
+```
+man ec2listimg
+```
+
 ### ec2publishimg
 
 A command line utility to control the visibility of an image in AWS EC2.

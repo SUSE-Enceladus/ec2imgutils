@@ -3,7 +3,7 @@ PREFIX=/usr
 NAME=ec2imgutils
 MANPATH=/usr/share/man
 dirs = lib man
-files = Makefile README.md LICENSE ec2deprecateimg ec2publishimg ec2removeimg ec2uploadimg setup.py requirements-dev.txt requirements.txt
+files = Makefile README.md LICENSE ec2deprecateimg ec2listimg ec2publishimg ec2removeimg ec2uploadimg setup.py requirements-dev.txt requirements.txt
 
 verSpec = $(shell rpm -q --specfile --qf '%{VERSION}' *.spec)
 verSrc = $(shell cat lib/ec2imgutils/VERSION)
