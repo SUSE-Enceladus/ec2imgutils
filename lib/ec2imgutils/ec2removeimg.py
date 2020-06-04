@@ -15,6 +15,7 @@
 # You should have received a copy of the GNU General Public License
 # along with ec2publishimg. If not, see <http://www.gnu.org/licenses/>.
 
+import logging
 import time
 
 import ec2imgutils.ec2utils as utils
@@ -37,8 +38,14 @@ class EC2RemoveImage(EC2ImgUtils):
             no_confirm=None,
             remove_all=False,
             secret_key=None,
-            verbose=None):
-        EC2ImgUtils.__init__(self)
+            log_level=logging.INFO,
+            log_callback=None
+    ):
+        EC2ImgUtils.__init__(
+            self,
+            log_level=log_level,
+            log_callback=log_callback
+        )
 
         self.access_key = access_key
         self.image_id = image_id
@@ -49,7 +56,6 @@ class EC2RemoveImage(EC2ImgUtils):
         self.no_confirm = no_confirm
         self.remove_all = remove_all
         self.secret_key = secret_key
-        self.verbose = verbose
 
     # ---------------------------------------------------------------------
     def _check_images_boundary_condition(self, images):
@@ -58,12 +64,12 @@ class EC2RemoveImage(EC2ImgUtils):
            found only one image"""
 
         if not images:
-            print('No images to remove found in region', self.region)
+            self.log.info('No images to remove found in region', self.region)
 
         if len(images) > 1 and not self.remove_all:
             msg = 'Found multiple images to remove, but "all" is '
             msg += 'not set. Cannot disambiguate images to remove'
-            print(msg)
+            self.log.info(msg)
             return False
 
         return True
@@ -75,16 +81,24 @@ class EC2RemoveImage(EC2ImgUtils):
         if self.image_id:
             return utils.find_images_by_id(owned_images, self.image_id)
         elif self.image_name:
-            return utils.find_images_by_name(owned_images, self.image_name)
+            return utils.find_images_by_name(
+                owned_images,
+                self.image_name,
+                self.log
+            )
         elif self.image_name_fragment:
             return utils.find_images_by_name_fragment(
                 owned_images,
-                self.image_name_fragment)
+                self.image_name_fragment,
+                self.log
+            )
         elif self.image_name_match:
             try:
                 return utils.find_images_by_name_regex_match(
                     owned_images,
-                    self.image_name_match)
+                    self.image_name_match,
+                    self.log
+                )
             except Exception:
                 msg = 'Unable to complie regular expression "%s"'
                 msg = msg % self.image_name_match
@@ -127,17 +141,17 @@ class EC2RemoveImage(EC2ImgUtils):
         if not self.keep_snap:
             header_msg += 'and snapshot '
         header_msg += 'in region: '
-        print(header_msg, self.region)
+        self.log.info(header_msg, self.region)
         for image in images:
             if not self.keep_snap:
                 snapshot = self._get_snapshot_id(image)
-                print('\t\t%s\t%s\t%s' % (
+                self.log.info('\t\t%s\t%s\t%s' % (
                     image['ImageId'],
                     image['Name'],
                     snapshot
                 ))
             else:
-                print('\t\t%s\t%s' % (image['ImageId'], image['Name']))
+                self.log.info('\t\t%s\t%s' % (image['ImageId'], image['Name']))
 
         return True
 
@@ -158,8 +172,10 @@ class EC2RemoveImage(EC2ImgUtils):
                 # Give the EC2 backend a little bit of time to catch up
                 time.sleep(1)
                 ec2.delete_snapshot(SnapshotId=snapshot)
-            if self.verbose:
-                print('Removing in region: ', self.region)
-                print('\tImage: %s\t%s' % (image['ImageId'], image['Name']))
-                if not self.keep_snap:
-                    print('\tSnapshot: ', snapshot)
+
+            self.log.debug('Removing in region: {}'.format(self.region))
+            self.log.debug(
+                '\tImage: %s\t%s' % (image['ImageId'], image['Name'])
+            )
+            if not self.keep_snap:
+                self.log.debug('\tSnapshot: {}'.format(snapshot))

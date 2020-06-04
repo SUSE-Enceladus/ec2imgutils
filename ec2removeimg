@@ -144,11 +144,13 @@ argparse.add_argument(
 
 args = argparse.parse_args()
 
+logger = utils.get_logger(args.verbose)
+
 if args.version:
     version_file_name = 'VERSION'
     base_path = os.path.dirname(utils.__file__)
     version = open(base_path + os.sep + version_file_name, 'r').read()
-    print(version)
+    logger.info(version)
     sys.exit(0)
 
 # Explicit check required to to the group issue, see comment above
@@ -160,19 +162,19 @@ if (
     error_msg = 'ec2removeimg: error: one of the arguments '
     error_msg += '--image-id --image-name --image-name-frag '
     error_msg += '--image-name-match is required'
-    print(error_msg, file=sys.stderr)
+    logger.error(error_msg)
     sys.exit(1)
 
 
 config_file = os.path.expanduser(args.config_file_path)
 config = None
 if not os.path.isfile(config_file):
-    print('Configuration file "%s" not found.' % config_file)
+    logger.error('Configuration file "%s" not found.' % config_file)
     sys.exit(1)
 try:
     config = utils.get_config(config_file)
 except Exception as e:
-    print(format(e), file=sys.stderr)
+    logger.exception(e)
     sys.exit(1)
 
 access_key = args.access_key
@@ -184,11 +186,11 @@ if not access_key:
                                            'access_key_id',
                                            '--access-id')
     except EC2AccountException as e:
-        print(format(e), file=sys.stderr)
+        logger.exception(e)
         sys.exit(1)
 
 if not access_key:
-    print('Could not determine account access key', file=sys.stderr)
+    logger.error('Could not determine account access key')
     sys.exit(1)
 
 secret_key = args.secret_key
@@ -200,11 +202,11 @@ if not secret_key:
                                            'secret_access_key',
                                            '--secret-key')
     except EC2AccountException as e:
-        print(format(e), file=sys.stderr)
+        logger.exception(e)
         sys.exit(1)
 
 if not secret_key:
-    print('Could not determine account secret access key', file=sys.stderr)
+    logger.error('Could not determine account secret access key')
     sys.exit(1)
 
 regions = utils.get_regions(args, access_key, secret_key)
@@ -219,10 +221,11 @@ remover = ec2rmimg.EC2RemoveImage(
     no_confirm=args.no_confirm,
     remove_all=args.all,
     secret_key=secret_key,
-    verbose=args.verbose)
+    log_callback=logger
+)
 
 if args.dry_run:
-    print('Dry run, the following images would be removed')
+    logger.info('Dry run, the following images would be removed')
 try:
     for region in regions:
         remover.set_region(region)
@@ -231,8 +234,8 @@ try:
         else:
             remover.remove_images()
 except EC2RemoveImgException as e:
-    print(format(e), file=sys.stderr)
+    logger.exception(e)
     sys.exit(1)
 except Exception as e:
-    print(format(e), file=sys.stderr)
+    logger.exception(e)
     sys.exit(1)
