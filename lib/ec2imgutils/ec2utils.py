@@ -232,7 +232,7 @@ def get_logger(verbose):
     else:
         log_level = logging.INFO
 
-    logger = logging.getLogger('obs_img_utils')
+    logger = logging.getLogger('ec2imgutils')
     logger.setLevel(log_level)
 
     console_handler = logging.StreamHandler()
