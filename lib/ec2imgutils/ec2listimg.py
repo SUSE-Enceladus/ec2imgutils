@@ -15,6 +15,7 @@
 # You should have received a copy of the GNU General Public License
 # along with ec2pub
 
+import logging
 import pprint
 
 import ec2imgutils.ec2utils as utils
@@ -23,7 +24,7 @@ from ec2imgutils.ec2imgutilsExceptions import EC2ListImgException
 
 
 class EC2ListImage(EC2ImgUtils):
-    """List image in account."""
+    """List owned images in an account."""
 
     # --------------------------------------------------------------------
     def __init__(
@@ -35,8 +36,15 @@ class EC2ListImage(EC2ImgUtils):
             image_name_match=None,
             indent=0,
             secret_key=None,
-            verbose=None):
-        EC2ImgUtils.__init__(self)
+            log_level=logging.INFO,
+            log_callback=None,
+            verbose=0
+    ):
+        EC2ImgUtils.__init__(
+            self,
+            log_level=log_level,
+            log_callback=log_callback
+        )
 
         self.access_key = access_key
         self.indent = indent
@@ -48,22 +56,26 @@ class EC2ListImage(EC2ImgUtils):
         self.verbose = verbose
 
     # ---------------------------------------------------------------------
-    def _get_images_to_list(self):
-        """Find the images to list"""
+    def list_images(self):
+        """List images that meet the criteria"""
         owned_images = self._get_owned_images()
         if self.image_id:
-            return utils.find_images_by_id(owned_images, self.image_id)
+            return utils.find_images_by_id(
+                owned_images, self.image_id, self.log.info
+            )
         elif self.image_name:
-            return utils.find_images_by_name(owned_images, self.image_name)
+            return utils.find_images_by_name(
+                owned_images, self.image_name, self.log.info
+            )
         elif self.image_name_fragment:
             return utils.find_images_by_name_fragment(
-                owned_images,
-                self.image_name_fragment)
+                owned_images, self.image_name_fragment, self.log.info
+            )
         elif self.image_name_match:
             try:
                 return utils.find_images_by_name_regex_match(
-                    owned_images,
-                    self.image_name_match)
+                    owned_images, self.image_name_match, self.log.info
+                )
             except Exception:
                 msg = 'Unable to complie regular expression "%s"'
                 msg = msg % self.image_name_match
@@ -72,22 +84,26 @@ class EC2ListImage(EC2ImgUtils):
             return owned_images
 
     # ---------------------------------------------------------------------
-    def list_images(self):
-        """List th eimages that match in the accoount"""
+    def output_image_list(self):
+        """Output the images that match in the account"""
         self._connect()
-        images = self._get_images_to_list()
+        images = self.list_images()
 
         for image in images:
             output = ' ' * self.indent
             if self.verbose == 0:
-                print(output + image.get('Name'))
+                self.log.info(output + image.get('Name'))
             elif self.verbose == 1:
-                print(output + image.get('Name') + '\t' + image.get('ImageId'))
+                self.log.info(
+                    output + image.get('Name') + '\t' + image.get('ImageId')
+                )
             else:
                 pp = pprint.PrettyPrinter(indent=(4 + self.indent))
-                pp.pprint(image)
+                self.log.info(pp.pformat(image))
+                if len(images) > 1 and image != images[-1]:
+                    self.log.info('')
 
     # ---------------------------------------------------------------------
-    def set_intent(self, indent):
+    def set_indent(self, indent):
         """Set the indent level for the output"""
         self.indent = indent

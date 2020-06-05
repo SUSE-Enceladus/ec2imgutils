@@ -38,6 +38,7 @@ install:
 	install -d -m 755 "$(DESTDIR)"/"$(MANDIR)"/man1
 	install -m 644 man/man1/* "$(DESTDIR)"/"$(MANDIR)"/man1
 	gzip "$(DESTDIR)"/"$(MANDIR)"/man1/ec2deprecateimg.1
+	gzip "$(DESTDIR)"/"$(MANDIR)"/man1/ec2listimg.1
 	gzip "$(DESTDIR)"/"$(MANDIR)"/man1/ec2publishimg.1
 	gzip "$(DESTDIR)"/"$(MANDIR)"/man1/ec2removeimg.1
 	gzip "$(DESTDIR)"/"$(MANDIR)"/man1/ec2uploadimg.1

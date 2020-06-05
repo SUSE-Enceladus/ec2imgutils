@@ -1,4 +1,4 @@
-# Copyright 2018 SUSE LLC
+# Copyright 2020 SUSE LLC
 #
 # This file is part of ec2imgutils
 #
@@ -121,7 +121,7 @@ class EC2PublishImage(EC2ImgUtils):
                     OperationType='add',
                     GroupNames=['all']
                 )
-            else:
+            elif self.allow_copy != 'none':
                 self._connect().modify_snapshot_attribute(
                     SnapshotId=snapshot_id,
                     Attribute='createVolumePermission',

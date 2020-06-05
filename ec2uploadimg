@@ -538,7 +538,7 @@ try:
                                                  'user',
                                                  '--user')
             if not ssh_user:
-                logger.error('Could not determin ssh user to use')
+                logger.error('Could not determine ssh user to use')
                 sys.exit(1)
 
             vpc_subnet_id = args.vpcSubnetId

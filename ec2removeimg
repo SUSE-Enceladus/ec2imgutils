@@ -149,7 +149,7 @@ logger = utils.get_logger(args.verbose)
 if args.version:
     version_file_name = 'VERSION'
     base_path = os.path.dirname(utils.__file__)
-    version = open(base_path + os.sep + version_file_name, 'r').read()
+    version = open(base_path + os.sep + version_file_name, 'r').read().strip()
     logger.info(version)
     sys.exit(0)
 

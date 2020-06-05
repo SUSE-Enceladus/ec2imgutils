@@ -111,11 +111,13 @@ argparse.add_argument(
 
 args = argparse.parse_args()
 
+logger = utils.get_logger(args.verbose)
+
 if args.version:
     version_file_name = 'VERSION'
     base_path = os.path.dirname(utils.__file__)
-    version = open(base_path + os.sep + version_file_name, 'r').read()
-    print(version)
+    version = open(base_path + os.sep + version_file_name, 'r').read().strip()
+    logger.info(version)
     sys.exit(0)
 
 config_file = os.path.expanduser(args.config_file_path)
@@ -173,17 +175,19 @@ lister = ec2lsimg.EC2ListImage(
     image_name_fragment=args.image_name_frag,
     image_name_match=args.image_name_match,
     secret_key=secret_key,
-    verbose=args.verbose)
+    log_callback=logger,
+    verbose=args.verbose
+)
 
-if len(regions) > 1:
-    lister.set_intent(4)
+if len(regions) > 1 or args.verbose:
+    lister.set_indent(4)
 
 try:
     for region in regions:
         if len(regions) > 1 and not args.verbose:
             print('Using EC2 region: %s' % region)
         lister.set_region(region)
-        lister.list_images()
+        lister.output_image_list()
 except EC2ListImgException as e:
     print(format(e), file=sys.stderr)
     sys.exit(1)
