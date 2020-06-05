@@ -1,6 +1,6 @@
 #!/usr/bin/python3
 
-# Copyright 2018 SUSE LLC
+# Copyright 2020 SUSE LLC
 #
 # This file is part of ec2imgutils
 #
@@ -21,15 +21,16 @@ import argparse
 import os
 import sys
 
+
 import ec2imgutils.ec2utils as utils
-import ec2imgutils.ec2removeimg as ec2rmimg
+import ec2imgutils.ec2listimg as ec2lsimg
 from ec2imgutils.ec2imgutilsExceptions import (
     EC2AccountException,
-    EC2RemoveImgException
+    EC2ListImgException
 )
 
 # Set up command line argument parsing
-argparse = argparse.ArgumentParser(description='Remove images in EC2')
+argparse = argparse.ArgumentParser(description='List account owned images')
 argparse.add_argument(
     '-a', '--account',
     dest='account_name',
@@ -43,33 +44,12 @@ argparse.add_argument(
     metavar='AWS_ACCESS_KEY'
 )
 argparse.add_argument(
-    '--all',
-    action='store_true',
-    default=False,
-    dest='all',
-    help='Delete all image that match the search criteria'
-)
-help_msg = 'Do not perform any action, print information about actions that '
-help_msg += 'would be performed instead (Optional)'
-argparse.add_argument(
-    '-n', '--dry-run',
-    action='store_true',
-    default=False,
-    dest='dry_run',
-    help=help_msg
-)
-argparse.add_argument(
     '-f', '--file',
     default=os.sep.join(['~', '.ec2utils.conf']),
     dest='config_file_path',
     help='Path to configuration file, default ~/.ec2utils.conf (Optional)',
     metavar='CONFIG_FILE'
 )
-# Note, one of the arguments in the group is required if --version is
-# not specified. However setting this behavior through the parser
-# also requires one argument to be specified even if --version is specified
-# This parser behavior is true even if --version and the group are part of the
-# same subgroup
 publish_image_condition_group = argparse.add_mutually_exclusive_group()
 publish_image_condition_group.add_argument(
     '--image-id',
@@ -99,20 +79,6 @@ publish_image_condition_group.add_argument(
     help=help_msg,
     metavar='REGEX'
 )
-argparse.add_argument(
-    '--no-confirm',
-    action='store_true',
-    default=False,
-    dest='no_confirm',
-    help='Remove matched images with confirmation of action'
-)
-argparse.add_argument(
-    '--preserve-snap',
-    action='store_true',
-    default=False,
-    dest='preserve_snap',
-    help='Do not remove the snapshot associated with the image'
-)
 help_msg = 'Comma separated list of regions for publishing, all integrated '
 help_msg += 'regions if not given (Optional)'
 argparse.add_argument(
@@ -127,12 +93,13 @@ argparse.add_argument(
     help='AWS secret access key (Optional)',
     metavar='AWS_SECRET_KEY'
 )
+help_msg = 'Set vebosety level 0 (default) image name, 1 image name and ID, '
+help_msg += '2 full description'
 argparse.add_argument(
     '--verbose',
-    action='store_true',
-    default=False,
+    type=int,
+    default=0,
     dest='verbose',
-    help='Enable on verbose output'
 )
 argparse.add_argument(
     '--version',
@@ -153,28 +120,15 @@ if args.version:
     logger.info(version)
     sys.exit(0)
 
-# Explicit check required to to the group issue, see comment above
-if (
-        not args.image_id and not
-        args.image_name and not
-        args.image_name_frag and not
-        args.image_name_match):
-    error_msg = 'ec2removeimg: error: one of the arguments '
-    error_msg += '--image-id --image-name --image-name-frag '
-    error_msg += '--image-name-match is required'
-    logger.error(error_msg)
-    sys.exit(1)
-
-
 config_file = os.path.expanduser(args.config_file_path)
 config = None
 if not os.path.isfile(config_file):
-    logger.error('Configuration file "%s" not found.' % config_file)
+    print('Configuration file "%s" not found.' % config_file)
     sys.exit(1)
 try:
     config = utils.get_config(config_file)
 except Exception as e:
-    logger.exception(e)
+    print(format(e), file=sys.stderr)
     sys.exit(1)
 
 access_key = args.access_key
@@ -186,11 +140,11 @@ if not access_key:
                                            'access_key_id',
                                            '--access-id')
     except EC2AccountException as e:
-        logger.exception(e)
+        print(format(e), file=sys.stderr)
         sys.exit(1)
 
 if not access_key:
-    logger.error('Could not determine account access key')
+    print('Could not determine account access key', file=sys.stderr)
     sys.exit(1)
 
 secret_key = args.secret_key
@@ -202,11 +156,11 @@ if not secret_key:
                                            'secret_access_key',
                                            '--secret-key')
     except EC2AccountException as e:
-        logger.exception(e)
+        print(format(e), file=sys.stderr)
         sys.exit(1)
 
 if not secret_key:
-    logger.error('Could not determine account secret access key')
+    print('Could not determine account secret access key', file=sys.stderr)
     sys.exit(1)
 
 if not args.regions:
@@ -214,31 +168,29 @@ if not args.regions:
 else:
     regions = args.regions.split(',')
 
-remover = ec2rmimg.EC2RemoveImage(
+lister = ec2lsimg.EC2ListImage(
     access_key=access_key,
     image_id=args.image_id,
     image_name=args.image_name,
     image_name_fragment=args.image_name_frag,
     image_name_match=args.image_name_match,
-    keep_snap=args.preserve_snap,
-    no_confirm=args.no_confirm,
-    remove_all=args.all,
     secret_key=secret_key,
-    log_callback=logger
+    log_callback=logger,
+    verbose=args.verbose
 )
 
-if args.dry_run:
-    logger.info('Dry run, the following images would be removed')
+if len(regions) > 1 or args.verbose:
+    lister.set_indent(4)
+
 try:
     for region in regions:
-        remover.set_region(region)
-        if args.dry_run:
-            remover.print_remove_info()
-        else:
-            remover.remove_images()
-except EC2RemoveImgException as e:
-    logger.exception(e)
+        if len(regions) > 1 and not args.verbose:
+            print('Using EC2 region: %s' % region)
+        lister.set_region(region)
+        lister.output_image_list()
+except EC2ListImgException as e:
+    print(format(e), file=sys.stderr)
     sys.exit(1)
 except Exception as e:
-    logger.exception(e)
+    print(format(e), file=sys.stderr)
     sys.exit(1)

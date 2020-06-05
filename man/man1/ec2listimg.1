@@ -1,15 +1,16 @@
 .\" Process this file with
-.\" groff -man -Tascii ec2removeimg.1
+.\" groff -man -Tascii ec2listimg.1
 .\"
-.TH ec2removeimg 1
+.TH ec2listimg
 .SH NAME
-ec2removeimg \- Remove images in EC2
+ec2listimg \- List images in EC2
 .SH SYNOPSIS
-.B ec2removeimg [option]
+.B ec2listimg [option]
 .SH DESCRIPTION
-.B ec2removeimg
-Remove an image in EC2 by deregistering the AMI and deleting the associated
-snapshot.
+.B ec2listimg
+List an image in EC2. When no filter is specified all images in the account
+will be listed. It is possible to list only the image name, the image name and
+image id, or the complete image description.
 .SH OPTIONS
 .IP "-a --account ACCOUNT_NAME"
 Specifies the account to use to connect to EC2. The account is specified
@@ -33,33 +34,28 @@ Specifies the AWS access key and overrides the value given for the
 with the
 .I access_key_id
 in the configuration file.
-.IP "--all"
-Deletes all images that match the criteria for image lookup. By default the
-tool will only delete an image if there is a singular match.
-.IP "-n --dry-run"
-The program will not perform any action. It will provide information on
-.I stdout
-about the actions it would perform.
 .IP "-f --file CONFIG_FILE"
 Specifies the configuration file to use. The default is
 .IR ~/.ec2utils.conf .
 .IP "--image-id AMI_ID"
-Specify the AMI ID of the image to be removed. This option is
+Specify the AMI ID of the image to be listed. This option is
 mutually exclusive with the
 .IR --image-name ,
 .IR --image-name-frag ,
 and
 .IR --image-name-match .
+It will only return a result in a specific region as image ids are unique per
+region.
 .IP "--image-name IMAGE_NAME"
-Specify the name of the image to be removed. The program will look for
+Specify the name of the image to be listed. The program will look for
 an exact match of the name. This option is mutually exclusive with
 .IR --image-id ,
 .IR --image-name-frag ,
 and
 .IR --image-name-match .
 .IP "--image-name-frag IMAGE_NAME_FRAGMENT"
-Specify a section of an image name for the image(s) to be removed. Every
-image that matches the name fragment will be removed. This
+Specify a section of an image name for the image(s) to be listed. Every
+image that matches the name fragment will be marked as listed. This
 option is mutually exclusive with
 .IR --image-id ,
 .IR --image-name-name ,
@@ -67,20 +63,12 @@ and
 .IR --image-name-match .
 .IP "--image-name-match REGEX"
 Specify a regular expression to match an image name. Every image matching the
-regular expression will be removed. This option is mutually
+regular expression will be listed. This option is mutually
 exclusive with
 .IR --image-id ,
 .IR --image-name-name ,
 and
 .IR --image-name-frag .
-.IP "--no-confirm"
-Delete the image without waiting for confirmation input. This will only
-delete the image without confirmation if there is a unique match of the
-image selection criteria given or if the
-.IR --all
-option is specified, all matches will be deleted.
-.IP "--preserve-snap"
-This options will preserve the snapshot associated with the AMI.
 .IP "-r --regions EC2_REGIONS"
 A comma separated list of Amazon EC2 regions, or a single region. If no
 region argument is specified all EC2 connected regions will be processed.
@@ -97,16 +85,21 @@ with the
 .I secret_access_key
 in the configuration file.
 .IP "--verbose"
-Print extra output about the operations performed to STDOUT.
+Supported values are 0 (default), 1, and 2. With the default setting the
+output will be the image name. Setting the verbosity to 1 will list the image
+name and the image id. A value of 2 will provide the full image description as
+it is known to EC2.
 .IP "--version"
 Print the version of he program
 .SH EXAMPLE
-ec2removeimg --account example --image-name-match v15 --all --no-confirm --verbose
+ec2listimg --account example --image-name-match test --verbose 1 --region us-west-1
 
-Will delete all images in all connected regions that match the
-.I v15
-regular expression in the image name. All associated snapshots will be
-deleted as well, no confirmation of the delete operation is required by
-the user and progress will be written to STDOUT.
+Will list all images in the account
+.IR example
+that match the
+.IR test
+in the image name in the
+.IR us-west-1
+region.
 .SH AUTHOR
 SUSE Public Cloud Team (public-cloud-dev@susecloud.net)
