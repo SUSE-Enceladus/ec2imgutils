@@ -36,6 +36,11 @@ class EC2ImgUtils:
             logger.setLevel(log_level)
             self.log = logger
 
+        try:
+            self.log_level = self.log.level
+        except AttributeError:
+            self.log_level = self.log.logger.level  # LoggerAdapter
+
     # ---------------------------------------------------------------------
     def _connect(self):
         """Connect to EC2"""

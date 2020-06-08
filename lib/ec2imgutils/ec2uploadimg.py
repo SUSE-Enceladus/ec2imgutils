@@ -148,7 +148,7 @@ class EC2ImageUploader(EC2ImgUtils):
                 )
             except Exception:
                 wait_status = 1
-            if self.log.level == logging.DEBUG:
+            if self.log_level == logging.DEBUG:
                 self.progress_timer.cancel()
             repeat_count = self._check_wait_status(
                 wait_status,
@@ -229,11 +229,11 @@ class EC2ImageUploader(EC2ImgUtils):
     ):
         """Check the wait status form the waiter and take appropriate action"""
         if wait_status:
-            if self.log.level == logging.DEBUG:
+            if self.log_level == logging.DEBUG:
                 print()
             if repeat_count == self.wait_count:
                 self.operation_complete = True
-                if self.log.level == logging.DEBUG:
+                if self.log_level == logging.DEBUG:
                     self.progress_timer.cancel()
                 time.sleep(self.default_sleep)  # Wait for the thread
                 if not skip_cleanup:
@@ -249,10 +249,10 @@ class EC2ImageUploader(EC2ImgUtils):
         else:
             repeat_count = self.wait_count + 1
             self.operation_complete = True
-            if self.log.level == logging.DEBUG:
+            if self.log_level == logging.DEBUG:
                 self.progress_timer.cancel()
             time.sleep(self.default_sleep)  # Wait for the thread
-            if self.log.level == logging.DEBUG:
+            if self.log_level == logging.DEBUG:
                 print()
 
         return repeat_count
@@ -280,7 +280,7 @@ class EC2ImageUploader(EC2ImgUtils):
                     )
                 except Exception:
                     wait_status = 1
-                if self.log.level == logging.DEBUG:
+                if self.log_level == logging.DEBUG:
                     self.progress_timer.cancel()
                 repeat_count = self._check_wait_status(
                     wait_status,
@@ -391,7 +391,7 @@ class EC2ImageUploader(EC2ImgUtils):
                 )
             except Exception:
                 wait_status = 1
-            if self.log.level == logging.DEBUG:
+            if self.log_level == logging.DEBUG:
                 self.progress_timer.cancel()
             repeat_count = self._check_wait_status(
                 wait_status,
@@ -455,7 +455,7 @@ class EC2ImageUploader(EC2ImgUtils):
                 )
             except Exception:
                 wait_status = 1
-            if self.log.level == logging.DEBUG:
+            if self.log_level == logging.DEBUG:
                 self.progress_timer.cancel()
             repeat_count = self._check_wait_status(
                 wait_status,
@@ -498,7 +498,7 @@ class EC2ImageUploader(EC2ImgUtils):
                 )
             except Exception:
                 wait_status = 1
-            if self.log.level == logging.DEBUG:
+            if self.log_level == logging.DEBUG:
                 self.progress_timer.cancel()
             repeat_count = self._check_wait_status(
                 wait_status,
@@ -567,14 +567,14 @@ class EC2ImageUploader(EC2ImgUtils):
             instance_ip = instance.get('PublicIpAddress')
             if self.use_private_ip:
                 instance_ip = instance.get('PrivateIpAddress')
-            if self.log.level == logging.DEBUG:
+            if self.log_level == logging.DEBUG:
                 print('. ', end=' ')
                 sys.stdout.flush()
             if timeout_counter * self.default_sleep >= self.ssh_timeout:
                 msg = 'Unable to obtain the instance IP address'
                 raise EC2UploadImgException(msg)
             timeout_counter += 1
-        if self.log.level == logging.DEBUG:
+        if self.log_level == logging.DEBUG:
             print()
         client = paramiko.client.SSHClient()
         client.set_missing_host_key_policy(paramiko.WarningPolicy())
@@ -589,7 +589,7 @@ class EC2ImageUploader(EC2ImgUtils):
                     hostname=instance_ip
                 )
             except Exception:
-                if self.log.level == logging.DEBUG:
+                if self.log_level == logging.DEBUG:
                     print('. ', end=' ')
                     sys.stdout.flush()
                 time.sleep(self.default_sleep)
@@ -817,7 +817,7 @@ class EC2ImageUploader(EC2ImgUtils):
                 )
             except Exception:
                 wait_status = 1
-            if self.log.level == logging.DEBUG:
+            if self.log_level == logging.DEBUG:
                 self.progress_timer.cancel()
             repeat_count = self._check_wait_status(
                 wait_status,
@@ -903,7 +903,7 @@ class EC2ImageUploader(EC2ImgUtils):
         # Taking a nap on the client side avoids the problem
         time.sleep(self.default_sleep)
 
-        if self.log.level == logging.DEBUG:
+        if self.log_level == logging.DEBUG:
             print('. ', end=' ')
             sys.stdout.flush()
             timeout_counter += 1
@@ -927,7 +927,7 @@ class EC2ImageUploader(EC2ImgUtils):
             sftp.put(source,
                      '%s/%s' % (target_dir, filename),
                      self._upload_progress)
-            if self.log.level == logging.DEBUG:
+            if self.log_level == logging.DEBUG:
                 print()
         except Exception as e:
             self._clean_up()
@@ -938,7 +938,7 @@ class EC2ImageUploader(EC2ImgUtils):
     # ---------------------------------------------------------------------
     def _upload_progress(self, transferred_bytes, total_bytes):
         """In verbose mode give an upload progress indicator"""
-        if self.log.level == logging.DEBUG:
+        if self.log_level == logging.DEBUG:
             percent_complete = (float(transferred_bytes) / total_bytes) * 100
             if percent_complete - self.percent_transferred >= 10:
                 print('.', end=' ')
@@ -1019,7 +1019,7 @@ class EC2ImageUploader(EC2ImgUtils):
                 )
             except Exception:
                 wait_status = 1
-            if self.log.level == logging.DEBUG:
+            if self.log_level == logging.DEBUG:
                 self.progress_timer.cancel()
             repeat_count = self._check_wait_status(
                 wait_status,
@@ -1090,7 +1090,7 @@ class EC2ImageUploader(EC2ImgUtils):
                 )
             except Exception:
                 wait_status = 1
-            if self.log.level == logging.DEBUG:
+            if self.log_level == logging.DEBUG:
                 self.progress_timer.cancel()
             repeat_count = self._check_wait_status(
                 wait_status,
@@ -1105,7 +1105,7 @@ class EC2ImageUploader(EC2ImgUtils):
     # ---------------------------------------------------------------------
     def create_snapshot(self, source):
         """Create a snapshot from the given source"""
-        if self.log.level == logging.DEBUG:
+        if self.log_level == logging.DEBUG:
             print()
         root_volume = self._create_image_root_volume(source)
         snapshot = self._create_snapshot(root_volume)
