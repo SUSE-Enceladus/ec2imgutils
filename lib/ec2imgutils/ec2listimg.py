@@ -61,20 +61,20 @@ class EC2ListImage(EC2ImgUtils):
         owned_images = self._get_owned_images()
         if self.image_id:
             return utils.find_images_by_id(
-                owned_images, self.image_id, self.log.info
+                owned_images, self.image_id
             )
         elif self.image_name:
             return utils.find_images_by_name(
-                owned_images, self.image_name, self.log.info
+                owned_images, self.image_name, self.log
             )
         elif self.image_name_fragment:
             return utils.find_images_by_name_fragment(
-                owned_images, self.image_name_fragment, self.log.info
+                owned_images, self.image_name_fragment, self.log
             )
         elif self.image_name_match:
             try:
                 return utils.find_images_by_name_regex_match(
-                    owned_images, self.image_name_match, self.log.info
+                    owned_images, self.image_name_match, self.log
                 )
             except Exception:
                 msg = 'Unable to complie regular expression "%s"'
