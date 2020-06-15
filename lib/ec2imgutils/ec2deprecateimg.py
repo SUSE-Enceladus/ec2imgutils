@@ -83,7 +83,7 @@ class EC2DeprecateImg(EC2ImgUtils):
     def _find_images_by_name(self, image_name, filter_replacement_image=None):
         """Find images by exact name match"""
         my_images = self._get_all_type_match_images(filter_replacement_image)
-        return utils.find_images_by_name(my_images, image_name)
+        return utils.find_images_by_name(my_images, image_name, self.log)
 
     # ---------------------------------------------------------------------
     def _find_images_by_name_fragment(
@@ -92,7 +92,11 @@ class EC2DeprecateImg(EC2ImgUtils):
             filter_replacement_image=None):
         """Find images by string matching of the fragment with the name"""
         my_images = self._get_all_type_match_images(filter_replacement_image)
-        return utils.find_images_by_name_fragment(my_images, name_fragment)
+        return utils.find_images_by_name_fragment(
+            my_images,
+            name_fragment,
+            self.log
+        )
 
     # ---------------------------------------------------------------------
     def _find_images_by_name_regex_match(
@@ -101,7 +105,11 @@ class EC2DeprecateImg(EC2ImgUtils):
             filter_replacement_image=None):
         """Find images by match the name with the given regular expression"""
         my_images = self._get_all_type_match_images(filter_replacement_image)
-        return utils.find_images_by_name_regex_match(my_images, expression)
+        return utils.find_images_by_name_regex_match(
+            my_images,
+            expression,
+            self.log
+        )
 
     # ---------------------------------------------------------------------
     def _format_date(self, date):
