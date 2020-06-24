@@ -952,6 +952,8 @@ class EC2ImageUploader(EC2ImgUtils):
         """Unpack the uploaded image file"""
         if self.aborted:
             return
+        raw_image_file = None
+        files = ''
         if (
                 image_filename.find('.tar') != -1 or
                 image_filename.find('.tbz') != -1 or
@@ -962,8 +964,9 @@ class EC2ImageUploader(EC2ImgUtils):
             files = self._execute_ssh_command(command).split('\r\n')
         elif image_filename[-2:] == 'xz':
             files = [image_filename]
+        elif image_filename[-3:] == 'raw':
+            raw_image_file = image_filename
 
-        raw_image_file = None
         if files:
             # Find the disk image
             for fl in files:
