@@ -647,7 +647,7 @@ class EC2ImageUploader(EC2ImgUtils):
                 continue
             this_device_size = device['size']
             unit = this_device_size[-1]
-            size = int(this_device_size[:-1])
+            size = float(this_device_size[:-1])
             size_multiplier = 1
             if unit == 'T':
                 size_multiplier = 1024
