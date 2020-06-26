@@ -38,7 +38,11 @@ class EC2PublishImage(EC2ImgUtils):
             visibility='all',
             log_level=logging.INFO,
             log_callback=None,
+<<<<<<< HEAD
             wait_count=1
+=======
+            wait_count = 1
+>>>>>>> 18af38f19049f0f113f930593115ca43e09af67d
 
     ):
         EC2ImgUtils.__init__(
@@ -55,6 +59,10 @@ class EC2PublishImage(EC2ImgUtils):
         self.secret_key = secret_key
         self.visibility = visibility
         self.wait_count = wait_count
+<<<<<<< HEAD
+=======
+
+>>>>>>> 18af38f19049f0f113f930593115ca43e09af67d
 
         if self.visibility == 'all':
             self.publish_msg = '\tPublished: %s\t\t%s'
@@ -167,6 +175,8 @@ class EC2PublishImage(EC2ImgUtils):
                                   Waiting up to 10 minutes for it to \
                                   become available.',
                                   image['ImageId'], image['State'])
+                    self.log.info("Current state of image %s is %s. Waiting up to 10 minutes for it to become available.",
+                                  image['ImageId'],image['State'])
                     try:
                         wait_status = waiter.wait(
                             ImageIds=[image['ImageId']],
