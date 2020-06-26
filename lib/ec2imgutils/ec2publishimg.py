@@ -39,7 +39,6 @@ class EC2PublishImage(EC2ImgUtils):
             log_level=logging.INFO,
             log_callback=None,
             wait_count=1
-
     ):
         EC2ImgUtils.__init__(
             self,
