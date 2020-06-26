@@ -167,8 +167,6 @@ class EC2PublishImage(EC2ImgUtils):
                                   Waiting up to 10 minutes for it to \
                                   become available.',
                                   image['ImageId'], image['State'])
-                    self.log.info("Current state of image %s is %s. Waiting up to 10 minutes for it to become available.",
-                                  image['ImageId'],image['State'])
                     try:
                         wait_status = waiter.wait(
                             ImageIds=[image['ImageId']],
