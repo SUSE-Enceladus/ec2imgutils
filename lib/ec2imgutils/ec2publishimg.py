@@ -37,8 +37,7 @@ class EC2PublishImage(EC2ImgUtils):
             secret_key=None,
             visibility='all',
             log_level=logging.INFO,
-            log_callback=None,
-            wait_count=1
+            log_callback=None
     ):
         EC2ImgUtils.__init__(
             self,
@@ -53,7 +52,6 @@ class EC2PublishImage(EC2ImgUtils):
         self.image_name_match = image_name_match
         self.secret_key = secret_key
         self.visibility = visibility
-        self.wait_count = wait_count
 
         if self.visibility == 'all':
             self.publish_msg = '\tPublished: %s\t\t%s'
@@ -158,46 +156,43 @@ class EC2PublishImage(EC2ImgUtils):
         images = self._get_images()
 
         for image in images:
-            if image['State'] != 'available':
+            skip_state = ['invalid', 'deregistered', 'transient', 'fail']
+            if image['State'] == 'pending':
                 waiter = self._connect().get_waiter('image_available')
-                loop_count = 0
-                while loop_count < self.wait_count:
-                    self.log.info('Current state of image %s is %s. \
-                                  Waiting up to 10 minutes for it to \
-                                  become available.',
-                                  image['ImageId'], image['State'])
-                    try:
-                        wait_status = waiter.wait(
-                            ImageIds=[image['ImageId']],
-                            Filters=[
-                                {
-                                    'Name': 'state',
-                                    'Values': ['available']
-                                }
-                            ]
-                        )
-                    except Exception:
-                        self.log.error('Skipping image %s as the image state \
-                                       could not be checked',
-                                       image['ImageId'])
-                        continue
+                self.log.info("Current state of image %s is %s. Waiting up "
+                              "to 10 minutes for it to become 'available'.",
+                              image['ImageId'], image['State'])
+                wait_status = 1
+                try:
+                    wait_status = waiter.wait(
+                        ImageIds=[image['ImageId']],
+                        Filters=[
+                            {
+                                'Name': 'state',
+                                'Values': ['available']
+                            }
+                        ],
+                        WaiterConfig={
+                            'Delay': 15,
+                            'MaxAttempts': 40
+                        }
+                    )
+                except Exception:
+                    wait_status = 1
 
-                    if wait_status:
-                        if loop_count == self.wait_count:
-                            self.log.info("Skipping image %s as it failed to \
-                                          become 'available",
-                                          image['ImageId'])
-                            continue
-                        else:
-                            loop_count += 1
-                            self.log.info("Image %s is still not 'available'.",
-                                          image['ImageId'])
-                            self.log.info('Entering wait loop number %d of %d',
-                                          loop_count, self.wait_count)
-                    else:
-                        loop_count = self.wait_count
-                        self.log.info("Image %s is now 'available'.",
-                                      image['ImageId'])
+                if wait_status:
+                    self.log.info("Skipping image %s as it failed to become"
+                                  "'available'", image['ImageId'])
+                    continue
+                else:
+                    self.log.info("Image %s is now 'available'.",
+                                  image['ImageId'])
+
+            elif image['State'] in skip_state:
+                self.log.info("Skipping image %s as the state is %s"
+                              " and is not able to be published.",
+                              image['ImageId'], image['State'])
+                continue
 
             if self.visibility == 'all':
                 self._connect().modify_image_attribute(
