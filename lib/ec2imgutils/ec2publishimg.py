@@ -156,6 +156,44 @@ class EC2PublishImage(EC2ImgUtils):
         images = self._get_images()
 
         for image in images:
+            skip_state = ['invalid', 'deregistered', 'transient', 'fail']
+            if image['State'] == 'pending':
+                waiter = self._connect().get_waiter('image_available')
+                self.log.info("Current state of image %s is %s. Waiting up "
+                              "to 10 minutes for it to become 'available'.",
+                              image['ImageId'], image['State'])
+                wait_status = 1
+                try:
+                    wait_status = waiter.wait(
+                        ImageIds=[image['ImageId']],
+                        Filters=[
+                            {
+                                'Name': 'state',
+                                'Values': ['available']
+                            }
+                        ],
+                        WaiterConfig={
+                            'Delay': 15,
+                            'MaxAttempts': 40
+                        }
+                    )
+                except Exception:
+                    wait_status = 1
+
+                if wait_status:
+                    self.log.info("Skipping image %s as it failed to become"
+                                  "'available'", image['ImageId'])
+                    continue
+                else:
+                    self.log.info("Image %s is now 'available'.",
+                                  image['ImageId'])
+
+            elif image['State'] in skip_state:
+                self.log.info("Skipping image %s as the state is %s"
+                              " and is not able to be published.",
+                              image['ImageId'], image['State'])
+                continue
+
             if self.visibility == 'all':
                 self._connect().modify_image_attribute(
                     ImageId=image['ImageId'],
