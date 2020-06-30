@@ -18,6 +18,7 @@
 import boto3
 import configparser
 import logging
+import os
 import re
 import sys
 
@@ -151,6 +152,43 @@ def get_config(configFilePath):
 
 
 # -----------------------------------------------------------------------------
+def get_account_info_from_aws(account, entry):
+    """Return a access value from the aws credentials file."""
+
+    config = configparser.RawConfigParser()
+    parsed = None
+    value = None
+    configFilePath = ['~/.aws/credentials', '~/.aws/config']
+
+    for config_file in configFilePath:
+        aws_file = os.path.expanduser(config_file)
+
+        try:
+            parsed = config.read(aws_file)
+        except Exception:
+            continue
+
+        if not parsed:
+            msg = 'Error parsing config file: %s' % aws_file
+            raise EC2ConfigFileParseException(msg)
+
+        try:
+            item = 'aws_' + entry
+            if config_file == '~/.aws/config':
+                section = 'profile ' + account
+            else:
+                section = account
+            value = config.get(section, item)
+        except Exception:
+            continue
+    if not value:
+        msg = 'Could not find %s in aws credentials file for region %s'
+        raise EC2ConfigFileParseException(msg % (entry, account))
+
+    return value
+
+
+# -----------------------------------------------------------------------------
 def get_from_config(account, config, region, entry, cmd_line_arg):
     """Retrieve an entry from the configuration"""
     value = None
@@ -166,11 +204,28 @@ def get_from_config(account, config, region, entry, cmd_line_arg):
             raise EC2AccountException(msg % cmd_line_arg)
 
         account_name = generate_config_account_name(account)
+
         try:
             value = config.get(account_name, entry)
         except Exception:
-            msg = 'Unable to get %s value from account section %s'
-            raise EC2AccountException(msg % (entry, account))
+            if entry in ['secret_access_key', 'access_key_id']:
+                try:
+                    value = get_account_info_from_aws(account, entry)
+                except Exception:
+                    msg = 'Unable to determine the %s value from '
+                    msg += '~/.ec2utils.conf, ~/.aws/config, or '
+                    msg += '~/.aws/credentials for account/profile %s.'
+                    raise EC2AccountException(msg % (entry, account))
+            else:
+                msg = 'Unable to get %s value from account section %s'
+                raise EC2AccountException(msg % (entry, account))
+
+        else:
+            try:
+                value = config.get(account_name, entry)
+            except Exception:
+                msg = 'Unable to get %s value from account section %s'
+                raise EC2AccountException(msg % (entry, account))
 
     return value
 
