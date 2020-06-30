@@ -290,6 +290,14 @@ argparse.add_argument(
     metavar='AWS_WAIT_COUNT',
     type=int
 )
+argparse.add_argument(
+    '--use-snapshot',
+    action='store_true',
+    default=False,
+    dest='useSnap',
+    help='Create the image using an existing snapshot that is specified \
+          as the source variable (Optional)'
+)
 
 args = argparse.parse_args()
 logger = utils.get_logger(args.verbose)
@@ -300,6 +308,11 @@ if '--version' in sys.argv:
     version = open(base_path + os.sep + version_file_name, 'r').read()
     logger.info(version)
     sys.exit(0)
+
+if args.useSnap and (args.snapOnly or args.rootSwapMethod):
+    logger.error('The options --use-snapshot cannot be specified \
+                 with --snaponly or --use-root-swap')
+    sys.exit(1)
 
 config_file = os.path.expanduser(args.configFilePath)
 config = None
@@ -313,9 +326,10 @@ except Exception:
     print_ex()
     sys.exit(1)
 
-if not os.path.isfile(args.source):
-    logger.error('Could not find specified image file: %s' % args.source)
-    sys.exit(1)
+if not args.useSnap:
+    if not os.path.isfile(args.source):
+        logger.error('Could not find specified image file: %s' % args.source)
+        sys.exit(1)
 
 try:
     utils.check_account_keys(config, args)
@@ -644,6 +658,9 @@ try:
                     print('Created snapshot: ', snapshot['SnapshotId'])
                 elif args.rootSwapMethod:
                     ami = uploader.create_image_use_root_swap(args.source)
+                    print('Created image: ', ami)
+                elif args.useSnap:
+                    ami = uploader.create_image_from_snapshot(args.source)
                     print('Created image: ', ami)
                 else:
                     ami = uploader.create_image(args.source)
