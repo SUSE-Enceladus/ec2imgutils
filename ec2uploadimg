@@ -266,9 +266,8 @@ argparse.add_argument(
     help=help_msg)
 argparse.add_argument(
     '--version',
-    action='store_true',
-    default=False,
-    dest='version',
+    action='version',
+    version=utils.get_version(),
     help='Program version'
 )
 help_msg = 'The ID, starts with "subnet-" of the VPC subnet in which the '
@@ -293,13 +292,6 @@ argparse.add_argument(
 
 args = argparse.parse_args()
 logger = utils.get_logger(args.verbose)
-
-if '--version' in sys.argv:
-    version_file_name = 'VERSION'
-    base_path = os.path.dirname(utils.__file__)
-    version = open(base_path + os.sep + version_file_name, 'r').read()
-    logger.info(version)
-    sys.exit(0)
 
 config_file = os.path.expanduser(args.configFilePath)
 config = None
