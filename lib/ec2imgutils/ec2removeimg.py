@@ -64,7 +64,9 @@ class EC2RemoveImage(EC2ImgUtils):
            found only one image"""
 
         if not images:
-            self.log.info('No images to remove found in region', self.region)
+            self.log.info(
+                'No images to remove found in region: {}'.format(self.region)
+            )
 
         if len(images) > 1 and not self.remove_all:
             msg = 'Found multiple images to remove, but "all" is '
@@ -140,8 +142,8 @@ class EC2RemoveImage(EC2ImgUtils):
         header_msg = 'Would remove image '
         if not self.keep_snap:
             header_msg += 'and snapshot '
-        header_msg += 'in region: '
-        self.log.info(header_msg, self.region)
+        header_msg += 'in region: {}'
+        self.log.info(header_msg.format(self.region))
         for image in images:
             if not self.keep_snap:
                 snapshot = self._get_snapshot_id(image)
