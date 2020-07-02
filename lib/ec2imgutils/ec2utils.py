@@ -18,6 +18,7 @@
 import boto3
 import configparser
 import logging
+import os
 import re
 import sys
 
@@ -241,3 +242,11 @@ def get_logger(verbose):
 
     logger.addHandler(console_handler)
     return logger
+
+
+# ----------------------------------------------------------------------------
+def get_version():
+    version_file_name = 'VERSION'
+    base_path = os.path.dirname(__file__)
+    version = open(base_path + os.sep + version_file_name, 'r').read()
+    return version.rstrip('\n')

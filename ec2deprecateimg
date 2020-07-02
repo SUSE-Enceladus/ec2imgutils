@@ -188,22 +188,14 @@ argparse.add_argument(
 )
 argparse.add_argument(
     '--version',
-    action='store_true',
-    default=False,
-    dest='version',
+    action='version',
+    version=utils.get_version(),
     help='Program version'
 )
 
 args = argparse.parse_args()
 
 logger = utils.get_logger(args.verbose)
-
-if args.version:
-    version_file_name = 'VERSION'
-    base_path = os.path.dirname(utils.__file__)
-    version = open(base_path + os.sep + version_file_name, 'r').read().strip()
-    logger.info(version)
-    sys.exit(0)
 
 # Explicit check required to to the group issue, see comment above
 if (
