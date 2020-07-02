@@ -37,7 +37,14 @@ The options of the sections are:
 .I ssh_key_name
 and
 .IR ssh_private_key .
-this allows the program to connect to EC2.
+This allows the program to connect to EC2.
+If the access_key_id and/or secret_access_key are not found in
+.IR ~/.ec2utils.conf,
+the search will use the ACCOUNT_NAME to look for a matching section
+[profile ACCOUNT_NAME] in
+.IR ~/.aws/config
+or [ACCOUNT_NAME] in
+.IR ~/.aws/credentials.
 .IP "--access-id AWS_ACCESS_KEY"
 Specifies the AWS access key and overrides the value given for the
 .I account
