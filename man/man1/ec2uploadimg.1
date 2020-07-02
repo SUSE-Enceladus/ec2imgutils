@@ -136,6 +136,9 @@ Specifies the AWS session token. Only necessary when using temporary credentials
 When this argument is set only a snapshot of the uploaded image will be
 created. The snapshot may then be used in a separate operation to register
 an AMI.
+.IP "--use-snapshot"
+When this argument is set the image will be created from an existing snapshot.
+The snapshotID is specified as the source variable.
 .IP "--sriov-support"
 Enable SRIOV support for HVM images. This implies that the appropriate
 driver has to be included in the image.

@@ -1001,6 +1001,24 @@ class EC2ImageUploader(EC2ImgUtils):
         return ami
 
     # ---------------------------------------------------------------------
+    def create_image_from_snapshot(self, source):
+        """Create an AMI (Amazon Machine Image) from the given snapshot"""
+
+        try:
+            response = self._connect().describe_snapshots(SnapshotIds=[source])
+
+        except Exception:
+            self.log.error('Unable to retrieve details for snapshot %s',
+                           source)
+            sys.exit(1)
+
+        snapshot = response['Snapshots'][0]
+        ami = self._register_image(snapshot)
+
+        return ami
+
+    # ---------------------------------------------------------------------
+
     def create_image_use_root_swap(self, source):
         """Creae an AMI (Amazon Machine Image) from the given source using
            the root swap method"""
