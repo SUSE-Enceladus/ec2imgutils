@@ -3,6 +3,11 @@ include Makefile
 include README.md
 include requirements.txt
 include requirements-dev.txt
+include ec2deprecateimg
+include ec2listimg
+include ec2publishimg
+include ec2removeimg
+include ec2uploadimg
 
 recursive-include tests *
 recursive-include man *.1
