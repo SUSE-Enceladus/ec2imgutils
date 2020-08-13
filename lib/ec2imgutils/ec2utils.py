@@ -182,8 +182,11 @@ def get_account_info_from_aws(account, entry):
         except Exception:
             continue
     if not value:
-        msg = 'Could not find %s in aws credentials file for region %s'
-        raise EC2ConfigFileParseException(msg % (entry, account))
+        sys.stdout.write("Unable to determine the %s value from " \
+                         "~/.ec2utils.conf, ~/.aws/config, or " \
+                         "~/.aws/credentials for account/profile %s." \
+                         % entry  % account)
+        exit(1)
 
     return value
 
