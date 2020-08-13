@@ -40,66 +40,6 @@ class Turncoat:
     pass
 
 
-def test_check_account_keys_no_cmd_keys():
-    """Test check_account_keys with the keys available in the config file"""
-    config_file = data_path + os.sep + 'complete.cfg'
-    config = ec2utils.get_config(config_file)
-    command_args = Turncoat()
-    command_args.accessKey = None
-    command_args.secretKey = None
-    command_args.accountName = 'tester'
-    assert 1 == ec2utils.check_account_keys(config, command_args)
-
-
-def test_check_account_keys_cmd_access_key():
-    """Test check_account_keys with the secrect key in the file and the
-       access key on the command line."""
-    config_file = data_path + os.sep + 'noaccesskey.cfg'
-    config = ec2utils.get_config(config_file)
-    command_args = Turncoat()
-    command_args.accessKey = 'AAAAAA'
-    command_args.secretKey = None
-    command_args.accountName = 'tester'
-    assert 1 == ec2utils.check_account_keys(config, command_args)
-
-
-def test_check_account_keys_cmd_secret_key():
-    """Test check_account_keys with the access key in the file and the
-       secret key on the command line."""
-    config_file = data_path + os.sep + 'nosecretkey.cfg'
-    config = ec2utils.get_config(config_file)
-    command_args = Turncoat()
-    command_args.accessKey = None
-    command_args.secretKey = 'BBBBBBB'
-    command_args.accountName = 'tester'
-    assert 1 == ec2utils.check_account_keys(config, command_args)
-
-
-def test_check_account_keys_cmd_keys():
-    """Test check_account_keys with the access and secret key on the
-       command line."""
-    config_file = data_path + os.sep + 'nokeys.cfg'
-    config = ec2utils.get_config(config_file)
-    command_args = Turncoat()
-    command_args.accessKey = 'AAAAAA'
-    command_args.secretKey = 'BBBBBBB'
-    command_args.accountName = 'tester'
-    assert 1 == ec2utils.check_account_keys(config, command_args)
-
-
-def test_check_account_keys_no_keys():
-    """Test check_account_keys with no keys available."""
-    config_file = data_path + os.sep + 'nokeys.cfg'
-    config = ec2utils.get_config(config_file)
-    command_args = Turncoat()
-    command_args.accessKey = None
-    command_args.secretKey = None
-    command_args.accountName = 'tester'
-
-    with pytest.raises(EC2AccountException):
-        ec2utils.check_account_keys(config, command_args)
-
-
 def test_find_images_by_id_find_one():
     """Test find_images_by_id finds an image"""
     images = _get_test_images()
