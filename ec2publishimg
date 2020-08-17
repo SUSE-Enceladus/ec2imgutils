@@ -163,7 +163,7 @@ if not os.path.isfile(config_file):
 try:
     config = utils.get_config(config_file)
 except Exception as e:
-    logger.exception(e)
+    logger.error(e)
     sys.exit(1)
 
 access_key = args.accessKey
@@ -175,7 +175,7 @@ if not access_key:
                                            'access_key_id',
                                            '--access-id')
     except EC2AccountException as e:
-        logger.exception(e)
+        logger.error(e)
         sys.exit(1)
 
 if not access_key:
@@ -191,7 +191,7 @@ if not secret_key:
                                            'secret_access_key',
                                            '--secret-key')
     except EC2AccountException as e:
-        logger.exception(e)
+        logger.error(e)
         sys.exit(1)
 
 if not secret_key:

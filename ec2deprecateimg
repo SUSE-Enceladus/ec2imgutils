@@ -1,6 +1,6 @@
 #!/usr/bin/python3
 
-# Copyright 2018 SUSE LLC
+# Copyright 2020 SUSE LLC
 #
 # This file is part of ec2imgutils
 #
@@ -242,7 +242,7 @@ if not access_key:
                                            'access_key_id',
                                            '--access-id')
     except EC2AccountException as e:
-        logger.exception(e)
+        logger.error(e)
         sys.exit(1)
 
 if not access_key:
@@ -258,7 +258,7 @@ if not secret_key:
                                            'secret_access_key',
                                            '--secret-key')
     except EC2AccountException as e:
-        logger.exception(e)
+        logger.error(e)
         sys.exit(1)
 
 if not secret_key:
