@@ -16,6 +16,7 @@
 # along with ec2publishimg. If not, see <http://www.gnu.org/licenses/>.
 
 import logging
+import sys
 import time
 
 import ec2imgutils.ec2utils as utils
@@ -35,7 +36,7 @@ class EC2RemoveImage(EC2ImgUtils):
             image_name_fragment=None,
             image_name_match=None,
             keep_snap=False,
-            no_confirm=None,
+            confirm=None,
             remove_all=False,
             secret_key=None,
             log_level=logging.INFO,
@@ -53,7 +54,7 @@ class EC2RemoveImage(EC2ImgUtils):
         self.image_name_fragment = image_name_fragment
         self.image_name_match = image_name_match
         self.keep_snap = keep_snap
-        self.no_confirm = no_confirm
+        self.confirm = confirm
         self.remove_all = remove_all
         self.secret_key = secret_key
 
@@ -106,7 +107,7 @@ class EC2RemoveImage(EC2ImgUtils):
                 msg = msg % self.image_name_match
                 raise EC2RemoveImgException(msg)
         else:
-            msg = 'No deprecation image condition set. Should not reach '
+            msg = 'No remove image condition set. Should not reach '
             msg += 'this point.'
             raise EC2RemoveImgException(msg)
 
@@ -168,16 +169,45 @@ class EC2RemoveImage(EC2ImgUtils):
             raise EC2RemoveImgException('Image ambiguity')
 
         for image in images:
-            ec2.deregister_image(ImageId=image['ImageId'])
-            if not self.keep_snap:
-                snapshot = self._get_snapshot_id(image)
-                # Give the EC2 backend a little bit of time to catch up
-                time.sleep(1)
-                ec2.delete_snapshot(SnapshotId=snapshot)
+            delete = 'True'
+            if self.confirm:
+                delete = self._query_yes_no(image)
 
-            self.log.debug('Removing in region: {}'.format(self.region))
-            self.log.debug(
-                '\tImage: %s\t%s' % (image['ImageId'], image['Name'])
-            )
-            if not self.keep_snap:
-                self.log.debug('\tSnapshot: {}'.format(snapshot))
+            if delete:
+                ec2.deregister_image(ImageId=image['ImageId'])
+                if not self.keep_snap:
+                    snapshot = self._get_snapshot_id(image)
+                    # Give the EC2 backend a little bit of time to catch up
+                    time.sleep(1)
+                    ec2.delete_snapshot(SnapshotId=snapshot)
+
+                    self.log.debug(
+                        'Removing in region: {}'.format(self.region))
+                    self.log.debug(
+                        '\tImage: %s\t%s' % (image['ImageId'], image['Name'])
+                    )
+                if not self.keep_snap:
+                    self.log.debug('\tSnapshot: {}'.format(snapshot))
+            else:
+                continue
+    # ---------------------------------------------------------------------
+
+    def _query_yes_no(self, image):
+        yes = {'yes', 'y', 'ye', ''}
+        no = {'no', 'n'}
+
+        while True:
+            try:
+                choice = input(
+                            '\tConfirm Delete Image: %s\t%s (Y/n)'
+                            % (image['ImageId'], image['Name'])
+                        ).lower()
+                if choice in yes:
+                    return True
+                elif choice in no:
+                    return False
+                else:
+                    sys.stdout.write("Please respond with 'yes' or 'no'\n")
+            except KeyboardInterrupt:
+                raise EC2RemoveImgException(
+                        'Keyboard Interrupt received, exiting')
