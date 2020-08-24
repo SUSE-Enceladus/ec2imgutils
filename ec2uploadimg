@@ -1,5 +1,6 @@
 #!/usr/bin/python3
 
+
 # Copyright 2020 SUSE LLC
 #
 # This file is part of ec2imgutils
@@ -330,12 +331,6 @@ if not args.useSnap:
         logger.error('Could not find specified image file: %s' % args.source)
         sys.exit(1)
 
-try:
-    utils.check_account_keys(config, args)
-except Exception:
-    print_ex()
-    sys.exit(1)
-
 access_key = args.accessKey
 if not access_key:
     try:
@@ -344,8 +339,8 @@ if not access_key:
                                            None,
                                            'access_key_id',
                                            '--access-id')
-    except EC2AccountException:
-        print_ex()
+    except EC2AccountException as e:
+        logger.error(e)
         sys.exit(1)
 
 if not access_key:
@@ -360,8 +355,8 @@ if not secret_key:
                                            None,
                                            'secret_access_key',
                                            '--secret-key')
-    except EC2AccountException:
-        print_ex()
+    except EC2AccountException as e:
+        logger.error(e)
         sys.exit(1)
 
 if not secret_key:
@@ -443,8 +438,9 @@ try:
                                                    region,
                                                    'ami',
                                                    '--ec2-ami')
-                except Exception:
-                    print_ex('Could not determine helper AMI-ID')
+                except Exception as e:
+                    logger.error('Could not determine helper AMI-ID')
+                    logger.error(e)
                     sys.exit(1)
             bootkernel = args.akiID
             if args.virtType == 'hvm':
@@ -511,23 +507,31 @@ try:
                 key_pair_name, ssh_private_key_file = \
                     setup.create_upload_key_pair()
             if not key_pair_name:
-                key_pair_name = utils.get_from_config(args.accountName,
-                                                      config,
-                                                      region,
-                                                      'ssh_key_name',
-                                                      '--ssh-key-pair')
+                try:
+                    key_pair_name = utils.get_from_config(args.accountName,
+                                                          config,
+                                                          region,
+                                                          'ssh_key_name',
+                                                          '--ssh-key-pair')
+                except Exception as e:
+                    logger.error(e)
+                    sys.exit(1)
             if not key_pair_name:
                 logger.error('Could not determine key pair name')
                 sys.exit(1)
 
             if not ssh_private_key_file:
-                ssh_private_key_file = utils.get_from_config(
-                    args.accountName,
-                    config,
-                    region,
-                    'ssh_private_key',
-                    '--private-key-file'
-                )
+                try:
+                    ssh_private_key_file = utils.get_from_config(
+                        args.accountName,
+                        config,
+                        region,
+                        'ssh_private_key',
+                        '--private-key-file'
+                    )
+                except Exception as e:
+                    logger.error(e)
+                    sys.exit(1)
 
             if not ssh_private_key_file:
                 logger.error(
@@ -545,11 +549,16 @@ try:
 
             ssh_user = args.sshUser
             if not ssh_user:
-                ssh_user = utils.get_from_config(args.accountName,
-                                                 config,
-                                                 region,
-                                                 'user',
-                                                 '--user')
+                try:
+                    ssh_user = utils.get_from_config(args.accountName,
+                                                     config,
+                                                     region,
+                                                     'user',
+                                                     '--user')
+                except Exception as e:
+                    logger.error(e)
+                    sys.exit(1)
+
             if not ssh_user:
                 logger.error('Could not determine ssh user to use')
                 sys.exit(1)
@@ -570,13 +579,15 @@ try:
                         'subnet_id_%s' % region,
                         '--vpc-subnet-id'
                     )
-                    if vpc_subnet_id:
-                        logger.debug('Using VPC subnet: %s' % vpc_subnet_id)
                 except Exception:
                     msg = 'Not using a subnet-id, none given on the '
                     msg += 'command line and none found in config for '
                     msg += '"subnet_id_%s" value' % region
-                    print_ex(msg)
+                    logger.error(msg)
+                    sys.exit(1)
+
+                if vpc_subnet_id:
+                    logger.debug('Using VPC subnet: %s' % vpc_subnet_id)
 
             security_group_ids = args.securityGroupIds
             if not security_group_ids and not args.runningID:
@@ -598,7 +609,7 @@ try:
                         msg = 'No security group specified in the '
                         msg += 'configuration, "security_group_ids_%s" or '
                         msg += 'given on the command line.'
-                        print_ex(msg % region)
+                        logger.error(msg)
                     if not security_group_ids and vpc_subnet_id:
                         ec2 = boto3.client(
                             aws_access_key_id=access_key,

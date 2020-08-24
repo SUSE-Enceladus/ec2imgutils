@@ -30,35 +30,6 @@ from ec2imgutils.ec2imgutilsExceptions import (
 )
 
 
-# -----------------------------------------------------------------------------
-def check_account_keys(config, command_args):
-    """Verify that API access keys are available"""
-    if (command_args.accessKey and command_args.secretKey):
-        # All data specified on the command line nothing to do
-        return 1
-    _basic_account_check(config, command_args)
-    account = command_args.accountName
-    account_name = generate_config_account_name(account)
-    access_key = None
-    if config.has_option(account_name, 'access_key_id'):
-        access_key = config.get(account_name, 'access_key_id')
-    secret_key = None
-    if config.has_option(account_name, 'secret_access_key'):
-        secret_key = config.get(account_name, 'secret_access_key')
-    if access_key and secret_key:
-        # All data specified on the command line nothing to do
-        return 1
-    if command_args.accessKey and secret_key:
-        # Combination of config and command line
-        return 1
-    if access_key and command_args.secretKey:
-        # Combination of config and command line
-        return 1
-    msg = 'Could not determine the access keys from data on command line '
-    msg += 'and configuration file.'
-    raise EC2AccountException(msg)
-
-
 # ----------------------------------------------------------------------------
 def find_images_by_id(images, image_id):
     """Return a list of images that match the given ID. By definition this
@@ -178,12 +149,14 @@ def get_account_info_from_aws(account, entry):
                 section = 'profile ' + account
             else:
                 section = account
-            value = config.get(section, item)
+
+            if config.has_option(section, item):
+                value = config.get(section, item)
+
         except Exception:
             continue
     if not value:
-        msg = 'Could not find %s in aws credentials file for region %s'
-        raise EC2ConfigFileParseException(msg % (entry, account))
+        raise EC2AccountException
 
     return value
 
@@ -205,26 +178,20 @@ def get_from_config(account, config, region, entry, cmd_line_arg):
 
         account_name = generate_config_account_name(account)
 
-        try:
+        if config.has_option(account_name, entry):
             value = config.get(account_name, entry)
-        except Exception:
+
+        if not value:
             if entry in ['secret_access_key', 'access_key_id']:
                 try:
                     value = get_account_info_from_aws(account, entry)
-                except Exception:
+                except EC2AccountException:
                     msg = 'Unable to determine the %s value from '
                     msg += '~/.ec2utils.conf, ~/.aws/config, or '
                     msg += '~/.aws/credentials for account/profile %s.'
                     raise EC2AccountException(msg % (entry, account))
             else:
-                msg = 'Unable to get %s value from account section %s'
-                raise EC2AccountException(msg % (entry, account))
-
-        else:
-            try:
-                value = config.get(account_name, entry)
-            except Exception:
-                msg = 'Unable to get %s value from account section %s'
+                msg = 'Unable to get %s value from account/region section %s'
                 raise EC2AccountException(msg % (entry, account))
 
     return value
