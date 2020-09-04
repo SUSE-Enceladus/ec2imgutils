@@ -19,6 +19,7 @@ import json
 import logging
 import os
 import paramiko
+import shutil
 import sys
 import threading
 import time
@@ -929,9 +930,10 @@ class EC2ImageUploader(EC2ImgUtils):
         sftp = self.ssh_client.open_sftp()
         try:
             self.log.debug('Uploading image file: {}'.format(source))
-            sftp.put(source,
-                     '%s/%s' % (target_dir, filename),
-                     self._upload_progress)
+            out_file = sftp.open('%s/%s' % (target_dir, filename), 'wb')
+            with open(source, 'rb') as in_file:
+                shutil.copyfileobj(in_file, out_file)
+
             if self.log_level == logging.DEBUG:
                 print()
         except Exception as e:
