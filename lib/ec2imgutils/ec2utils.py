@@ -205,10 +205,22 @@ def get_regions(command_args, access_key, secret_key):
     if command_args.regions:
         regions = command_args.regions.split(',')
     else:
-        regions = boto3.session.Session(
+        session = boto3.session.Session(
             aws_access_key_id=access_key,
             aws_secret_access_key=secret_key
-        ).get_available_regions('ec2')
+        )
+        sts_client = session.client('sts')
+
+        try:
+            # arn format is always "arn:{partition_name}"
+            partition = sts_client.get_caller_identity()['Arn'].split(':')[1]
+        except (KeyError, IndexError):
+            partition = 'aws'  # default to public aws partition
+
+        regions = session.get_available_regions(
+            'ec2',
+            partition_name=partition
+        )
 
     return regions
 
