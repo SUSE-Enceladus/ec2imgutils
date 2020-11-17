@@ -588,7 +588,7 @@ class EC2ImageUploader(EC2ImgUtils):
                     username=self.inst_user_name,
                     hostname=instance_ip
                 )
-            except Exception:
+            except (Exception, ConnectionResetError):
                 if self.log_level == logging.DEBUG:
                     print('. ', end=' ')
                     sys.stdout.flush()
