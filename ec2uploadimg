@@ -80,7 +80,7 @@ argparse.add_argument(
     '-B', '--backing-store',
     default='ssd',
     dest='backingStore',
-    help='The backing store type, (mag|ssd), default ssd (Optional)',
+    help='The backing store type, (mag|ssd), or one of the EBS storage IDs',
     metavar='EC2_BACKING_STORE'
 )
 argparse.add_argument(
