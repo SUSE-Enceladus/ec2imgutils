@@ -305,8 +305,10 @@ class EC2ImageUploader(EC2ImgUtils):
 
         if self.backing_store == 'mag':
             backing_store = 'standard'
-        else:
+        elif self.backing_store == 'ssd':
             backing_store = 'gp2'
+        else:
+            backing_store = self.backing_store
 
         block_device_map = {
             'DeviceName': root_device_name,

@@ -50,7 +50,8 @@ with the
 in the configuration file.
 .IP "-B --backing-store EC2_BACKING_STORE"
 Specifies the backing store type for the AMI to be created. The uploaded
-image is an EBS (Elastic Block Store) image and my be registered as using
+image is an EBS (Elastic Block Store) backed image and my be registered
+as using
 .I SSD
 or
 .I Magnetic
@@ -58,7 +59,16 @@ media as the backing store when being launched. Possible values are
 .I ssd,
 .I mag,
 or
-.I ssd,mag.
+.I one of the known storage classes.
+The generic identifier
+.I ssd
+is mapped to the
+.I gp2
+storage class, and the
+.I mag
+identifier is mapped to the
+.I standard
+storage class.
 .IP "--billing-codes BILLING_CODES"
 Specifies the billing product codes to apply to the image during
 registration. This functionality is restricted to specific accounts
