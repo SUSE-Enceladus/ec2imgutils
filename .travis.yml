@@ -12,7 +12,7 @@ script:
   - flake8 ec2*img
 deploy:
   provider: pypi
-  user: "suse-pub-cloud-dev"
+  user: "__token__"
   password: $PYPI_PASS
   on:
     tags: true
