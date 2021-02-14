@@ -32,7 +32,6 @@ Requires:       python3-dateutil
 Requires:       python3-paramiko
 BuildRequires:  python3-boto3 >= 1.4.1
 BuildRequires:  python3-dateutil
-Requires:       python3-paramiko
 BuildRequires:  python3-setuptools
 BuildRoot:      %{_tmppath}/%{name}-%{version}-build
 BuildArch:      noarch
