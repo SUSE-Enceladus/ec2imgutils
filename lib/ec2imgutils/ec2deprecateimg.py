@@ -1,4 +1,4 @@
-# Copyright 2018 SUSE LLC
+# Copyright 2021 SUSE LLC
 #
 # This file is part of ec2imgutils
 #
@@ -114,17 +114,8 @@ class EC2DeprecateImg(EC2ImgUtils):
     # ---------------------------------------------------------------------
     def _format_date(self, date):
         """Format the date to YYYYMMDD"""
-        year = date.year
-        month = date.month
-        day = date.day
-        date = '%s' % year
-        for item in [month, day]:
-            if item > 9:
-                date += '%s' % item
-            else:
-                date += '0%s' % item
 
-        return date
+        return date.strftime('%Y%m%d')
 
     # ---------------------------------------------------------------------
     def _get_all_type_match_images(self, filter_replacement_image=None):
@@ -249,6 +240,7 @@ class EC2DeprecateImg(EC2ImgUtils):
             'Replacement image {}'.format(self.replacement_image_tag)
         )
 
+        ec2 = self._connect()
         for image in images:
             existing_tags = image.get('Tags')
             tagged = False
@@ -277,11 +269,22 @@ class EC2DeprecateImg(EC2ImgUtils):
                 removal_date_data,
                 replacement_image_data
             ]
-            self._connect().create_tags(
+            ec2.create_tags(
                 Resources=[image['ImageId']], Tags=tags
             )
             self.log.debug(
                 '\t\ttagged:%s\t%s' % (image['ImageId'], image['Name'])
+            )
+            # There is a difference in terminology. In EC2 deprecated means
+            # an image cannot be used anymore by new users, this is similar
+            # to a deletion. For ec2imgutils deprecation means an image should
+            # no longer be used. Therefore we set the calculated deletion
+            # date as the deprecation date in AWS
+            ec2.enable_image_deprecation(
+                ImageId=image['ImageId'],
+                DeprecateAt=datetime.datetime.strptime(
+                    self.deletion_date, '%Y%m%d'
+                )
             )
 
     # ---------------------------------------------------------------------
