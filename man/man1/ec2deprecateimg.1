@@ -10,8 +10,8 @@ ec2deprecateimg \- Deprecate images in EC2 by adding tags
 .B ec2deprecateimg
 Deprecate images in EC2 by adding tags to an image and enabling AWS image
 deprecation. Image tagging is retained for backwards compatibility. The
-tagging mechanism is an implementation based on. Tags are not sticky, i.e.
-not visible to others if the image is shared.
+tagging mechanism is an implementation based on convention. Tags are not
+sticky, i.e. not visible to others if the image is shared.
 
 Images are tagged with:
 - Deprecated on     -> today's date in YYYYMMDD format
@@ -19,7 +19,7 @@ Images are tagged with:
 - Replacement image -> The AMI ID and name of the replacement image
 
 In EC2 a deprecated image is set into a state that makes it invisible to
-new users. This can be considered equivalent to a deltion. As such the tool
+new users. This can be considered equivalent to a deletion. As such the tool
 sets the deprecation data in EC2 to the removal date set for the tag.
 
 The image set as the replacement is removed from the list of potential images
