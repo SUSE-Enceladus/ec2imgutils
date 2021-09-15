@@ -1,7 +1,7 @@
 #!/usr/bin/python3
 
 
-# Copyright 2020 SUSE LLC
+# Copyright 2021 SUSE LLC
 #
 # This file is part of ec2imgutils
 #
@@ -94,6 +94,13 @@ argparse.add_argument(
     dest='akiID',
     help='AWS kernel ID (aki) to boot the new image (Optional)',
     metavar='AWS_AKI_ID'
+)
+argparse.add_argument(
+    '--boot-mode',
+    dest='bootMode',
+    help='Set the boot mode for the image, legacy-bios or uefi (Optional)',
+    choices=['', 'legacy-bios', 'uefi'],
+    metavar='BOOT_MODE'
 )
 argparse.add_argument(
     '-d', '--description',
@@ -660,7 +667,8 @@ try:
                     use_private_ip=args.usePrivateIP,
                     vpc_subnet_id=vpc_subnet_id,
                     wait_count=args.waitCount,
-                    log_callback=logger
+                    log_callback=logger,
+                    boot_mode=args.bootMode
                 )
 
                 if args.snapOnly:

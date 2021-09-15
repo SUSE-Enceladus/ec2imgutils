@@ -1,4 +1,4 @@
-# Copyright 2018 SUSE LLC
+# Copyright 2021 SUSE LLC
 #
 # This file is part of ec2imgutils
 #
@@ -60,7 +60,8 @@ class EC2ImageUploader(EC2ImgUtils):
                  vpc_subnet_id='',
                  wait_count=1,
                  log_level=logging.INFO,
-                 log_callback=None
+                 log_callback=None,
+                 boot_mode=None
                  ):
         EC2ImgUtils.__init__(
             self,
@@ -72,6 +73,7 @@ class EC2ImageUploader(EC2ImgUtils):
         self.backing_store = backing_store
         self.billing_codes = billing_codes
         self.bootkernel = bootkernel
+        self.boot_mode = boot_mode
         self.ena_support = ena_support
         self.image_arch = image_arch
         self.image_description = image_description
@@ -864,6 +866,8 @@ class EC2ImageUploader(EC2ImgUtils):
         }
         if self.billing_codes:
             register_args['BillingProducts'] = self.billing_codes.split(',')
+        if self.boot_mode:
+            register_args['BootMode'] = self.boot_mode
         if self.image_virt_type == 'paravirtual':
             register_args['KernelId'] = self.bootkernel
         if self.sriov_type:
