@@ -590,7 +590,8 @@ class EC2ImageUploader(EC2ImgUtils):
                 ssh_connection = client.connect(
                     key_filename=self.ssh_key_private_key_file,
                     username=self.inst_user_name,
-                    hostname=instance_ip
+                    hostname=instance_ip,
+                    timeout=10
                 )
             except (Exception, ConnectionResetError):
                 if self.log_level == logging.DEBUG:
