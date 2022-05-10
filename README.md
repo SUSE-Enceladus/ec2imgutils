@@ -30,8 +30,9 @@ to others if the image is shared.
 
 Images are tagged with:
 
-- Deprecated on -> today's date in YYYYMMDD format
-- Removal date -> today's date plus the deprecation period specified
+- Deprecated on -> provided deprecation date or today's date (if no deprecation
+ date is provided) in YYYYMMDD format
+- Removal date -> deprecation date plus the deprecation period specified
 - Replacement image -> The AMI ID and name of the replacement image
 
 The image set as the replacement is removed from the list of potential
@@ -42,7 +43,8 @@ _--image-name-match_ cannot match the replacement image.
 #### Usage
 
 ```
-> ec2deprecateimg --account example --image-name-match v15 --image-virt-type hvm --replacement-name exampleimage_v16
+> ec2deprecateimg --account example --image-name-match v15 --image-virt-type hvm \
+--replacement-name exampleimage_v16 --deprecation_date 20220510
 ```
 
 See the [man pages](man/man1/ec2deprecateimg.1) for more information.
