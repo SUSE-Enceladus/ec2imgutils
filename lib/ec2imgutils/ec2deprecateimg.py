@@ -182,7 +182,6 @@ class EC2DeprecateImg(EC2ImgUtils):
     # ---------------------------------------------------------------------
     def _set_deprecation_date(self, deprecation_date=''):
         """Set the deprecation date provided in the YYYYMMDD format"""
-        dep_date = None
         if deprecation_date:
             self.deprecation_date = deprecation_date
         else:
