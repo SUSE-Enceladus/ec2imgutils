@@ -68,7 +68,6 @@ class EC2DeprecateImg(EC2ImgUtils):
         self.replacement_image_name_fragment = replacement_image_name_fragment
         self.replacement_image_name_match = replacement_image_name_match
         self.secret_key = secret_key
-
         self._set_deprecation_date(deprecation_date)
         self._set_deletion_date()
 
@@ -175,37 +174,20 @@ class EC2DeprecateImg(EC2ImgUtils):
     # ---------------------------------------------------------------------
     def _set_deletion_date(self):
         """Set the date when the deprecation period expires"""
-        dep_date = None
-        if self.deprecation_date:
-            try:
-                dep_date = datetime.datetime.strptime(
-                    self.deprecation_date, '%Y%m%d')
-            except Exception as e:
-                msg = 'The deprecation date, "%s", is not valid.' \
-                    % self.deprecation_date
-                raise EC2DeprecateImgException(msg) from e
-        else:
-            dep_date = datetime.datetime.now()
-            self._set_deprecation_date('')
+        dep_date = datetime.datetime.strptime(self.deprecation_date, '%Y%m%d')
         expire = dep_date + dateutil.relativedelta.relativedelta(
             months=+self.deprecation_period)
         self.deletion_date = self._format_date(expire)
 
     # ---------------------------------------------------------------------
-    def _set_deprecation_date(self, deprecation_date):
+    def _set_deprecation_date(self, deprecation_date=''):
         """Set the deprecation date provided in the YYYYMMDD format"""
         dep_date = None
         if deprecation_date:
-            try:
-                dep_date = datetime.datetime.strptime(
-                    deprecation_date, '%Y%m%d')
-            except Exception as e:
-                msg = 'The deprecation date provided, "%s", is not valid.' \
-                    % deprecation_date
-                raise EC2DeprecateImgException(msg) from e
+            self.deprecation_date = deprecation_date
         else:
             dep_date = datetime.datetime.now()
-        self.deprecation_date = self._format_date(dep_date)
+            self.deprecation_date = self._format_date(dep_date)
 
     # ---------------------------------------------------------------------
     def _set_replacement_image_info(self):

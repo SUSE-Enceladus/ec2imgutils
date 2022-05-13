@@ -18,6 +18,7 @@
 # along with ec2deprecateimg. If not, see <http://www.gnu.org/licenses/>.
 
 import argparse
+import datetime
 import os
 import sys
 
@@ -29,6 +30,19 @@ from ec2imgutils.ec2imgutilsExceptions import (
 )
 
 
+# ----------------------------------------------------------------------------
+# Argument format validation functions
+def valid_YYYYMMDD_date(s):
+    try:
+        if s:
+            datetime.datetime.strptime(s, "%Y%m%d")
+        return s
+    except ValueError:
+        msg = "not a valid date: {0:!r}".format(s)
+        raise argparse.ArgumentTypeError(msg)
+
+
+# ----------------------------------------------------------------------------
 # Set up command line argument parsing
 argparse = argparse.ArgumentParser(description='Deprecate images in EC2')
 argparse.add_argument(
@@ -50,7 +64,8 @@ argparse.add_argument(
     default='',
     dest='depDate',
     help=help_msg,
-    metavar='DEPRECATION_DATE'
+    metavar='DEPRECATION_DATE',
+    type=valid_YYYYMMDD_date
 )
 help_msg = 'The deprecation period, image will be tagged for removal '
 help_msg += 'on "deprecation date + deprecation period", specified in months, '
