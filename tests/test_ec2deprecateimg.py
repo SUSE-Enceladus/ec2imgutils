@@ -26,11 +26,6 @@ import dateutil.relativedelta
 
 import ec2imgutils.ec2deprecateimg as ec2depimg
 
-from ec2imgutils.ec2imgutilsExceptions import (
-     EC2DeprecateImgException
-)
-
-
 logger = logging.getLogger('ec2imgutils')
 logger.setLevel(logging.INFO)
 # --------------------------------------------------------------------
