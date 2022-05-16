@@ -295,22 +295,22 @@ regions = utils.get_regions(args, access_key, secret_key)
 errors = {}
 try:
     deprecator = ec2depimg.EC2DeprecateImg(
-            access_key=access_key,
-            deprecation_date=args.depDate,
-            deprecation_period=args.depTime,
-            deprecation_image_id=args.depImgID,
-            deprecation_image_name=args.depImgName,
-            deprecation_image_name_fragment=args.depImgNameFrag,
-            deprecation_image_name_match=args.depImgNameMatch,
-            force=args.force,
-            image_virt_type=args.virtType,
-            public_only=args.publicOnly,
-            replacement_image_id=args.replImgID,
-            replacement_image_name=args.replImgName,
-            replacement_image_name_fragment=args.replImgNameFrag,
-            replacement_image_name_match=args.replImgNameMatch,
-            secret_key=secret_key,
-            log_callback=logger
+        access_key=access_key,
+        deprecation_date=args.depDate,
+        deprecation_period=args.depTime,
+        deprecation_image_id=args.depImgID,
+        deprecation_image_name=args.depImgName,
+        deprecation_image_name_fragment=args.depImgNameFrag,
+        deprecation_image_name_match=args.depImgNameMatch,
+        force=args.force,
+        image_virt_type=args.virtType,
+        public_only=args.publicOnly,
+        replacement_image_id=args.replImgID,
+        replacement_image_name=args.replImgName,
+        replacement_image_name_fragment=args.replImgNameFrag,
+        replacement_image_name_match=args.replImgNameMatch,
+        secret_key=secret_key,
+        log_callback=logger
     )
 except EC2DeprecateImgException as e:
     logger.exception(e)

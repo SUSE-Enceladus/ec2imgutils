@@ -68,9 +68,11 @@ class EC2DeprecateImg(EC2ImgUtils):
         self.replacement_image_name_fragment = replacement_image_name_fragment
         self.replacement_image_name_match = replacement_image_name_match
         self.secret_key = secret_key
-        self._set_deprecation_date(deprecation_date)
-        self._set_deletion_date()
-
+        try:
+            self._set_deprecation_date(deprecation_date)
+            self._set_deletion_date()
+        except Exception:
+            raise
         self.replacement_image_tag = None
 
     # ---------------------------------------------------------------------
@@ -182,8 +184,18 @@ class EC2DeprecateImg(EC2ImgUtils):
     # ---------------------------------------------------------------------
     def _set_deprecation_date(self, deprecation_date=''):
         """Set the deprecation date provided in the YYYYMMDD format"""
+        dep_date = None
         if deprecation_date:
-            self.deprecation_date = deprecation_date
+            try:
+                dep_date = datetime.datetime.strptime(
+                    deprecation_date,
+                    '%Y%m%d'
+                )
+                self.deprecation_date = deprecation_date
+            except Exception as e:
+                msg = 'The deprecation date provided, "%s", is not valid.' \
+                    % deprecation_date
+                raise EC2DeprecateImgException(msg) from e
         else:
             dep_date = datetime.datetime.now()
             self.deprecation_date = self._format_date(dep_date)
