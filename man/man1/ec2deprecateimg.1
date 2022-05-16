@@ -14,8 +14,9 @@ tagging mechanism is an implementation based on convention. Tags are not
 sticky, i.e. not visible to others if the image is shared.
 
 Images are tagged with:
-- Deprecated on     -> today's date in YYYYMMDD format
-- Removal date      -> today's date plus the deprecation period specified
+- Deprecated on     -> provided deprecation date (or today's date if no value
+provided) in YYYYMMDD format
+- Removal date      -> deprecation date plus the deprecation period specified
 - Replacement image -> The AMI ID and name of the replacement image
 
 In EC2 a deprecated image is set into a state that makes it invisible to
@@ -55,11 +56,14 @@ Specifies the AWS access key and overrides the value given for the
 with the
 .I access_key_id
 in the configuration file.
+.IP "--deprecation-date YYYYMMDD"
+Specifies the date when the image is considered deprecated. This parameter is
+optional and if it's not provided it will default to the date on which the
+program is executed.
 .IP "-d --deprecation-period NUMBER_OF_MONTHS"
 Specifies the number of months this image will be considered deprecated. After
 the deprecation period expires the image may be removed. The deprecation time
-is added to the date on which the program is executed and forms the value for
-the
+is added to the deprecation date and forms the value for the
 .I Removal date
 tag in the format
 .I YYYYMMDD.

@@ -18,6 +18,7 @@
 # along with ec2deprecateimg. If not, see <http://www.gnu.org/licenses/>.
 
 import argparse
+import datetime
 import os
 import sys
 
@@ -29,6 +30,19 @@ from ec2imgutils.ec2imgutilsExceptions import (
 )
 
 
+# ----------------------------------------------------------------------------
+# Argument format validation functions
+def valid_YYYYMMDD_date(s):
+    try:
+        if s:
+            datetime.datetime.strptime(s, "%Y%m%d")
+        return s
+    except ValueError:
+        msg = "not a valid date: {0:!r}".format(s)
+        raise argparse.ArgumentTypeError(msg)
+
+
+# ----------------------------------------------------------------------------
 # Set up command line argument parsing
 argparse = argparse.ArgumentParser(description='Deprecate images in EC2')
 argparse.add_argument(
@@ -43,9 +57,19 @@ argparse.add_argument(
     help='AWS access key (Optional)',
     metavar='AWS_ACCESS_KEY'
 )
+help_msg = 'The deprecation date, the date the image is considered '
+help_msg += 'deprecated. The default value is today\'s date (Optional)'
+argparse.add_argument(
+    '--deprecation-date',
+    default='',
+    dest='depDate',
+    help=help_msg,
+    metavar='DEPRECATION_DATE',
+    type=valid_YYYYMMDD_date
+)
 help_msg = 'The deprecation period, image will be tagged for removal '
-help_msg += 'on "now + deprecation perion", specified in months, default '
-help_msg += ' is 6 month (Optional)'
+help_msg += 'on "deprecation date + deprecation period", specified in months, '
+help_msg += 'default is 6 month (Optional)'
 argparse.add_argument(
     '-d', '--deprecation-period',
     default=6,
@@ -269,9 +293,10 @@ regions = utils.get_regions(args, access_key, secret_key)
 
 # Collect all the errors to be displayed later
 errors = {}
-
-deprecator = ec2depimg.EC2DeprecateImg(
+try:
+    deprecator = ec2depimg.EC2DeprecateImg(
         access_key=access_key,
+        deprecation_date=args.depDate,
         deprecation_period=args.depTime,
         deprecation_image_id=args.depImgID,
         deprecation_image_name=args.depImgName,
@@ -286,7 +311,10 @@ deprecator = ec2depimg.EC2DeprecateImg(
         replacement_image_name_match=args.replImgNameMatch,
         secret_key=secret_key,
         log_callback=logger
-)
+    )
+except EC2DeprecateImgException as e:
+    logger.exception(e)
+    sys.exit(1)
 
 for region in regions:
     deprecator.set_region(region)
