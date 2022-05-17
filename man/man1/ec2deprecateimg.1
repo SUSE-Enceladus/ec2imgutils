@@ -17,7 +17,7 @@ Images are tagged with:
 - Deprecated on     -> provided deprecation date (or today's date if no value
 provided) in YYYYMMDD format
 - Removal date      -> deprecation date plus the deprecation period specified
-- Replacement image -> The AMI ID and name of the replacement image
+- Replacement image -> The AMI ID and name of the replacement image(optional)
 
 In EC2 a deprecated image is set into a state that makes it invisible to
 new users. This can be considered equivalent to a deletion. As such the tool
@@ -139,7 +139,7 @@ One of
 .IR --replacement-name-frag ,
 or
 .IR --replacement-name-match ,
-must be specified.
+can be specified (optional).
 .IP "--replacement-name IMAGE_NAME"
 Specify the name of the image considered to be the replacement for the
 image(s) that are being deprecated. The option is mutually exclusive
@@ -156,7 +156,7 @@ One of
 .IR --replacement-name-frag ,
 or
 .IR --replacement-name-match ,
-must be specified.
+can be specified(optional).
 .IP "--replacement-name-frag IMAGE_NAME_FRAGMENT"
 Specify a section of an image name to be considered for the replacement
 image. This option is mutually exclusive with
@@ -175,7 +175,7 @@ One of
 .IR --replacement-name-frag ,
 or
 .IR --replacement-name-match ,
-must be specified.
+can be specified(optional).
 .IP "--replacement-name-match REGEX"
 Specify a regular expression to match an image name to be considered for
 the replacement image. This option is mutually exclusive with
@@ -194,7 +194,7 @@ One of
 .IR --replacement-name-frag ,
 or
 .IR --replacement-name-match ,
-must be specified.
+can be specified(optional).
 .IP "-r --regions EC2_REGIONS"
 A comma separated list of Amazon EC2 regions, or a single region. If no
 region argument is specified all EC2 connected regions will be processed.

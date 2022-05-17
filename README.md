@@ -33,7 +33,7 @@ Images are tagged with:
 - Deprecated on -> provided deprecation date or today's date (if no deprecation
  date is provided) in YYYYMMDD format
 - Removal date -> deprecation date plus the deprecation period specified
-- Replacement image -> The AMI ID and name of the replacement image
+- Replacement image -> The AMI ID and name of the replacement image (Optional)
 
 The image set as the replacement is removed from the list of potential
 images to be deprecated before any matching takes place. Therefore, the

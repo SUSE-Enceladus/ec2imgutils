@@ -218,9 +218,9 @@ class EC2DeprecateImg(EC2ImgUtils):
             condition = self.replacement_image_name_match
             images = self._find_images_by_name_regex_match(condition)
         else:
-            msg = 'No replacement image condition set. Should not reach '
-            msg += 'this point.'
-            raise EC2DeprecateImgException(msg)
+            # Set image tag to empty string if no replacement image provided
+            self.replacement_image_tag = None
+            return
 
         if not images:
             msg = 'Replacement image not found, "%s" ' % condition
@@ -250,23 +250,27 @@ class EC2DeprecateImg(EC2ImgUtils):
 
         self.log.debug('Deprecating images in region: {}'.format(self.region))
         self.log.debug('\tDeprecated on {}'.format(self.deprecation_date))
-        self.log.debug('Removal date {}'.format(self.deletion_date))
-        self.log.debug(
-            'Replacement image {}'.format(self.replacement_image_tag)
-        )
+        self.log.debug('\tRemoval date {}'.format(self.deletion_date))
+        if self.replacement_image_tag:
+            self.log.debug(
+                '\tReplacement image {}'.format(self.replacement_image_tag)
+            )
+        else:
+            self.log.debug('\tNo Replacement image provided')
 
         ec2 = self._connect()
         for image in images:
             existing_tags = image.get('Tags')
-            tagged = False
+            tagged_and_not_force = False
             if not self.force and existing_tags:
                 for tag in existing_tags:
                     if tag.get('Key') == 'Deprecated on':
                         msg = '\t\tImage %s already tagged, skipping'
                         self.log.debug(msg % image['ImageId'])
-                        tagged = True
-            if tagged:
+                        tagged_and_not_force = True
+            if tagged_and_not_force:
                 continue
+
             deprecated_on_data = {
                 'Key': 'Deprecated on',
                 'Value': self.deprecation_date
@@ -275,15 +279,41 @@ class EC2DeprecateImg(EC2ImgUtils):
                 'Key': 'Removal date',
                 'Value': self.deletion_date
             }
-            replacement_image_data = {
-                'Key': 'Replacement image',
-                'Value': self.replacement_image_tag
-            }
             tags = [
                 deprecated_on_data,
                 removal_date_data,
-                replacement_image_data
             ]
+
+            if self.replacement_image_tag:
+                replacement_image_data = {
+                    'Key': 'Replacement image',
+                    'Value': self.replacement_image_tag
+                }
+                tags.append(replacement_image_data)
+            else:
+                # Removing existing 'Replacement image' tag if already present
+                # and no replacement image is provided
+                if existing_tags:
+                    existing_replacement_img_tag = False
+                    for tag in existing_tags:
+                        if tag.get('Key') == 'Replacement image':
+                            existing_replacement_img_tag = True
+                    if existing_replacement_img_tag:
+                        repl_image_data = {
+                            'Key': 'Replacement image',
+                        }
+                        del_tags = [
+                            repl_image_data
+                        ]
+                        ec2.delete_tags(
+                            Resources=[image['ImageId']],
+                            Tags=del_tags
+                        )
+                        msg = '\t\tImage %s already tagged with Replacement'
+                        msg += 'image but none provided. Removing Replacement'
+                        msg += 'image tag'
+                        self.log.debug(msg % image['ImageId'])
+
             ec2.create_tags(
                 Resources=[image['ImageId']], Tags=tags
             )
@@ -317,9 +347,13 @@ class EC2DeprecateImg(EC2ImgUtils):
         )
         self.log.info('\tDeprecated on {}'.format(self.deprecation_date))
         self.log.info('\tRemoval date {}'.format(self.deletion_date))
-        self.log.info(
-            '\tReplacement image {}'.format(self.replacement_image_tag)
-        )
+        if self.replacement_image_tag:
+            self.log.info(
+                '\tReplacement image {}'.format(self.replacement_image_tag)
+            )
+        else:
+            self.log.info('\tNo Replacement image provided')
+
         self.log.info('\tImages to deprecate:\n\t\tID\t\t\t\tName')
         for image in images:
             self.log.info('\t\t%s\t%s' % (image['ImageId'], image['Name']))
