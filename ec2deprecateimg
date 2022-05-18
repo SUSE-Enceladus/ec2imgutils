@@ -1,6 +1,6 @@
 #!/usr/bin/python3
 
-# Copyright 2020 SUSE LLC
+# Copyright 2022 SUSE LLC
 #
 # This file is part of ec2imgutils
 #
@@ -31,10 +31,10 @@ from ec2imgutils.ec2imgutilsExceptions import (
 
 
 # ----------------------------------------------------------------------------
-# Argument format validation functions
 def valid_YYYYMMDD_date(s):
     """This function verifies the provided parameter is a valid date in format
-    YYYYMMDD """
+    YYYYMMDD
+    """
     try:
         if s:
             datetime.datetime.strptime(s, "%Y%m%d")
@@ -45,17 +45,18 @@ def valid_YYYYMMDD_date(s):
 
 
 # ----------------------------------------------------------------------------
-# Required arguments validation functions
 def check_required_arguments(args, logger):
-    """This functions is used to assure the additional requirements over
-    arguments (mandatory, etc.) are met."""
+    """This function is used to assure the additional requirements over
+    arguments (which ones are mandatory, etc.) are met.
+    """
     check_deprecated_image_args_present(args, logger)
 
 
+# ----------------------------------------------------------------------------
 def check_deprecated_image_args_present(args, logger):
     """This function checks that at least one of the possible args to specify
-    the deprecated image is present"""
-    # Explicit check required to to the group issue, see comment
+    the deprecated image is present
+    """
     if (
         not args.depImgID and not
         args.depImgName and not
@@ -70,10 +71,10 @@ def check_deprecated_image_args_present(args, logger):
 
 
 # ----------------------------------------------------------------------------
-# Configuration setup function
 def get_config(args, logger):
     """Function to the the configutation parsed from the configuration file
-    provided as an argument (or the default path)"""
+    provided as an argument (or the default path)
+    """
     config_file = os.path.expanduser(args.configFilePath)
     config = None
     if not os.path.isfile(config_file):
@@ -88,10 +89,10 @@ def get_config(args, logger):
 
 
 # ----------------------------------------------------------------------------
-# Access Key get function
 def get_access_key(args, config, logger):
     """Function to get the access_key to AWS with the data provided as command
-    line args"""
+    line args and config files.
+    """
     access_key = args.accessKey
     if not access_key:
         try:
@@ -113,10 +114,10 @@ def get_access_key(args, config, logger):
 
 
 # ----------------------------------------------------------------------------
-# Secret Key get function
 def get_secret_key(args, config, logger):
     """Function to get the secret_key to AWS with the data provided as command
-    line args"""
+    line args and config files
+    """
     secret_key = args.secretKey
     if not secret_key:
         try:
@@ -138,7 +139,6 @@ def get_secret_key(args, config, logger):
 
 
 # ----------------------------------------------------------------------------
-# Deprecation initialization function
 def get_deprecator(args, access_key, secret_key, logger):
     """Function to get an instance of the ec2imgutils.ec2deprecateimg class"""
     try:
@@ -167,7 +167,6 @@ def get_deprecator(args, access_key, secret_key, logger):
 
 
 # ----------------------------------------------------------------------------
-# Set up command line argument parsing
 def parse_args(args):
     """Commang argument parsing function."""
     parser = argparse.ArgumentParser(description='Deprecate images in EC2')
@@ -348,9 +347,11 @@ def parse_args(args):
     return parsed_args
 
 
+# ----------------------------------------------------------------------------
 def deprecate_images_in_region(deprecator, dryRun, region, errors, logger):
     """Function that deprecates the specified images for a AWS region. The
-    function returns the errors dictionary with any error it found added"""
+    function returns the errors dictionary with any error it found added
+    """
     try:
         if dryRun:
             logger.info('Dry run, image attributes will not be modified')
@@ -366,15 +367,18 @@ def deprecate_images_in_region(deprecator, dryRun, region, errors, logger):
     return errors
 
 
+# ----------------------------------------------------------------------------
 def print_errors(errors, logger):
     """Function that prints the collected errors during image deprecation
-    process"""
+    process
+    """
     if errors:
         logger.error('Collected errors:')
         for region, error in list(errors.items()):
             logger.error('Region: %s -> %s' % (region, error))
 
 
+# ----------------------------------------------------------------------------
 def main(args):
     args = parse_args(args)
     logger = utils.get_logger(args.verbose)
@@ -404,5 +408,6 @@ def main(args):
         sys.exit(1)
 
 
+# ----------------------------------------------------------------------------
 if __name__ == '__main__':
     main(sys.argv[1:])

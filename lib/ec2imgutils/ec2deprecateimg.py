@@ -1,4 +1,4 @@
-# Copyright 2021 SUSE LLC
+# Copyright 2022 SUSE LLC
 #
 # This file is part of ec2imgutils
 #
@@ -26,7 +26,8 @@ from ec2imgutils.ec2imgutilsExceptions import EC2DeprecateImgException
 
 class EC2DeprecateImg(EC2ImgUtils):
     """Deprecate EC2 image(s) by tagging the image with 3 tags, Deprecated on,
-       Removal date, and Replacement image."""
+       Removal date, and Replacement image.
+    """
 
     def __init__(
             self,
@@ -219,7 +220,7 @@ class EC2DeprecateImg(EC2ImgUtils):
             images = self._find_images_by_name_regex_match(condition)
         else:
             # Set image tag to empty string if no replacement image provided
-            self.replacement_image_tag = None
+            self.replacement_image_tag = ''
             return
 
         if not images:
@@ -292,13 +293,13 @@ class EC2DeprecateImg(EC2ImgUtils):
                 tags.append(replacement_image_data)
             else:
                 # Removing existing 'Replacement image' tag if already present
-                # and no replacement image is provided
+                # , no replacement image is provided and force flag set
                 if existing_tags:
-                    existing_replacement_img_tag = False
+                    replacement_img_tag_found = False
                     for tag in existing_tags:
                         if tag.get('Key') == 'Replacement image':
-                            existing_replacement_img_tag = True
-                    if existing_replacement_img_tag:
+                            replacement_img_tag_found = True
+                    if replacement_img_tag_found:
                         repl_image_data = {
                             'Key': 'Replacement image',
                         }

@@ -1,6 +1,6 @@
 #!/usr/bin/python3
 #
-# Copyright (c) 2015 SUSE Linux GmbH.  All rights reserved.
+# Copyright (c) 2022 SUSE Linux GmbH.  All rights reserved.
 #
 # This file is part of ec2utils
 #
@@ -24,7 +24,7 @@ import pytest
 import os
 import argparse
 
-# Ugly hack to get the script without the .py imported for testing
+# Hack to get the script without the .py imported for testing
 from importlib.machinery import SourceFileLoader
 
 ec2deprecateimg = SourceFileLoader(
@@ -71,7 +71,6 @@ def test_valid_YYYYMMDD_date(depr_date, expected_exc):
 
 # --------------------------------------------------------------------
 # Tests for valid parameters in parsing function
-
 test_cli_args_data = [
     (["--account",
       "testAccName",
