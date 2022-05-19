@@ -289,29 +289,6 @@ class EC2DeprecateImg(EC2ImgUtils):
                     'Value': self.replacement_image_tag
                 }
                 tags.append(replacement_image_data)
-            else:
-                # Removing existing 'Replacement image' tag if already present
-                # , no replacement image is provided and force flag set
-                if existing_tags:
-                    replacement_img_tag_found = False
-                    for tag in existing_tags:
-                        if tag.get('Key') == 'Replacement image':
-                            replacement_img_tag_found = True
-                    if replacement_img_tag_found:
-                        repl_image_data = {
-                            'Key': 'Replacement image',
-                        }
-                        del_tags = [
-                            repl_image_data
-                        ]
-                        ec2.delete_tags(
-                            Resources=[image['ImageId']],
-                            Tags=del_tags
-                        )
-                        msg = '\t\tImage %s already tagged with Replacement'
-                        msg += 'image but none provided. Removing Replacement'
-                        msg += 'image tag'
-                        self.log.debug(msg % image['ImageId'])
 
             ec2.create_tags(
                 Resources=[image['ImageId']], Tags=tags
