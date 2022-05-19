@@ -1,6 +1,6 @@
 #!/usr/bin/python3
 #
-# Copyright (c) 2022 SUSE Linux GmbH.  All rights reserved.
+# Copyright (c) 2015 SUSE Linux GmbH.  All rights reserved.
 #
 # This file is part of ec2utils
 #
@@ -21,415 +21,89 @@
 
 import logging
 import pytest
-import os
-import argparse
+import datetime
+import dateutil.relativedelta
 
-# Hack to get the script without the .py imported for testing
-from importlib.machinery import SourceFileLoader
+import ec2imgutils.ec2deprecateimg as ec2depimg
 
-ec2deprecateimg = SourceFileLoader(
-    'ec2deprecateimg',
-    './ec2deprecateimg'
-).load_module()
-
-
-# Global variables
-this_path = os.path.dirname(os.path.abspath(__file__))
-data_path = this_path + os.sep + 'data'
+from ec2imgutils.ec2imgutilsExceptions import (
+     EC2DeprecateImgException
+)
 
 logger = logging.getLogger('ec2imgutils')
 logger.setLevel(logging.INFO)
-
-
 # --------------------------------------------------------------------
-# Tests for valid_YYYYMMDD_date function
+# Test data for deprecation date parameter
+today = datetime.datetime.now()
+today_tag = today.strftime('%Y%m%d')
+one_month_delta = dateutil.relativedelta.relativedelta(months=+1)
+six_month_delta = dateutil.relativedelta.relativedelta(months=+6)
+
 test_depr_date_data = [
-    ("asdf", True),
-    ("20202001", True),
-    ("20200230", True),
-    ("20200130", False),
-    ("20220202", False),
+    ("", 1, False, today_tag, (today + one_month_delta).strftime('%Y%m%d')),
+    ("", 6, False, today_tag, (today + six_month_delta).strftime('%Y%m%d')),
+    ("20220707", 6, False, '20220707', '20230107'),
+    ("20221231", 1, False, '20221231', '20230131'),
+    ("20220331", 1, False, '20220331', '20220430'),
+    ("asdf", 6, True, '', ''),
+    ("20220230", 6, True, '', ''),
+    ("2022", 6, True, '', ''),
 ]
 
 
 @pytest.mark.parametrize(
-    "depr_date,expected_exc",
+    "depr_date,depr_period,expected_exc,expected_depr_date,expected_del_date",
     test_depr_date_data
 )
-def test_valid_YYYYMMDD_date(depr_date, expected_exc):
-    """Test valid_YYYYMMDD_date function"""
+def test_deprecation_date_parameter(
+    depr_date,
+    depr_period,
+    expected_exc,
+    expected_depr_date,
+    expected_del_date
+):
+    """Test deprecation_date parameter"""
     if expected_exc:
-        with pytest.raises(argparse.ArgumentTypeError) as depr_exc:
-            ec2deprecateimg.valid_YYYYMMDD_date(depr_date)
+        with pytest.raises(EC2DeprecateImgException) as depr_exc:
+            deprecator = ec2depimg.EC2DeprecateImg(
+                access_key='',
+                deprecation_date=depr_date,
+                deprecation_period=depr_period,
+                deprecation_image_id='',
+                deprecation_image_name='',
+                deprecation_image_name_fragment='',
+                deprecation_image_name_match='',
+                force=False,
+                image_virt_type='',
+                public_only=False,
+                replacement_image_id='',
+                replacement_image_name='',
+                replacement_image_name_fragment='',
+                replacement_image_name_match='',
+                secret_key='',
+                log_callback=logger
+            )
+        assert "deprecation date" in str(depr_exc.value)
         assert depr_date in str(depr_exc.value)
-        assert 'not a valid date' in str(depr_exc.value)
+
     else:
-        returned_depr_date = ec2deprecateimg.valid_YYYYMMDD_date(depr_date)
-
-        assert depr_date == returned_depr_date
-
-
-# --------------------------------------------------------------------
-# Tests for valid parameters in parsing function
-test_cli_args_data = [
-    (["--account",
-      "testAccName",
-      "--access-id",
-      "testAccId",
-      "--deprecation-date",
-      "20220101",
-      "--deprecation-period",
-      "6",
-      "--dry-run",
-      "--file",
-      "/path/to/configuration/file",
-      "--force",
-      "--image-name",
-      "testImageName",
-      "--image-virt-type",
-      "hvm",
-      "--public-only",
-      "--replacement-name",
-      "testReplacementName",
-      "--regions",
-      "region1,region2,region3",
-      "--secret-key",
-      "testSecretKey",
-      "--verbose"]),
-]
-
-
-@pytest.mark.parametrize(
-    "cli_args",
-    test_cli_args_data
-)
-def test_args(cli_args):
-    parsed_args = ec2deprecateimg.parse_args(cli_args)
-    ec2deprecateimg.check_required_arguments(parsed_args, logger)
-    assert parsed_args.accountName == "testAccName"
-    assert parsed_args.accessKey == "testAccId"
-    assert parsed_args.depDate == "20220101"
-    assert parsed_args.depTime == 6
-    assert parsed_args.dryRun is True
-    assert parsed_args.configFilePath == "/path/to/configuration/file"
-    assert parsed_args.force is True
-    assert parsed_args.depImgName == "testImageName"
-    assert parsed_args.virtType == "hvm"
-    assert parsed_args.publicOnly is True
-    assert parsed_args.replImgName == "testReplacementName"
-    assert parsed_args.regions == "region1,region2,region3"
-    assert parsed_args.secretKey == "testSecretKey"
-    assert parsed_args.verbose is True
-
-
-# --------------------------------------------------------------------
-# Tests for required parameters not present
-test_cli_args_data = [
-    (["--account",
-      "testAccName",
-      "--access-id",
-      "testAccId",
-      "-n",
-      "--force"], True)
-]
-
-
-@pytest.mark.parametrize(
-    "cli_args,expected_exit",
-    test_cli_args_data
-)
-def test_required_image_args_not_present(cli_args, expected_exit):
-    if expected_exit:
-        with pytest.raises(SystemExit) as excinfo:
-            parsed_args = ec2deprecateimg.parse_args(cli_args)
-            ec2deprecateimg.check_required_arguments(parsed_args, logger)
-        assert excinfo.value.code == 1
-
-
-# --------------------------------------------------------------------
-# Tests for arguments exclusive group
-test_cli_args_data = [
-    (["--account",
-      "testAccName",
-      "--access-id",
-      "testAccId",
-      "--dry-run",
-      "--file",
-      "/path/to/configuration/file",
-      "--force",
-      "--image-name",
-      "testImageName",
-      "--image-id",
-      "testImageAMIid",
-      "--replacement-name",
-      "testReplacementName",
-      "--secret-key",
-      "testSecretKey",
-      "--verbose"]),
-]
-
-
-@pytest.mark.parametrize(
-    "cli_args",
-    test_cli_args_data
-)
-def test_image_arguments_exclusive_group(cli_args):
-    with pytest.raises(SystemExit) as excinfo:
-        parsed_args = ec2deprecateimg.parse_args(cli_args)
-        ec2deprecateimg.check_required_arguments(parsed_args, logger)
-    assert excinfo.value.code == 2
-
-
-# --------------------------------------------------------------------
-# Tests for wrong format in deprecation-date
-test_cli_args_data = [
-    (["--account",
-      "testAccName",
-      "--access-id",
-      "testAccId",
-      "--deprecation-date",
-      "2022/01/01",
-      "--image-name",
-      "testImageName",
-      "--replacement-name",
-      "testReplacementName",
-      "--secret-key",
-      "testSecretKey",
-      "--verbose"]),
-]
-
-
-@pytest.mark.parametrize(
-    "cli_args",
-    test_cli_args_data
-)
-def test_wrong_format_deprecation_date_parameter(cli_args):
-    with pytest.raises(SystemExit) as excinfo:
-        ec2deprecateimg.parse_args(cli_args)
-    assert excinfo.value.code == 2
-
-
-# --------------------------------------------------------------------
-# Tests for wrong format in deprecation-period
-test_cli_args_data = [
-    (["--account",
-      "testAccName",
-      "--access-id",
-      "testAccId",
-      "--deprecation-period",
-      "six",
-      "--image-name",
-      "testImageName",
-      "--replacement-name",
-      "testReplacementName",
-      "--secret-key",
-      "testSecretKey",
-      "--verbose"]),
-]
-
-
-@pytest.mark.parametrize(
-    "cli_args",
-    test_cli_args_data
-)
-def test_wrong_format_deprecation_period_parameter(cli_args):
-    with pytest.raises(SystemExit) as excinfo:
-        ec2deprecateimg.parse_args(cli_args)
-    assert excinfo.value.code == 2
-
-
-# --------------------------------------------------------------------
-# Tests for wrong virtualization-type
-test_cli_args_data = [
-    (["--account",
-      "testAccName",
-      "--access-id",
-      "testAccId",
-      "--image-virt-type",
-      "not_supported_value",
-      "--image-name",
-      "testImageName",
-      "--replacement-name",
-      "testReplacementName",
-      "--secret-key",
-      "testSecretKey",
-      "--verbose"]),
-]
-
-
-@pytest.mark.parametrize(
-    "cli_args",
-    test_cli_args_data
-)
-def test_wrong_virtualization_type(cli_args):
-    with pytest.raises(SystemExit) as excinfo:
-        ec2deprecateimg.parse_args(cli_args)
-    assert excinfo.value.code == 2
-
-
-# --------------------------------------------------------------------
-# Tests for config file management functions
-test_cli_args_data = [
-    (["--account",
-      "testAccount",
-      "--image-name",
-      "testImageName",
-      "--replacement-name",
-      "testReplacementName",
-      "-n",
-      "-f",
-      "/non/existing/file/path"], True),
-]
-
-
-@pytest.mark.parametrize(
-    "cli_args,expected_exit",
-    test_cli_args_data
-)
-def test_not_existing_config_file(cli_args, expected_exit):
-    parsed_args = ec2deprecateimg.parse_args(cli_args)
-    if expected_exit:
-        with pytest.raises(SystemExit) as excinfo:
-            ec2deprecateimg.get_config(parsed_args, logger)
-        assert excinfo.value.code == 1
-
-
-def test_get_invalid_config():
-    class Args:
-        configFilePath = ""
-    myArgs = Args()
-    myArgs.configFilePath = data_path + os.sep + 'invalid.cfg'
-    with pytest.raises(SystemExit) as excinfo:
-        ec2deprecateimg.get_config(myArgs, logger)
-    assert excinfo.value.code == 1
-
-
-def test_get_valid_config():
-    class Args:
-        configFilePath = ""
-    myArgs = Args()
-    myArgs.configFilePath = data_path + os.sep + 'complete.cfg'
-    config = ec2deprecateimg.get_config(myArgs, logger)
-    assert "AAAAAAAAAAAAAA" == str(
-        config._sections["account-tester"]["access_key_id"]
-    )
-
-
-# --------------------------------------------------------------------
-# Tests for get_access_key functions
-def test_get_access_key():
-    class Args:
-        configFilePath = ''
-        accessKey = ''
-        accountName = ''
-    myArgs = Args()
-    myArgs.configFilePath = data_path + os.sep + 'complete.cfg'
-    myArgs.accountName = 'tester'
-    config = ec2deprecateimg.get_config(myArgs, logger)
-    access_key = ec2deprecateimg.get_access_key(myArgs, config, logger)
-    assert "AAAAAAAAAAAAAA" == access_key
-
-
-def test_get_access_key_exception():
-    class Args:
-        configFilePath = ''
-        accessKey = ''
-        accountName = ''
-    myArgs = Args()
-    myArgs.configFilePath = data_path + os.sep + 'complete.cfg'
-    config = ec2deprecateimg.get_config(myArgs, logger)
-    with pytest.raises(SystemExit) as excinfo:
-        ec2deprecateimg.get_access_key(myArgs, config, logger)
-    assert excinfo.value.code == 1
-
-
-# --------------------------------------------------------------------
-# Tests for get_secret_key functions
-def test_get_secret_key():
-    class Args:
-        configFilePath = ''
-        secretKey = ''
-        accountName = ''
-    myArgs = Args()
-    myArgs.configFilePath = data_path + os.sep + 'complete.cfg'
-    myArgs.accountName = 'tester'
-    config = ec2deprecateimg.get_config(myArgs, logger)
-    secret_key = ec2deprecateimg.get_secret_key(myArgs, config, logger)
-    assert "BBBBBBBBBBBBBBBBBBBBBBBB" == secret_key
-
-
-def test_get_secret_key_exception():
-    class Args:
-        configFilePath = ''
-        secretKey = ''
-        accountName = ''
-    myArgs = Args()
-    myArgs.configFilePath = data_path + os.sep + 'complete.cfg'
-    config = ec2deprecateimg.get_config(myArgs, logger)
-    with pytest.raises(SystemExit) as excinfo:
-        ec2deprecateimg.get_secret_key(myArgs, config, logger)
-    assert excinfo.value.code == 1
-
-
-# --------------------------------------------------------------------
-# Tests for deprecator class initialization
-
-test_cli_args_data = [
-    (["--account",
-      "testAccName",
-      "--access-id",
-      "testAccId",
-      "--deprecation-date",
-      "20220101",
-      "--deprecation-period",
-      "6",
-      "--dry-run",
-      "--file",
-      "/path/to/configuration/file",
-      "--force",
-      "--image-name",
-      "testImageName",
-      "--image-virt-type",
-      "hvm",
-      "--public-only",
-      "--replacement-name",
-      "testReplacementName",
-      "--regions",
-      "region1,region2,region3",
-      "--secret-key",
-      "testSecretKey",
-      "--verbose"]),
-]
-
-
-@pytest.mark.parametrize(
-    "cli_args",
-    test_cli_args_data
-)
-def test_deprecator_init(cli_args):
-    parsed_args = ec2deprecateimg.parse_args(cli_args)
-    deprecator = ec2deprecateimg.get_deprecator(
-        parsed_args,
-        parsed_args.accessKey,
-        parsed_args.secretKey,
-        logger
-    )
-    assert deprecator.access_key == "testAccId"
-    assert deprecator.secret_key == "testSecretKey"
-
-
-@pytest.mark.parametrize(
-    "cli_args",
-    test_cli_args_data
-)
-def test_deprecator_init_exception(cli_args):
-    parsed_args = ec2deprecateimg.parse_args(cli_args)
-    parsed_args.depDate = '123'
-    with pytest.raises(SystemExit) as excinfo:
-        ec2deprecateimg.get_deprecator(
-            parsed_args,
-            parsed_args.accessKey,
-            parsed_args.secretKey,
-            logger
+        deprecator = ec2depimg.EC2DeprecateImg(
+            access_key='',
+            deprecation_date=depr_date,
+            deprecation_period=depr_period,
+            deprecation_image_id='',
+            deprecation_image_name='',
+            deprecation_image_name_fragment='',
+            deprecation_image_name_match='',
+            force=False,
+            image_virt_type='',
+            public_only=False,
+            replacement_image_id='',
+            replacement_image_name='',
+            replacement_image_name_fragment='',
+            replacement_image_name_match='',
+            secret_key='',
+            log_callback=logger
         )
-    assert excinfo.value.code == 1
+        assert expected_depr_date == deprecator.deprecation_date
+        assert expected_del_date == deprecator.deletion_date

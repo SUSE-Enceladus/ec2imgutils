@@ -1,4 +1,4 @@
-# Copyright 2022 SUSE LLC
+# Copyright 2021 SUSE LLC
 #
 # This file is part of ec2imgutils
 #
@@ -26,8 +26,7 @@ from ec2imgutils.ec2imgutilsExceptions import EC2DeprecateImgException
 
 class EC2DeprecateImg(EC2ImgUtils):
     """Deprecate EC2 image(s) by tagging the image with 3 tags, Deprecated on,
-       Removal date, and Replacement image.
-    """
+       Removal date, and Replacement image."""
 
     def __init__(
             self,
@@ -257,21 +256,20 @@ class EC2DeprecateImg(EC2ImgUtils):
                 '\tReplacement image {}'.format(self.replacement_image_tag)
             )
         else:
-            self.log.debug('\tNo Replacement image provided')
+            self.log.debug("\tNo replacement image provided")
 
         ec2 = self._connect()
         for image in images:
             existing_tags = image.get('Tags')
-            tagged_and_not_force = False
+            tagged = False
             if not self.force and existing_tags:
                 for tag in existing_tags:
                     if tag.get('Key') == 'Deprecated on':
                         msg = '\t\tImage %s already tagged, skipping'
                         self.log.debug(msg % image['ImageId'])
-                        tagged_and_not_force = True
-            if tagged_and_not_force:
+                        tagged = True
+            if tagged:
                 continue
-
             deprecated_on_data = {
                 'Key': 'Deprecated on',
                 'Value': self.deprecation_date
@@ -348,13 +346,9 @@ class EC2DeprecateImg(EC2ImgUtils):
         )
         self.log.info('\tDeprecated on {}'.format(self.deprecation_date))
         self.log.info('\tRemoval date {}'.format(self.deletion_date))
-        if self.replacement_image_tag:
-            self.log.info(
-                '\tReplacement image {}'.format(self.replacement_image_tag)
-            )
-        else:
-            self.log.info('\tNo Replacement image provided')
-
+        self.log.info(
+            '\tReplacement image {}'.format(self.replacement_image_tag)
+        )
         self.log.info('\tImages to deprecate:\n\t\tID\t\t\t\tName')
         for image in images:
             self.log.info('\t\t%s\t%s' % (image['ImageId'], image['Name']))
