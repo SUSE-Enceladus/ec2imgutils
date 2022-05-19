@@ -97,12 +97,14 @@ def parse_args(args):
         help='AWS secret access key (Optional)',
         metavar='AWS_SECRET_KEY'
     )
+    help_msg = 'Set vebosety level 0 (default) image name, 1 image name and '
+    help_msg += 'ID, 2 full description'
     parser.add_argument(
         '--verbose',
-        action='store_true',
-        default=False,
-        dest='verbose',
-        help='Enable on verbose output'
+        type=int,
+        default=0,
+        help=help_msg,
+        dest='verbose'
     )
     parser.add_argument(
         '--version',

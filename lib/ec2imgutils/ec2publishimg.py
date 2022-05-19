@@ -1,4 +1,4 @@
-# Copyright 2020 SUSE LLC
+# Copyright 2022 SUSE LLC
 #
 # This file is part of ec2imgutils
 #
