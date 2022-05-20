@@ -61,7 +61,8 @@ class EC2ImageUploader(EC2ImgUtils):
                  wait_count=1,
                  log_level=logging.INFO,
                  log_callback=None,
-                 boot_mode=None
+                 boot_mode=None,
+                 tpm_support=None
                  ):
         EC2ImgUtils.__init__(
             self,
@@ -92,6 +93,7 @@ class EC2ImageUploader(EC2ImgUtils):
         self.ssh_key_pair_name = ssh_key_pair_name
         self.ssh_key_private_key_file = ssh_key_private_key_file
         self.ssh_timeout = ssh_timeout
+        self.tpm = tpm_support
         self.use_grub2 = use_grub2
         self.use_private_ip = use_private_ip
         self.vpc_subnet_id = vpc_subnet_id
@@ -109,6 +111,16 @@ class EC2ImageUploader(EC2ImgUtils):
         self.ssh_client = None
         self.storage_volume_size = 2 * self.root_volume_size
         self.aborted = False
+
+        if sriov_type and sriov_type != 'simple':
+            raise EC2UploadImgException(
+                'sriov_type can only be None or simple'
+            )
+        tpm_versions = ['2.0']
+        if tpm_support and tpm_support not in tpm_versions:
+            raise EC2UploadImgException(
+                'tpm_support must be one of %s' % str(tpm_versions)
+            )
 
     def abort(self):
         """
@@ -873,6 +885,8 @@ class EC2ImageUploader(EC2ImgUtils):
             register_args['KernelId'] = self.bootkernel
         if self.sriov_type:
             register_args['SriovNetSupport'] = self.sriov_type
+        if self.tpm:
+            register_args['TpmSupport'] = 'v%s' % self.tpm
 
         ami = self._connect().register_image(**register_args)
 

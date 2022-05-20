@@ -1,7 +1,7 @@
 #!/usr/bin/python3
 
 
-# Copyright 2021 SUSE LLC
+# Copyright 2022 SUSE LLC
 #
 # This file is part of ec2imgutils
 #
@@ -229,6 +229,13 @@ argparse.add_argument(
     type=int
 )
 argparse.add_argument(
+    '--tpm-support',
+    dest='tpm',
+    help='The image supports NitroTPM, supported value 2.0 (Optional)',
+    choices=['', '2.0'],
+    metavar='TPM_SUPPORT'
+)
+argparse.add_argument(
     '-t', '--type',
     dest='instType',
     help='Instance type to use to upload image (Optional)',
@@ -405,6 +412,13 @@ if args.amiID and args.runningID:
     logger.error(
         'Specify either AMI ID to start instance or running '
         ' ID to use already running instance'
+    )
+    sys.exit(1)
+
+tpm_boot_options = ['uefi']
+if args.tpm and args.bootMode not in tpm_boot_options:
+    logger.error(
+        'TPM can only be set with --boot-mode set to %s' %str(tpm_boot_options)
     )
     sys.exit(1)
 
@@ -668,7 +682,8 @@ try:
                     vpc_subnet_id=vpc_subnet_id,
                     wait_count=args.waitCount,
                     log_callback=logger,
-                    boot_mode=args.bootMode
+                    boot_mode=args.bootMode,
+                    tpm_support=args.tpm
                 )
 
                 if args.snapOnly:
