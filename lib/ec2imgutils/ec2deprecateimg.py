@@ -218,9 +218,9 @@ class EC2DeprecateImg(EC2ImgUtils):
             condition = self.replacement_image_name_match
             images = self._find_images_by_name_regex_match(condition)
         else:
-            msg = 'No replacement image condition set. Should not reach '
-            msg += 'this point.'
-            raise EC2DeprecateImgException(msg)
+            # Set image tag to empty string if no replacement image provided
+            self.replacement_image_tag = ''
+            return
 
         if not images:
             msg = 'Replacement image not found, "%s" ' % condition
@@ -250,10 +250,13 @@ class EC2DeprecateImg(EC2ImgUtils):
 
         self.log.debug('Deprecating images in region: {}'.format(self.region))
         self.log.debug('\tDeprecated on {}'.format(self.deprecation_date))
-        self.log.debug('Removal date {}'.format(self.deletion_date))
-        self.log.debug(
-            'Replacement image {}'.format(self.replacement_image_tag)
-        )
+        self.log.debug('\tRemoval date {}'.format(self.deletion_date))
+        if self.replacement_image_tag:
+            self.log.debug(
+                '\tReplacement image {}'.format(self.replacement_image_tag)
+            )
+        else:
+            self.log.debug("\tNo replacement image provided")
 
         ec2 = self._connect()
         for image in images:
@@ -275,15 +278,18 @@ class EC2DeprecateImg(EC2ImgUtils):
                 'Key': 'Removal date',
                 'Value': self.deletion_date
             }
-            replacement_image_data = {
-                'Key': 'Replacement image',
-                'Value': self.replacement_image_tag
-            }
             tags = [
                 deprecated_on_data,
                 removal_date_data,
-                replacement_image_data
             ]
+
+            if self.replacement_image_tag:
+                replacement_image_data = {
+                    'Key': 'Replacement image',
+                    'Value': self.replacement_image_tag
+                }
+                tags.append(replacement_image_data)
+
             ec2.create_tags(
                 Resources=[image['ImageId']], Tags=tags
             )
