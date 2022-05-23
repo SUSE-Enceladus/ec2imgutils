@@ -231,8 +231,8 @@ argparse.add_argument(
 argparse.add_argument(
     '--tpm-support',
     dest='tpm',
-    help='The image supports NitroTPM, supported value 2.0 (Optional)',
-    choices=['', '2.0'],
+    help='The image supports NitroTPM, supported value 2.0/v2.0 (Optional)',
+    choices=['', '2.0', 'v2.0'],
     metavar='TPM_SUPPORT'
 )
 argparse.add_argument(
@@ -418,7 +418,8 @@ if args.amiID and args.runningID:
 tpm_boot_options = ['uefi']
 if args.tpm and args.bootMode not in tpm_boot_options:
     logger.error(
-        'TPM can only be set with --boot-mode set to %s' %str(tpm_boot_options)
+        'TPM can only be set with --boot-mode set to %s' % str(
+            tpm_boot_options)
     )
     sys.exit(1)
 

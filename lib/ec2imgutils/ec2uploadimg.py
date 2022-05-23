@@ -886,7 +886,10 @@ class EC2ImageUploader(EC2ImgUtils):
         if self.sriov_type:
             register_args['SriovNetSupport'] = self.sriov_type
         if self.tpm:
-            register_args['TpmSupport'] = 'v%s' % self.tpm
+            tpm_version = self.tpm
+            if not tpm_version.startswith('v'):
+                tpm_version = 'v%s' % tpm_version
+            register_args['TpmSupport'] = tpm_version
 
         ami = self._connect().register_image(**register_args)
 
