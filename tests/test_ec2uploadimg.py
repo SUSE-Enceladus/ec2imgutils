@@ -87,6 +87,8 @@ test_cli_args_data = [
       "--sriov-support",
       "--ssh-timeout",
       "257",
+      "--tpm-support",
+      "2.0",
       "--type",
       "testType",
       "--user",
@@ -135,6 +137,7 @@ def test_args(cli_args):
     assert parsed_args.snapOnly is True
     assert parsed_args.sriov is True
     assert parsed_args.sshTimeout == 257
+    assert parsed_args.tpm == "2.0"
     assert parsed_args.instType == "testType"
     assert parsed_args.sshUser == "testUser"
     assert parsed_args.usePrivateIP is True
@@ -244,6 +247,19 @@ def test_check_amiID_or_runningID_provided():
     myArgs = Args()
     with pytest.raises(SystemExit) as excinfo:
         ec2uploadimg.check_amiID_or_runningID_provided(myArgs, logger)
+    assert excinfo.value.code == 1
+
+
+# --------------------------------------------------------------------
+# Tests for check_tpm_support_has_allowed_boot_options function
+def test_check_tpm_support_has_allowed_boot_options():
+
+    class Args:
+        tpm = '2.0'
+        bootMode = "not_uefi"
+    myArgs = Args()
+    with pytest.raises(SystemExit) as excinfo:
+        ec2uploadimg.check_tpm_support_has_allowed_boot_options(myArgs, logger)
     assert excinfo.value.code == 1
 
 

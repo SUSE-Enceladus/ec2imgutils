@@ -244,6 +244,15 @@ def parse_args(args):
         metavar='SSH_TIME_OUT',
         type=int
     )
+    help_msg = 'The image supports NitroTPM, supported value 2.0/v2.0'
+    help_msg += ' (Optional)'
+    parser.add_argument(
+        '--tpm-support',
+        dest='tpm',
+        help=help_msg,
+        choices=['', '2.0', 'v2.0'],
+        metavar='TPM_SUPPORT'
+    )
     parser.add_argument(
         '-t', '--type',
         dest='instType',
@@ -338,6 +347,7 @@ def check_required_arguments_and_constraints(args, logger):
     check_ena_image_is_hvm(args, logger)
     check_amiID_or_runningID_provided(args, logger)
     check_regions_parameter(args, logger)
+    check_tpm_support_has_allowed_boot_options(args, logger)
 
 
 # ----------------------------------------------------------------------------
@@ -413,6 +423,20 @@ def check_amiID_or_runningID_provided(args, logger):
         logger.error(
             'Specify either AMI ID to start instance or running '
             ' ID to use already running instance'
+        )
+        sys.exit(1)
+
+
+# ----------------------------------------------------------------------------
+def check_tpm_support_has_allowed_boot_options(args, logger):
+    """This function checks that in case tpm is enabled, boot options are
+    correct
+    """
+    tpm_boot_options = ['uefi']
+    if args.tpm and args.bootMode not in tpm_boot_options:
+        logger.error(
+            'TPM can only be set with --boot-mode set to %s' % str(
+                tpm_boot_options)
         )
         sys.exit(1)
 
@@ -872,7 +896,8 @@ def get_uploader(
                 vpc_subnet_id=vpc_subnet_id,
                 wait_count=args.waitCount,
                 log_callback=logger,
-                boot_mode=args.bootMode
+                boot_mode=args.bootMode,
+                tpm_support=args.tpm
             )
             return uploader
     except EC2UploadImgException as e:
