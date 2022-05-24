@@ -116,7 +116,7 @@ class EC2ImageUploader(EC2ImgUtils):
             raise EC2UploadImgException(
                 'sriov_type can only be None or simple'
             )
-        tpm_versions = ['2.0']
+        tpm_versions = ['2.0', 'v2.0']
         if tpm_support and tpm_support not in tpm_versions:
             raise EC2UploadImgException(
                 'tpm_support must be one of %s' % str(tpm_versions)
