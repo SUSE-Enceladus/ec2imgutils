@@ -169,6 +169,16 @@ driver has to be included in the image.
 .IP "--ssh-timeout SSH_TIME_OUT"
 Specifies the amount of time to wait in seconds to establish an SSH connection
 with the helper instance.
+.IP "--tpm-support"
+Optionally specify the version of the TPM implementation the OS in the image
+supports. This option can only be used if
+.I boot-mode
+is set to a value other than
+.I bios.
+Accepted values are
+.I 2.0
+alternatively prefixed with a
+.I "v".
 .IP "-t --type AWS_UPLOAD_INST_TYPE"
 Specifies the instance type to launch for the instance being used to upload
 the image. This value overrides the value given with the
