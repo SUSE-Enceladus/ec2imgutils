@@ -233,19 +233,6 @@ if (
     logger.error(error_msg)
     sys.exit(1)
 
-# Explicit check required to to the group issue, see comment above
-if (
-        not args.replImgID and not
-        args.replImgName and not
-        args.replImgNameFrag and not
-        args.replImgNameMatch):
-    error_msg = 'ec2deprecateimg: error: one of the arguments '
-    error_msg += '--replacement-id --replacement-name '
-    error_msg += '--replacement-name-frag --replacement-name-match is required'
-    logger.error(error_msg)
-    sys.exit(1)
-
-
 config_file = os.path.expanduser(args.configFilePath)
 config = None
 if not os.path.isfile(config_file):
