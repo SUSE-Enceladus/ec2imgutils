@@ -23,6 +23,8 @@ import logging
 import pytest
 import os
 
+from unittest.mock import patch
+
 # Hack to get the script without the .py imported for testing
 from importlib.machinery import SourceFileLoader
 
@@ -201,3 +203,128 @@ def test_get_secret_key_exception():
     with pytest.raises(SystemExit) as excinfo:
         ec2listimg.get_secret_key(myArgs, config, logger)
     assert excinfo.value.code == 1
+
+
+# --------------------------------------------------------------------
+# Tests for main
+@patch('ec2listimg.ec2lsimg.EC2ListImage._get_owned_images')
+def test_list_images_filtering_by_name(get_owned_images_mock, caplog):
+    test_cli_args = [
+        "--account",
+        "tester",
+        "--access-id",
+        "testAccId",
+        "--file",
+        data_path + os.sep + 'complete.cfg',
+        "--image-name",
+        "testImageName",
+        "--regions",
+        "region1",
+        "--secret-key",
+        "testSecretKey",
+        "--verbose",
+        "1"
+    ]
+    get_owned_images_mock.return_value = mock_get_owned_images()
+    ec2listimg.main(test_cli_args)
+    assert "testImageName" in caplog.text
+    assert "ami-00fcc31892067693a" in caplog.text
+    assert "NotTestImage" not in caplog.text
+    assert "ami-00fcc31892067693b" not in caplog.text
+
+
+@patch('ec2listimg.ec2lsimg.EC2ListImage._get_owned_images')
+def test_list_images_filtering_by_id(get_owned_images_mock, caplog):
+    test_cli_args = [
+        "--account",
+        "tester",
+        "--access-id",
+        "testAccId",
+        "--file",
+        data_path + os.sep + 'complete.cfg',
+        "--image-id",
+        "ami-00fcc31892067693a",
+        "--regions",
+        "region1",
+        "--secret-key",
+        "testSecretKey",
+        "--verbose",
+        "1"
+    ]
+    get_owned_images_mock.return_value = mock_get_owned_images()
+    ec2listimg.main(test_cli_args)
+    assert "testImageName" in caplog.text
+    assert "ami-00fcc31892067693a" in caplog.text
+    assert "NotTestImage" not in caplog.text
+    assert "ami-00fcc31892067693b" not in caplog.text
+
+
+@patch('ec2listimg.ec2lsimg.EC2ListImage._get_owned_images')
+def test_list_images_filtering_by_name_frag(get_owned_images_mock, caplog):
+    test_cli_args = [
+        "--account",
+        "tester",
+        "--access-id",
+        "testAccId",
+        "--file",
+        data_path + os.sep + 'complete.cfg',
+        "--image-name-frag",
+        "test",
+        "--regions",
+        "region1",
+        "--secret-key",
+        "testSecretKey",
+        "--verbose",
+        "1"
+    ]
+    get_owned_images_mock.return_value = mock_get_owned_images()
+    ec2listimg.main(test_cli_args)
+    assert "testImageName" in caplog.text
+    assert "ami-00fcc31892067693a" in caplog.text
+    assert "NotTestImage" not in caplog.text
+    assert "ami-00fcc31892067693b" not in caplog.text
+
+
+@patch('ec2listimg.ec2lsimg.EC2ListImage._get_owned_images')
+def test_list_images_filtering_by_name_regex(get_owned_images_mock, caplog):
+    test_cli_args = [
+        "--account",
+        "tester",
+        "--access-id",
+        "testAccId",
+        "--file",
+        data_path + os.sep + 'complete.cfg',
+        "--image-name-match",
+        ".*est.*",
+        "--regions",
+        "region1",
+        "--secret-key",
+        "testSecretKey",
+        "--verbose",
+        "1"
+    ]
+    get_owned_images_mock.return_value = mock_get_owned_images()
+    ec2listimg.main(test_cli_args)
+    assert "testImageName" in caplog.text
+    assert "ami-00fcc31892067693a" in caplog.text
+    assert "NotTestImage" in caplog.text
+    assert "ami-00fcc31892067693b" in caplog.text
+
+
+# --------------------------------------------------------------------
+# Aux functions
+def mock_get_owned_images():
+    myImage1 = {}
+    myImage1["Architecture"] = "x86_64"
+    myImage1["CreationDate"] = "2022-04-11T14:01:58.000Z"
+    myImage1["ImageId"] = "ami-00fcc31892067693a"
+    myImage1["Name"] = "testImageName"
+    myImage2 = {}
+    myImage2["Architecture"] = "x86_64"
+    myImage2["CreationDate"] = "2022-04-11T14:01:58.000Z"
+    myImage2["ImageId"] = "ami-00fcc31892067693b"
+    myImage2["Name"] = "NotTestImage"
+    myImages = []
+    myImages.append(myImage1)
+    myImages.append(myImage2)
+    return myImages
