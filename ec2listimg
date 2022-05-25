@@ -1,6 +1,6 @@
 #!/usr/bin/python3
 
-# Copyright 2020 SUSE LLC
+# Copyright 2022 SUSE LLC
 #
 # This file is part of ec2imgutils
 #
@@ -29,160 +29,210 @@ from ec2imgutils.ec2imgutilsExceptions import (
     EC2ListImgException
 )
 
+
+# ----------------------------------------------------------------------------
 # Set up command line argument parsing
-argparse = argparse.ArgumentParser(description='List account owned images')
-argparse.add_argument(
-    '-a', '--account',
-    dest='account_name',
-    help='Account to use',
-    metavar='ACCOUNT_NAME',
-)
-argparse.add_argument(
-    '--access-id',
-    dest='access_key',
-    help='AWS access key (Optional)',
-    metavar='AWS_ACCESS_KEY'
-)
-argparse.add_argument(
-    '-f', '--file',
-    default=os.sep.join(['~', '.ec2utils.conf']),
-    dest='config_file_path',
-    help='Path to configuration file, default ~/.ec2utils.conf (Optional)',
-    metavar='CONFIG_FILE'
-)
-publish_image_condition_group = argparse.add_mutually_exclusive_group()
-publish_image_condition_group.add_argument(
-    '--image-id',
-    dest='image_id',
-    help='The AMI ID of the image to be published (Optional)',
-    metavar='AMI_ID'
-)
-publish_image_condition_group.add_argument(
-    '--image-name',
-    dest='image_name',
-    help='The image name of the image to be published (Optional)',
-    metavar='IMAGE_NAME'
-)
-help_msg = 'An image name fragment to match the image name of the image to be '
-help_msg += 'published (Optional)'
-publish_image_condition_group.add_argument(
-    '--image-name-frag',
-    dest='image_name_frag',
-    help=help_msg,
-    metavar='IMAGE_NAME_FRAGMENT'
-)
-help_msg = 'A regular expression to match the image name of the image to be '
-help_msg += 'published (Optional)'
-publish_image_condition_group.add_argument(
-    '--image-name-match',
-    dest='image_name_match',
-    help=help_msg,
-    metavar='REGEX'
-)
-help_msg = 'Comma separated list of regions for publishing, all integrated '
-help_msg += 'regions if not given (Optional)'
-argparse.add_argument(
-    '-r', '--regions',
-    dest='regions',
-    help=help_msg,
-    metavar='EC2_REGIONS'
-)
-argparse.add_argument(
-    '-s', '--secret-key',
-    dest='secret_key',
-    help='AWS secret access key (Optional)',
-    metavar='AWS_SECRET_KEY'
-)
-help_msg = 'Set vebosety level 0 (default) image name, 1 image name and ID, '
-help_msg += '2 full description'
-argparse.add_argument(
-    '--verbose',
-    type=int,
-    default=0,
-    dest='verbose',
-)
-argparse.add_argument(
-    '--version',
-    action='version',
-    version=utils.get_version(),
-    help='Program version'
-)
+def parse_args(args):
+    """Commang argument parsing function."""
+    parser = argparse.ArgumentParser(description='List account owned images')
+    parser.add_argument(
+        '-a', '--account',
+        dest='accountName',
+        help='Account to use',
+        metavar='ACCOUNT_NAME',
+    )
+    parser.add_argument(
+        '--access-id',
+        dest='accessKey',
+        help='AWS access key (Optional)',
+        metavar='AWS_ACCESS_KEY'
+    )
+    parser.add_argument(
+        '-f', '--file',
+        default=os.sep.join(['~', '.ec2utils.conf']),
+        dest='configFilePath',
+        help='Path to configuration file, default ~/.ec2utils.conf (Optional)',
+        metavar='CONFIG_FILE'
+    )
+    publish_image_condition_group = parser.add_mutually_exclusive_group()
+    publish_image_condition_group.add_argument(
+        '--image-id',
+        dest='imageId',
+        help='The AMI ID of the image to be published (Optional)',
+        metavar='AMI_ID'
+    )
+    publish_image_condition_group.add_argument(
+        '--image-name',
+        dest='imageName',
+        help='The image name of the image to be published (Optional)',
+        metavar='IMAGE_NAME'
+    )
+    help_msg = 'An image name fragment to match the image name of the image '
+    help_msg += 'to be published (Optional)'
+    publish_image_condition_group.add_argument(
+        '--image-name-frag',
+        dest='imageNameFrag',
+        help=help_msg,
+        metavar='IMAGE_NAME_FRAGMENT'
+    )
+    help_msg = 'A regular expression to match the image name of the image '
+    help_msg += 'to be published (Optional)'
+    publish_image_condition_group.add_argument(
+        '--image-name-match',
+        dest='imageNameMatch',
+        help=help_msg,
+        metavar='REGEX'
+    )
+    help_msg = 'Comma separated list of regions for publishing, all '
+    help_msg += 'integrated regions if not given (Optional)'
+    parser.add_argument(
+        '-r', '--regions',
+        dest='regions',
+        help=help_msg,
+        metavar='EC2_REGIONS'
+    )
+    parser.add_argument(
+        '-s', '--secret-key',
+        dest='secretKey',
+        help='AWS secret access key (Optional)',
+        metavar='AWS_SECRET_KEY'
+    )
+    help_msg = 'Set vebosety level 0 (default) image name, 1 image name and '
+    help_msg += 'ID, 2 full description'
+    parser.add_argument(
+        '--verbose',
+        type=int,
+        default=0,
+        help=help_msg,
+        dest='verbose'
+    )
+    parser.add_argument(
+        '--version',
+        action='version',
+        version=utils.get_version(),
+        help='Program version',
+    )
 
-args = argparse.parse_args()
+    parsed_args = parser.parse_args(args)
+    return parsed_args
 
-logger = utils.get_logger(args.verbose)
 
-config_file = os.path.expanduser(args.config_file_path)
-config = None
-if not os.path.isfile(config_file):
-    print('Configuration file "%s" not found.' % config_file)
-    sys.exit(1)
-try:
-    config = utils.get_config(config_file)
-except Exception as e:
-    print(format(e), file=sys.stderr)
-    sys.exit(1)
-
-access_key = args.access_key
-if not access_key:
+# ----------------------------------------------------------------------------
+def get_config(args, logger):
+    """Function to get the configutation parsed from the configuration file
+    provided as an argument (or the default path)"""
+    config_file = os.path.expanduser(args.configFilePath)
+    config = None
+    if not os.path.isfile(config_file):
+        print('Configuration file "%s" not found.' % config_file)
+        sys.exit(1)
     try:
-        access_key = utils.get_from_config(args.account_name,
-                                           config,
-                                           None,
-                                           'access_key_id',
-                                           '--access-id')
-    except EC2AccountException as e:
-        print(format(e), file=sys.stderr)
+        config = utils.get_config(config_file)
+    except Exception as e:
+        logger.exception(e)
+        sys.exit(1)
+    return config
+
+
+# ----------------------------------------------------------------------------
+def get_access_key(args, config, logger):
+    """Function to get the access_key to AWS with the data provided as command
+    line args and config files.
+    """
+    access_key = args.accessKey
+    if not access_key:
+        try:
+            access_key = utils.get_from_config(
+                args.accountName,
+                config,
+                None,
+                'access_key_id',
+                '--access-id'
+            )
+        except EC2AccountException as e:
+            logger.exception(e)
+            sys.exit(1)
+
+    if not access_key:
+        print('Could not determine account access key', file=sys.stderr)
+        sys.exit(1)
+    return access_key
+
+
+# ----------------------------------------------------------------------------
+def get_secret_key(args, config, logger):
+    """Function to get the secret_key to AWS with the data provided as command
+    line args and config files
+    """
+    secret_key = args.secretKey
+    if not secret_key:
+        try:
+            secret_key = utils.get_from_config(
+                args.accountName,
+                config,
+                None,
+                'secret_access_key',
+                '--secret-key'
+            )
+        except EC2AccountException as e:
+            logger.exception(e)
+            sys.exit(1)
+
+    if not secret_key:
+        print('Could not determine account secret access key', file=sys.stderr)
+        sys.exit(1)
+    return secret_key
+
+
+# ----------------------------------------------------------------------------
+def get_lister(args, access_key, secret_key, logger, regions):
+    """Function to get an instance of the ec2imgutils.EC2ListImage class"""
+    try:
+        lister = ec2lsimg.EC2ListImage(
+            access_key=access_key,
+            image_id=args.imageId,
+            image_name=args.imageName,
+            image_name_fragment=args.imageNameFrag,
+            image_name_match=args.imageNameMatch,
+            secret_key=secret_key,
+            log_callback=logger,
+            verbose=args.verbose
+        )
+    except EC2ListImgException as e:
+        logger.error(e)
         sys.exit(1)
 
-if not access_key:
-    print('Could not determine account access key', file=sys.stderr)
-    sys.exit(1)
+    if len(regions) > 1 or args.verbose:
+        lister.set_indent(4)
 
-secret_key = args.secret_key
-if not secret_key:
-    try:
-        secret_key = utils.get_from_config(args.account_name,
-                                           config,
-                                           None,
-                                           'secret_access_key',
-                                           '--secret-key')
-    except EC2AccountException as e:
-        print(format(e), file=sys.stderr)
-        sys.exit(1)
+    return lister
 
-if not secret_key:
-    print('Could not determine account secret access key', file=sys.stderr)
-    sys.exit(1)
 
-if not args.regions:
+# ----------------------------------------------------------------------------
+def main(args):
+    args = parse_args(args)
+    logger = utils.get_logger(args.verbose)
+    config = get_config(args, logger)
+    access_key = get_access_key(args, config, logger)
+    secret_key = get_secret_key(args, config, logger)
+
     regions = utils.get_regions(args, access_key, secret_key)
-else:
-    regions = args.regions.split(',')
+    lister = get_lister(args, access_key, secret_key, logger, regions)
 
-lister = ec2lsimg.EC2ListImage(
-    access_key=access_key,
-    image_id=args.image_id,
-    image_name=args.image_name,
-    image_name_fragment=args.image_name_frag,
-    image_name_match=args.image_name_match,
-    secret_key=secret_key,
-    log_callback=logger,
-    verbose=args.verbose
-)
+    try:
+        for region in regions:
+            if len(regions) > 1 and not args.verbose:
+                print('Using EC2 region: %s' % region)
+            lister.set_region(region)
+            lister.output_image_list()
+    except EC2ListImgException as e:
+        logger.exception(e)
+        sys.exit(1)
+    except Exception as e:
+        logger.exception(e)
+        sys.exit(1)
 
-if len(regions) > 1 or args.verbose:
-    lister.set_indent(4)
 
-try:
-    for region in regions:
-        if len(regions) > 1 and not args.verbose:
-            print('Using EC2 region: %s' % region)
-        lister.set_region(region)
-        lister.output_image_list()
-except EC2ListImgException as e:
-    print(format(e), file=sys.stderr)
-    sys.exit(1)
-except Exception as e:
-    print(format(e), file=sys.stderr)
-    sys.exit(1)
+# ----------------------------------------------------------------------------
+if __name__ == '__main__':
+    main(sys.argv[1:])
