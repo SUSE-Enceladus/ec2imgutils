@@ -318,7 +318,7 @@ def test_remove_images_filtering_by_name_dry_run(
     ]
     ec2removeimg.main(cli_args)
     assert "region1" in caplog.text
-    assert "ami-00fcc31892067693a" in caplog.text
+    assert "ami-000cc31892067693a" in caplog.text
     assert "testImageName" in caplog.text
 
 
@@ -344,7 +344,7 @@ def test_remove_images_filtering_by_id(
       "--file",
       data_path + os.sep + 'complete.cfg',
       "--image-id",
-      "ami-00fcc31892067693a",
+      "ami-000cc31892067693a",
       "--preserve-snap",
       "--regions",
       "region1",
@@ -377,7 +377,7 @@ def test_remove_images_filtering_by_id_dry_run(
       "--file",
       data_path + os.sep + 'complete.cfg',
       "--image-id",
-      "ami-00fcc31892067693a",
+      "ami-000cc31892067693a",
       "--preserve-snap",
       "--regions",
       "region1",
@@ -386,7 +386,7 @@ def test_remove_images_filtering_by_id_dry_run(
     ]
     ec2removeimg.main(cli_args)
     assert "region1" in caplog.text
-    assert "ami-00fcc31892067693a" in caplog.text
+    assert "ami-000cc31892067693a" in caplog.text
     assert "testImageName" in caplog.text
 
 
@@ -454,7 +454,7 @@ def test_remove_images_filtering_by_name_frag_dry_run(
     ]
     ec2removeimg.main(cli_args)
     assert "region1" in caplog.text
-    assert "ami-00fcc31892067693b" in caplog.text
+    assert "ami-000cc31892067693b" in caplog.text
     assert "NotTestImage" in caplog.text
 
 
@@ -522,7 +522,7 @@ def test_remove_images_filtering_by_name_match_dry_run(
     ]
     ec2removeimg.main(cli_args)
     assert "region1" in caplog.text
-    assert "ami-00fcc31892067693a" in caplog.text
+    assert "ami-000cc31892067693a" in caplog.text
     assert "testImageName" in caplog.text
 
 
@@ -788,7 +788,7 @@ def test_remove_images_filtering_by_name_match_confirm_yes(
       "--file",
       data_path + os.sep + 'complete.cfg',
       "--image-id",
-      "ami-00fcc31892067693a",
+      "ami-000cc31892067693a",
       "--regions",
       "region1",
       "--secret-key",
@@ -823,7 +823,7 @@ def test_remove_images_filtering_by_name_match_confirm_no(
       "--file",
       data_path + os.sep + 'complete.cfg',
       "--image-id",
-      "ami-00fcc31892067693a",
+      "ami-000cc31892067693a",
       "--regions",
       "region1",
       "--secret-key",
@@ -858,7 +858,7 @@ def test_remove_images_filtering_by_name_match_confirm_wrong(
       "--file",
       data_path + os.sep + 'complete.cfg',
       "--image-id",
-      "ami-00fcc31892067693a",
+      "ami-000cc31892067693a",
       "--regions",
       "region1",
       "--secret-key",
@@ -912,11 +912,11 @@ def mock_get_owned_images():
     myImage1 = {}
     myImage1["Architecture"] = "x86_64"
     myImage1["CreationDate"] = "2022-04-11T14:01:58.000Z"
-    myImage1["ImageId"] = "ami-00fcc31892067693a"
+    myImage1["ImageId"] = "ami-000cc31892067693a"
     myImage1["Name"] = "testImageName"
     myI1Ebs = {}
     myI1Ebs["DeleteOnTermination"] = True
-    myI1Ebs["SnapshotId"] = "snap-059f48a8fa4545e1a"
+    myI1Ebs["SnapshotId"] = "snap-000f48a8fa4545e1a"
     myI1Ebs["VolumeSize"] = 10
     myI1Ebs["VolumeType"] = "gp3"
     myI1Ebs["Encrypted"] = False
@@ -929,11 +929,11 @@ def mock_get_owned_images():
     myImage2 = {}
     myImage2["Architecture"] = "x86_64"
     myImage2["CreationDate"] = "2022-04-11T14:01:58.000Z"
-    myImage2["ImageId"] = "ami-00fcc31892067693b"
+    myImage2["ImageId"] = "ami-000cc31892067693b"
     myImage2["Name"] = "NotTestImage"
     myI2Ebs = {}
     myI2Ebs["DeleteOnTermination"] = True
-    myI2Ebs["SnapshotId"] = "snap-059f48a8fa4545e1b"
+    myI2Ebs["SnapshotId"] = "snap-000f48a8fa4545e1b"
     myI2Ebs["VolumeSize"] = 10
     myI2Ebs["VolumeType"] = "gp3"
     myI2Ebs["Encrypted"] = False
@@ -952,13 +952,13 @@ def mock_get_owned_images_without_device_mappings():
     myImage1 = {}
     myImage1["Architecture"] = "x86_64"
     myImage1["CreationDate"] = "2022-04-11T14:01:58.000Z"
-    myImage1["ImageId"] = "ami-00fcc31892067693a"
+    myImage1["ImageId"] = "ami-000cc31892067693a"
     myImage1["Name"] = "testImageName"
 
     myImage2 = {}
     myImage2["Architecture"] = "x86_64"
     myImage2["CreationDate"] = "2022-04-11T14:01:58.000Z"
-    myImage2["ImageId"] = "ami-00fcc31892067693b"
+    myImage2["ImageId"] = "ami-000cc31892067693b"
     myImage2["Name"] = "NotTestImage"
 
     myImages = []
@@ -971,7 +971,7 @@ def mock_get_owned_images_without_ebs():
     myImage1 = {}
     myImage1["Architecture"] = "x86_64"
     myImage1["CreationDate"] = "2022-04-11T14:01:58.000Z"
-    myImage1["ImageId"] = "ami-00fcc31892067693a"
+    myImage1["ImageId"] = "ami-000cc31892067693a"
     myImage1["Name"] = "testImageName"
     bdmI1 = {}
     bdmI1["DeviceName"] = "/dev/sda1"
@@ -981,7 +981,7 @@ def mock_get_owned_images_without_ebs():
     myImage2 = {}
     myImage2["Architecture"] = "x86_64"
     myImage2["CreationDate"] = "2022-04-11T14:01:58.000Z"
-    myImage2["ImageId"] = "ami-00fcc31892067693b"
+    myImage2["ImageId"] = "ami-000cc31892067693b"
     myImage2["Name"] = "NotTestImage"
     bdmI2 = {}
     bdmI2["DeviceName"] = "/dev/sda1"
@@ -997,7 +997,7 @@ def mock_get_owned_images_without_snapid():
     myImage1 = {}
     myImage1["Architecture"] = "x86_64"
     myImage1["CreationDate"] = "2022-04-11T14:01:58.000Z"
-    myImage1["ImageId"] = "ami-00fcc31892067693a"
+    myImage1["ImageId"] = "ami-000cc31892067693a"
     myImage1["Name"] = "testImageName"
     myI1Ebs = {}
     myI1Ebs["DeleteOnTermination"] = True
@@ -1013,7 +1013,7 @@ def mock_get_owned_images_without_snapid():
     myImage2 = {}
     myImage2["Architecture"] = "x86_64"
     myImage2["CreationDate"] = "2022-04-11T14:01:58.000Z"
-    myImage2["ImageId"] = "ami-00fcc31892067693b"
+    myImage2["ImageId"] = "ami-000cc31892067693b"
     myImage2["Name"] = "NotTestImage"
     myI2Ebs = {}
     myI2Ebs["DeleteOnTermination"] = True
