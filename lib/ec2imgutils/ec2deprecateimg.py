@@ -156,6 +156,7 @@ class EC2DeprecateImg(EC2ImgUtils):
                     # cond specified and image not matching, moving on
                     continue
 
+
             # Append the image once to the list if proceeds
             if (
                 self.image_virt_type and
@@ -164,14 +165,19 @@ class EC2DeprecateImg(EC2ImgUtils):
                 should_append_public_only
             ):
                 images.append(image)
-            else if (
+            elif (
                 self.image_virt_type and
                 should_append_virt_type
             ):
                 images.append(image)
-            else if (
+            elif (
                 self.public_only and
                 should_append_public_only
+            ):
+                images.append(image)
+            elif (
+                not self.image_virt_type and
+                not self.public_only
             ):
                 images.append(image)
         return images
