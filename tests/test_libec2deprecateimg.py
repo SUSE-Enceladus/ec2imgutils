@@ -122,7 +122,6 @@ def test_deprecate_class_filtering_by_name_match_no_virt_type_no_pub_img(
     def log_args(**kwargs):
         logger.info(str(kwargs))
 
-
     ec2 = MagicMock()
     ec2.create_tags.return_value = None
     ec2.create_tags.side_effect = log_args
@@ -162,7 +161,6 @@ def test_deprecate_class_filtering_by_name_match_virt_type_no_pub_img(
     def log_args(**kwargs):
         logger.info(str(kwargs))
 
-
     ec2 = MagicMock()
     ec2.create_tags.return_value = None
     ec2.create_tags.side_effect = log_args
@@ -191,7 +189,6 @@ def test_deprecate_class_filtering_by_name_match_virt_type_no_pub_img(
     images = deprecator._get_images_to_deprecate()
     assert 1 == len(images)
     assert "ami-000cc31892067693a" == images[0]['ImageId']
-
 
 
 @patch('ec2imgutils.ec2deprecateimg.EC2DeprecateImg._get_owned_images')
@@ -288,6 +285,7 @@ def test_deprecate_class_filtering_by_name_match_no_virt_type_pub_img2(
     assert 1 == len(images)
     assert "ami-000cc31892067693a" == images[0]['ImageId']
 
+
 @patch('ec2imgutils.ec2deprecateimg.EC2DeprecateImg._get_owned_images')
 @patch('ec2imgutils.ec2deprecateimg.EC2DeprecateImg._connect')
 def test_deprecate_class_filtering_by_name_match_virt_type_pub_img(
@@ -334,7 +332,6 @@ def test_deprecate_class_filtering_by_name_match_virt_type_pub_img(
     images = deprecator._get_images_to_deprecate()
     assert 1 == len(images)
     assert "ami-000cc31892067693c" == images[0]['ImageId']
-
 
 
 # --------------------------------------------------------------------

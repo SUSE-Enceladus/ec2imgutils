@@ -156,7 +156,6 @@ class EC2DeprecateImg(EC2ImgUtils):
                     # cond specified and image not matching, moving on
                     continue
 
-
             # Append the image once to the list if proceeds
             if (
                 self.image_virt_type and
