@@ -31,7 +31,7 @@ from ec2imgutils.ec2imgutilsExceptions import (
 
 # ----------------------------------------------------------------------------
 def parse_args(args):
-    """Commang argument parsing function."""
+    """Command argument parsing function."""
     parser = argparse.ArgumentParser(description='Remove images in EC2')
     parser.add_argument(
         '-a', '--account',
@@ -150,7 +150,7 @@ def parse_args(args):
 
 # ----------------------------------------------------------------------------
 def check_required_arguments(args, logger):
-    """This function is used to assure the additional requirements over
+    """This function is used to ensure the additional requirements over
     arguments (which ones are mandatory, etc.) are met.
     """
     check_remove_image_args_present(args, logger)
@@ -176,7 +176,7 @@ def check_remove_image_args_present(args, logger):
 
 # ----------------------------------------------------------------------------
 def get_config(args, logger):
-    """Function to the the configutation parsed from the configuration file
+    """Function to get the configutation parsed from the configuration file
     provided as an argument (or the default path)
     """
     config_file = os.path.expanduser(args.configFilePath)
