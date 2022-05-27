@@ -156,7 +156,8 @@ class EC2DeprecateImg(EC2ImgUtils):
                     # cond specified and image not matching, moving on
                     continue
 
-            # Append the image once to the list if proceeds
+            # Append the image once to the list of images to be processed
+            # if a filter was configured and the image matched it
             if (
                 self.image_virt_type and
                 self.public_only and
