@@ -103,7 +103,7 @@ class EC2RemoveImage(EC2ImgUtils):
                     self.log
                 )
             except Exception:
-                msg = 'Unable to complie regular expression "%s"'
+                msg = 'Unable to compile regular expression "%s"'
                 msg = msg % self.image_name_match
                 raise EC2RemoveImgException(msg)
         else:
