@@ -449,7 +449,6 @@ def test_deprecate_images_filtering_by_name(
     def log_args(**kwargs):
         logger.info(str(kwargs))
 
-
     ec2 = MagicMock()
     ec2.create_tags.return_value = None
     ec2.create_tags.side_effect = log_args
@@ -492,7 +491,6 @@ def test_deprecate_images_filtering_by_id(
 ):
     def log_args(**kwargs):
         logger.info(str(kwargs))
-
 
     ec2 = MagicMock()
     ec2.create_tags.return_value = None
@@ -537,7 +535,6 @@ def test_deprecate_images_filtering_by_name_match(
     def log_args(**kwargs):
         logger.info(str(kwargs))
 
-
     ec2 = MagicMock()
     ec2.create_tags.return_value = None
     ec2.create_tags.side_effect = log_args
@@ -581,7 +578,6 @@ def test_deprecate_images_filtering_by_name_match_dry_run(
     def log_args(**kwargs):
         logger.info(str(kwargs))
 
-
     ec2 = MagicMock()
     ec2.create_tags.return_value = None
     ec2.create_tags.side_effect = log_args
@@ -616,7 +612,585 @@ def test_deprecate_images_filtering_by_name_match_dry_run(
     assert "ami-000cc31892067693a" in caplog.text
 
 
+@patch('ec2deprecateimg.ec2depimg.EC2DeprecateImg._get_owned_images')
+@patch('ec2deprecateimg.ec2depimg.EC2DeprecateImg._connect')
+def test_deprecate_images_filtering_by_name_frag(
+    ec2connect_mock,
+    get_owned_imgs_mock,
+    caplog
+):
+    def log_args(**kwargs):
+        logger.info(str(kwargs))
 
+    ec2 = MagicMock()
+    ec2.create_tags.return_value = None
+    ec2.create_tags.side_effect = log_args
+    ec2.enable_image_deprecation.return_value = None
+    ec2connect_mock.return_value = ec2
+    get_owned_imgs_mock.return_value = mock_get_owned_images()
+
+    cli_args = [
+      "--account",
+      "testAccName",
+      "--access-id",
+      "testAccId",
+      "--deprecation-date",
+      "20220101",
+      "--deprecation-period",
+      "7",
+      "--file",
+      data_path + os.sep + 'complete.cfg',
+      "--image-name-frag",
+      "est",
+      "--image-virt-type",
+      "hvm",
+      "--regions",
+      "region1",
+      "--secret-key",
+      "testSecretKey"
+    ]
+    ec2deprecateimg.main(cli_args)
+    assert "20220101" in caplog.text
+    assert "20220801" in caplog.text
+    assert "ami-000cc31892067693a" in caplog.text
+    assert "ami-000cc31892067693b" in caplog.text
+
+
+@patch('ec2deprecateimg.ec2depimg.EC2DeprecateImg._get_owned_images')
+@patch('ec2deprecateimg.ec2depimg.EC2DeprecateImg._connect')
+def test_deprecate_images_filtering_by_name_frag_dry_run(
+    ec2connect_mock,
+    get_owned_imgs_mock,
+    caplog
+):
+    def log_args(**kwargs):
+        logger.info(str(kwargs))
+
+    ec2 = MagicMock()
+    ec2.create_tags.return_value = None
+    ec2.create_tags.side_effect = log_args
+    ec2.enable_image_deprecation.return_value = None
+    ec2connect_mock.return_value = ec2
+    get_owned_imgs_mock.return_value = mock_get_owned_images()
+
+    cli_args = [
+      "--account",
+      "testAccName",
+      "--access-id",
+      "testAccId",
+      "--deprecation-date",
+      "20220101",
+      "--deprecation-period",
+      "7",
+      "--file",
+      data_path + os.sep + 'complete.cfg',
+      "--image-name-frag",
+      "est",
+      "--image-virt-type",
+      "hvm",
+      "--dry-run",
+      "--regions",
+      "region1",
+      "--secret-key",
+      "testSecretKey"
+    ]
+    ec2deprecateimg.main(cli_args)
+    assert "20220101" in caplog.text
+    assert "20220801" in caplog.text
+    assert "ami-000cc31892067693a" in caplog.text
+    assert "ami-000cc31892067693b" in caplog.text
+
+
+@patch('ec2deprecateimg.ec2depimg.EC2DeprecateImg._get_owned_images')
+@patch('ec2deprecateimg.ec2depimg.EC2DeprecateImg._connect')
+def test_deprecate_images_filtering_by_name_frag_replacement_matching_image(
+    ec2connect_mock,
+    get_owned_imgs_mock,
+    caplog
+):
+    def log_args(**kwargs):
+        logger.info(str(kwargs))
+
+    ec2 = MagicMock()
+    ec2.create_tags.return_value = None
+    # ec2.create_tags.side_effect = log_args
+    ec2.enable_image_deprecation.return_value = None
+    ec2connect_mock.return_value = ec2
+    get_owned_imgs_mock.return_value = mock_get_owned_images()
+
+    cli_args = [
+      "--account",
+      "testAccName",
+      "--access-id",
+      "testAccId",
+      "--deprecation-date",
+      "20220101",
+      "--deprecation-period",
+      "7",
+      "--file",
+      data_path + os.sep + 'complete.cfg',
+      "--image-name-frag",
+      "est",
+      "--image-virt-type",
+      "hvm",
+      "--replacement-id",
+      "ami-000cc31892067693a",
+      "--regions",
+      "region1",
+      "--verbose",
+      "--secret-key",
+      "testSecretKey"
+    ]
+    ec2deprecateimg.main(cli_args)
+    assert "20220101" in caplog.text
+    assert "20220801" in caplog.text
+    assert "Replacement image ami-000cc31892067693a" in caplog.text
+    assert "ami-000cc31892067693b" in caplog.text
+    assert "Ignore replacement image as potential target" in caplog.text
+
+
+@patch('ec2deprecateimg.ec2depimg.EC2DeprecateImg._get_owned_images')
+@patch('ec2deprecateimg.ec2depimg.EC2DeprecateImg._connect')
+def test_deprecate_images_filtering_by_name_frag_dry_run_not_match(
+    ec2connect_mock,
+    get_owned_imgs_mock,
+    caplog
+):
+    def log_args(**kwargs):
+        logger.info(str(kwargs))
+
+    ec2 = MagicMock()
+    ec2.create_tags.return_value = None
+    ec2.create_tags.side_effect = log_args
+    ec2.enable_image_deprecation.return_value = None
+    ec2connect_mock.return_value = ec2
+    get_owned_imgs_mock.return_value = mock_get_owned_images()
+
+    cli_args = [
+      "--account",
+      "testAccName",
+      "--access-id",
+      "testAccId",
+      "--deprecation-date",
+      "20220101",
+      "--deprecation-period",
+      "7",
+      "--file",
+      data_path + os.sep + 'complete.cfg',
+      "--image-name-frag",
+      "NOTMATCHING",
+      "--image-virt-type",
+      "hvm",
+      "--dry-run",
+      "--regions",
+      "region1",
+      "--secret-key",
+      "testSecretKey"
+    ]
+    ec2deprecateimg.main(cli_args)
+    assert "No images to deprecate found" in caplog.text
+    # assert "ami-000cc31892067693a" in caplog.text
+    # assert "ami-000cc31892067693b" in caplog.text
+
+
+@patch('ec2deprecateimg.ec2depimg.EC2DeprecateImg._get_owned_images')
+@patch('ec2deprecateimg.ec2depimg.EC2DeprecateImg._connect')
+def test_deprecate_images_filtering_by_name_frag_no_images(
+    ec2connect_mock,
+    get_owned_imgs_mock,
+    caplog
+):
+    def log_args(**kwargs):
+        logger.info(str(kwargs))
+
+    ec2 = MagicMock()
+    ec2.create_tags.return_value = None
+    ec2.create_tags.side_effect = log_args
+    ec2.enable_image_deprecation.return_value = None
+    ec2connect_mock.return_value = ec2
+    get_owned_imgs_mock.return_value = mock_get_owned_images_empty()
+
+    cli_args = [
+      "--account",
+      "testAccName",
+      "--access-id",
+      "testAccId",
+      "--deprecation-date",
+      "20220101",
+      "--deprecation-period",
+      "7",
+      "--file",
+      data_path + os.sep + 'complete.cfg',
+      "--image-name-frag",
+      "NOTMATCHING",
+      "--image-virt-type",
+      "hvm",
+      "--dry-run",
+      "--regions",
+      "region1",
+      "--secret-key",
+      "testSecretKey"
+    ]
+    ec2deprecateimg.main(cli_args)
+    assert "No images to deprecate found" in caplog.text
+    # assert "ami-000cc31892067693a" in caplog.text
+    # assert "ami-000cc31892067693b" in caplog.text
+
+
+@patch('ec2deprecateimg.ec2depimg.EC2DeprecateImg._get_owned_images')
+@patch('ec2deprecateimg.ec2depimg.EC2DeprecateImg._connect')
+def test_deprecate_images_filtering_by_id_replacement_by_id(
+    ec2connect_mock,
+    get_owned_imgs_mock,
+    caplog
+):
+    def log_args(**kwargs):
+        logger.info(str(kwargs))
+
+    ec2 = MagicMock()
+    ec2.create_tags.return_value = None
+    ec2.create_tags.side_effect = log_args
+    ec2.enable_image_deprecation.return_value = None
+    ec2connect_mock.return_value = ec2
+    get_owned_imgs_mock.return_value = mock_get_owned_images()
+
+    cli_args = [
+      "--account",
+      "testAccName",
+      "--access-id",
+      "testAccId",
+      "--deprecation-date",
+      "20220101",
+      "--deprecation-period",
+      "7",
+      "--file",
+      data_path + os.sep + 'complete.cfg',
+      "--image-id",
+      "ami-000cc31892067693a",
+      "--replacement-id",
+      "ami-000cc31892067693b",
+      "--image-virt-type",
+      "hvm",
+      "--regions",
+      "region1",
+      "--secret-key",
+      "testSecretKey"
+    ]
+    ec2deprecateimg.main(cli_args)
+    assert "20220101" in caplog.text
+    assert "20220801" in caplog.text
+    assert "ami-000cc31892067693a" in caplog.text
+    assert "ami-000cc31892067693b" in caplog.text
+
+
+@patch('ec2deprecateimg.ec2depimg.EC2DeprecateImg._get_owned_images')
+@patch('ec2deprecateimg.ec2depimg.EC2DeprecateImg._connect')
+def test_deprecate_images_filtering_by_id_replacement_by_name(
+    ec2connect_mock,
+    get_owned_imgs_mock,
+    caplog
+):
+    def log_args(**kwargs):
+        logger.info(str(kwargs))
+
+    ec2 = MagicMock()
+    ec2.create_tags.return_value = None
+    # ec2.create_tags.side_effect = log_args
+    ec2.enable_image_deprecation.return_value = None
+    ec2connect_mock.return_value = ec2
+    get_owned_imgs_mock.return_value = mock_get_owned_images()
+
+    cli_args = [
+      "--account",
+      "testAccName",
+      "--access-id",
+      "testAccId",
+      "--deprecation-date",
+      "20220101",
+      "--deprecation-period",
+      "7",
+      "--file",
+      data_path + os.sep + 'complete.cfg',
+      "--image-id",
+      "ami-000cc31892067693a",
+      "--replacement-name",
+      "NotTestImage2",
+      "--regions",
+      "region1",
+      "--secret-key",
+      "testSecretKey",
+      "--verbose"
+    ]
+    ec2deprecateimg.main(cli_args)
+    assert "20220101" in caplog.text
+    assert "20220801" in caplog.text
+    assert "ami-000cc31892067693a" in caplog.text
+    assert "ami-000cc31892067693c" in caplog.text
+
+
+@patch('ec2deprecateimg.ec2depimg.EC2DeprecateImg._get_owned_images')
+@patch('ec2deprecateimg.ec2depimg.EC2DeprecateImg._connect')
+def test_deprecate_images_filtering_by_id_replacement_by_name_match(
+    ec2connect_mock,
+    get_owned_imgs_mock,
+    caplog
+):
+    def log_args(**kwargs):
+        logger.info(str(kwargs))
+
+    ec2 = MagicMock()
+    ec2.create_tags.return_value = None
+    # ec2.create_tags.side_effect = log_args
+    ec2.enable_image_deprecation.return_value = None
+    ec2connect_mock.return_value = ec2
+    get_owned_imgs_mock.return_value = mock_get_owned_images()
+
+    cli_args = [
+      "--account",
+      "testAccName",
+      "--access-id",
+      "testAccId",
+      "--deprecation-date",
+      "20220101",
+      "--deprecation-period",
+      "7",
+      "--file",
+      data_path + os.sep + 'complete.cfg',
+      "--image-id",
+      "ami-000cc31892067693a",
+      "--replacement-name-match",
+      "^NotTestImage2$",
+      "--regions",
+      "region1",
+      "--secret-key",
+      "testSecretKey",
+      "--verbose"
+    ]
+    ec2deprecateimg.main(cli_args)
+    assert "20220101" in caplog.text
+    assert "20220801" in caplog.text
+    assert "ami-000cc31892067693a" in caplog.text
+    assert "ami-000cc31892067693c" in caplog.text
+
+
+@patch('ec2deprecateimg.ec2depimg.EC2DeprecateImg._get_owned_images')
+@patch('ec2deprecateimg.ec2depimg.EC2DeprecateImg._connect')
+def test_deprecate_images_filtering_by_id_replacement_by_name_frag(
+    ec2connect_mock,
+    get_owned_imgs_mock,
+    caplog
+):
+    def log_args(**kwargs):
+        logger.info(str(kwargs))
+
+    ec2 = MagicMock()
+    ec2.create_tags.return_value = None
+    # ec2.create_tags.side_effect = log_args
+    ec2.enable_image_deprecation.return_value = None
+    ec2connect_mock.return_value = ec2
+    get_owned_imgs_mock.return_value = mock_get_owned_images()
+
+    cli_args = [
+      "--account",
+      "testAccName",
+      "--access-id",
+      "testAccId",
+      "--deprecation-date",
+      "20220101",
+      "--deprecation-period",
+      "7",
+      "--file",
+      data_path + os.sep + 'complete.cfg',
+      "--image-id",
+      "ami-000cc31892067693a",
+      "--replacement-name-frag",
+      "tTestImage2",
+      "--regions",
+      "region1",
+      "--secret-key",
+      "testSecretKey",
+      "--verbose"
+    ]
+    ec2deprecateimg.main(cli_args)
+    assert "20220101" in caplog.text
+    assert "20220801" in caplog.text
+    assert "ami-000cc31892067693a" in caplog.text
+    assert "ami-000cc31892067693c" in caplog.text
+
+
+@patch('ec2deprecateimg.ec2depimg.EC2DeprecateImg._get_owned_images')
+@patch('ec2deprecateimg.ec2depimg.EC2DeprecateImg._connect')
+def test_deprecate_images_filtering_by_id_replacement_by_name_frag_ambiguity(
+    ec2connect_mock,
+    get_owned_imgs_mock,
+    caplog
+):
+    def log_args(**kwargs):
+        logger.info(str(kwargs))
+
+    ec2 = MagicMock()
+    ec2.create_tags.return_value = None
+    # ec2.create_tags.side_effect = log_args
+    ec2.enable_image_deprecation.return_value = None
+    ec2connect_mock.return_value = ec2
+    get_owned_imgs_mock.return_value = mock_get_owned_images()
+
+    cli_args = [
+      "--account",
+      "testAccName",
+      "--access-id",
+      "testAccId",
+      "--deprecation-date",
+      "20220101",
+      "--deprecation-period",
+      "7",
+      "--file",
+      data_path + os.sep + 'complete.cfg',
+      "--image-id",
+      "ami-000cc31892067693a",
+      "--replacement-name-frag",
+      "tTest",
+      "--regions",
+      "region1",
+      "--secret-key",
+      "testSecretKey",
+      "--verbose"
+    ]
+    with pytest.raises(SystemExit) as excinfo:
+        ec2deprecateimg.main(cli_args)
+    assert "Replacement image ambiguity" in str(caplog.text)
+    assert excinfo.value.code == 1
+
+
+@patch('ec2deprecateimg.ec2depimg.EC2DeprecateImg._get_owned_images')
+@patch('ec2deprecateimg.ec2depimg.EC2DeprecateImg._connect')
+def test_deprecate_images_filtering_by_id_replacement_by_name_frag_no_match(
+    ec2connect_mock,
+    get_owned_imgs_mock,
+    caplog
+):
+    def log_args(**kwargs):
+        logger.info(str(kwargs))
+
+    ec2 = MagicMock()
+    ec2.create_tags.return_value = None
+    # ec2.create_tags.side_effect = log_args
+    ec2.enable_image_deprecation.return_value = None
+    ec2connect_mock.return_value = ec2
+    get_owned_imgs_mock.return_value = mock_get_owned_images()
+
+    cli_args = [
+      "--account",
+      "testAccName",
+      "--access-id",
+      "testAccId",
+      "--deprecation-date",
+      "20220101",
+      "--deprecation-period",
+      "7",
+      "--file",
+      data_path + os.sep + 'complete.cfg',
+      "--image-id",
+      "ami-000cc31892067693a",
+      "--replacement-name-frag",
+      "NOMATCH",
+      "--regions",
+      "region1",
+      "--secret-key",
+      "testSecretKey",
+      "--verbose"
+    ]
+    with pytest.raises(SystemExit) as excinfo:
+        ec2deprecateimg.main(cli_args)
+    assert "Replacement image not found" in str(caplog.text)
+    assert excinfo.value.code == 1
+
+
+@patch('ec2deprecateimg.ec2depimg.EC2DeprecateImg._get_owned_images')
+@patch('ec2deprecateimg.ec2depimg.EC2DeprecateImg._connect')
+def test_deprecate_images_filtering_by_id_tags_already_present(
+    ec2connect_mock,
+    get_owned_imgs_mock,
+    caplog
+):
+    def log_args(**kwargs):
+        logger.info(str(kwargs))
+
+    ec2 = MagicMock()
+    ec2.create_tags.return_value = None
+    # ec2.create_tags.side_effect = log_args
+    ec2.enable_image_deprecation.return_value = None
+    ec2connect_mock.return_value = ec2
+    get_owned_imgs_mock.return_value = mock_get_owned_images()
+
+    cli_args = [
+      "--account",
+      "testAccName",
+      "--access-id",
+      "testAccId",
+      "--deprecation-date",
+      "20220101",
+      "--deprecation-period",
+      "7",
+      "--file",
+      data_path + os.sep + 'complete.cfg',
+      "--image-id",
+      "ami-000cc31892067693c",
+      "--regions",
+      "region1",
+      "--secret-key",
+      "testSecretKey",
+      "--verbose"
+    ]
+    ec2deprecateimg.main(cli_args)
+    assert "already tagged, skipping" in str(caplog.text)
+    assert "ami-000cc31892067693c" in str(caplog.text)
+
+
+@patch('ec2deprecateimg.ec2depimg.EC2DeprecateImg._get_owned_images')
+@patch('ec2deprecateimg.ec2depimg.EC2DeprecateImg._connect')
+def test_deprecate_images_filtering_by_id_replacement_by_name_frag_dry_run(
+    ec2connect_mock,
+    get_owned_imgs_mock,
+    caplog
+):
+    def log_args(**kwargs):
+        logger.info(str(kwargs))
+
+    ec2 = MagicMock()
+    ec2.create_tags.return_value = None
+    # ec2.create_tags.side_effect = log_args
+    ec2.enable_image_deprecation.return_value = None
+    ec2connect_mock.return_value = ec2
+    get_owned_imgs_mock.return_value = mock_get_owned_images()
+
+    cli_args = [
+      "--account",
+      "testAccName",
+      "--access-id",
+      "testAccId",
+      "--deprecation-date",
+      "20220101",
+      "--deprecation-period",
+      "7",
+      "--file",
+      data_path + os.sep + 'complete.cfg',
+      "--image-id",
+      "ami-000cc31892067693a",
+      "--replacement-name-frag",
+      "tTestImage2",
+      "--regions",
+      "region1",
+      "--secret-key",
+      "testSecretKey",
+      "--verbose",
+      "--dry-run"
+    ]
+    ec2deprecateimg.main(cli_args)
+    assert "20220101" in caplog.text
+    assert "20220801" in caplog.text
+    assert "ami-000cc31892067693a" in caplog.text
+    assert "Replacement image ami-000cc31892067693c" in caplog.text
 
 
 # --------------------------------------------------------------------
@@ -658,7 +1232,36 @@ def mock_get_owned_images():
     myImage2["BlockDeviceMappings"].append(bdmI2)
     myImage2["VirtualizationType"] = "hvm"
     myImages = []
+
+    myImage3 = {}
+    myImage3["Architecture"] = "x86_64"
+    myImage3["CreationDate"] = "2022-04-11T14:01:58.000Z"
+    myImage3["ImageId"] = "ami-000cc31892067693c"
+    myImage3["Name"] = "NotTestImage2"
+    myI3Ebs = {}
+    myI3Ebs["DeleteOnTermination"] = True
+    myI3Ebs["SnapshotId"] = "snap-000f48a8fa4545e1c"
+    myI3Ebs["VolumeSize"] = 10
+    myI3Ebs["VolumeType"] = "gp3"
+    myI3Ebs["Encrypted"] = False
+    bdmI3 = {}
+    bdmI3["DeviceName"] = "/dev/sda1"
+    bdmI3["Ebs"] = myI3Ebs
+    mytags = []
+    myTag1 = {}
+    myTag1["Key"] = "Deprecated on"
+    myTag1["Value"] = "20220101"
+    mytags.append(myTag1)
+    myImage3["Tags"] = mytags
+    myImage3["BlockDeviceMappings"] = []
+    myImage3["BlockDeviceMappings"].append(bdmI3)
+    myImage3["VirtualizationType"] = "NOThvm"
     myImages.append(myImage1)
     myImages.append(myImage2)
+    myImages.append(myImage3)
     return myImages
 
+
+def mock_get_owned_images_empty():
+    myImages = []
+    return myImages

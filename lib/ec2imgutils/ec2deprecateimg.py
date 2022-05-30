@@ -126,17 +126,23 @@ class EC2DeprecateImg(EC2ImgUtils):
         images = []
         my_images = self._get_owned_images()
         for image in my_images:
+            should_append_virt_type = False
+            should_append_public_only = False
             if filter_replacement_image:
                 if image['ImageId'] == self.replacement_image_id:
                     msg = 'Ignore replacement image as potential target '
                     msg += 'for deprecation.'
                     self.log.debug(msg)
                     continue
+            # Check for virt_type condition if specified
             if self.image_virt_type:
                 if self.image_virt_type == image['VirtualizationType']:
-                    images.append(image)
+                    should_append_virt_type = True
                 else:
+                    # cond specified and image not matching, moving on
                     continue
+
+            # Check for public_only condition if specified
             if self.public_only:
                 launch_attributes = self._connect().describe_image_attribute(
                     ImageId=image['ImageId'],
@@ -145,10 +151,35 @@ class EC2DeprecateImg(EC2ImgUtils):
                 if launch_attributes:
                     launch_permission = launch_attributes[0].get('Group', None)
                 if launch_permission == 'all':
-                    images.append(image)
-                continue
-            images.append(image)
+                    should_append_public_only = True
+                else:
+                    # cond specified and image not matching, moving on
+                    continue
 
+            # Append the image once to the list of images to be processed
+            # if a filter was configured and the image matched it
+            if (
+                self.image_virt_type and
+                self.public_only and
+                should_append_virt_type and
+                should_append_public_only
+            ):
+                images.append(image)
+            elif (
+                self.image_virt_type and
+                should_append_virt_type
+            ):
+                images.append(image)
+            elif (
+                self.public_only and
+                should_append_public_only
+            ):
+                images.append(image)
+            elif (
+                not self.image_virt_type and
+                not self.public_only
+            ):
+                images.append(image)
         return images
 
     # ---------------------------------------------------------------------
@@ -323,9 +354,13 @@ class EC2DeprecateImg(EC2ImgUtils):
         )
         self.log.info('\tDeprecated on {}'.format(self.deprecation_date))
         self.log.info('\tRemoval date {}'.format(self.deletion_date))
-        self.log.info(
-            '\tReplacement image {}'.format(self.replacement_image_tag)
-        )
+        if self.replacement_image_tag:
+            self.log.info(
+                '\tReplacement image {}'.format(self.replacement_image_tag)
+            )
+        else:
+            self.log.info("\tNo replacement image provided")
+
         self.log.info('\tImages to deprecate:\n\t\tID\t\t\t\tName')
         for image in images:
             self.log.info('\t\t%s\t%s' % (image['ImageId'], image['Name']))
