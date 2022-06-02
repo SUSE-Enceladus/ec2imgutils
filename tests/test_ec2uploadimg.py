@@ -1212,6 +1212,64 @@ def test_get_inst_type_exc(get_from_config_mock, caplog):
 
 
 # --------------------------------------------------------------------
+# Tests for get_uploader functions
+@patch('ec2uploadimg.ec2upimg.EC2ImageUploader')
+def test_get_uploader_exc1(EC2ImageUploader_mock, caplog):
+    global logger
+
+    def my_side_eff(a1, a2, a3, a4, a5):
+        raise Exception('myException')
+
+    EC2ImageUploader_mock.side_effect = my_side_eff
+
+    class Args:
+        accountName = None
+        amiID = None
+        runningID = None
+
+    myArgs = Args()
+    with pytest.raises(SystemExit) as excinfo:
+        ec2uploadimg.get_uploader(
+            myArgs,
+            "reg1",
+            None,
+            None,
+            None,
+            None,
+            logger
+        )
+    assert excinfo.value.code == 1
+
+
+@patch('ec2uploadimg.ec2upimg.EC2ImageUploader')
+def test_get_uploader_exc2(EC2ImageUploader_mock, caplog):
+    global logger
+
+    def my_side_eff(a1, a2, a3, a4, a5):
+        raise ec2uploadimg.EC2UploadImgException
+
+    EC2ImageUploader_mock.side_effect = my_side_eff
+
+    class Args:
+        accountName = None
+        amiID = None
+        runningID = None
+
+    myArgs = Args()
+    with pytest.raises(SystemExit) as excinfo:
+        ec2uploadimg.get_uploader(
+            myArgs,
+            "reg1",
+            None,
+            None,
+            None,
+            None,
+            logger
+        )
+    assert excinfo.value.code == 1
+
+
+# --------------------------------------------------------------------
 # Tests for main
 @patch('ec2uploadimg.ec2upimg.EC2ImageUploader')
 def test_main_happy_path_snapOnly(
