@@ -1,6 +1,6 @@
 #!/usr/bin/python3
 
-# Copyright 2020 SUSE LLC
+# Copyright 2022 SUSE LLC
 #
 # This file is part of ec2imgutils
 #
@@ -31,282 +31,329 @@ from ec2imgutils.ec2imgutilsExceptions import (
 
 
 # ----------------------------------------------------------------------------
-# Argument format validation functions
 def valid_YYYYMMDD_date(s):
+    """This function verifies the provided parameter is a valid date in format
+    YYYYMMDD
+    """
     try:
         if s:
             datetime.datetime.strptime(s, "%Y%m%d")
         return s
-    except ValueError:
-        msg = "not a valid date: {0:!r}".format(s)
+    except (ValueError, TypeError):
+        msg = "not a valid date: {}".format(s)
         raise argparse.ArgumentTypeError(msg)
 
 
 # ----------------------------------------------------------------------------
-# Set up command line argument parsing
-argparse = argparse.ArgumentParser(description='Deprecate images in EC2')
-argparse.add_argument(
-    '-a', '--account',
-    dest='accountName',
-    help='Account to use',
-    metavar='ACCOUNT_NAME',
-)
-argparse.add_argument(
-    '--access-id',
-    dest='accessKey',
-    help='AWS access key (Optional)',
-    metavar='AWS_ACCESS_KEY'
-)
-help_msg = 'The deprecation date, the date the image is considered '
-help_msg += 'deprecated. The default value is today\'s date (Optional)'
-argparse.add_argument(
-    '--deprecation-date',
-    default='',
-    dest='depDate',
-    help=help_msg,
-    metavar='DEPRECATION_DATE',
-    type=valid_YYYYMMDD_date
-)
-help_msg = 'The deprecation period, image will be tagged for removal '
-help_msg += 'on "deprecation date + deprecation period", specified in months, '
-help_msg += 'default is 6 month (Optional)'
-argparse.add_argument(
-    '-d', '--deprecation-period',
-    default=6,
-    dest='depTime',
-    help=help_msg,
-    metavar='NUMBER_OF_MONTHS',
-    type=int
-)
-help_msg = 'Do not perform any action, print information about actions that '
-help_msg += 'would be performed instared (Optional)'
-argparse.add_argument(
-    '-n', '--dry-run',
-    action='store_true',
-    default=False,
-    dest='dryRun',
-    help=help_msg
-)
-argparse.add_argument(
-    '-f', '--file',
-    default=os.sep.join(['~', '.ec2utils.conf']),
-    dest='configFilePath',
-    help='Path to configuration file, default ~/.ec2utils.conf (Optional)',
-    metavar='CONFIG_FILE'
-)
-argparse.add_argument(
-    '--force',
-    action='store_true',
-    default=False,
-    dest='force',
-    help='Overwrite existing deprecation tags (Optional)',
-)
-# Note, one of the arguments in the group is required if --version is
-# not specified. However setting this behavior through the parser
-# also requiers one argument to be specified even if --version is specified
-# This parser behavior is true even if --version and the group are part of the
-# same subgroup
-deprecation_image_id = argparse.add_mutually_exclusive_group()
-deprecation_image_id.add_argument(
-    '--image-id',
-    dest='depImgID',
-    help='The AMI ID of the image to be deprecated (Optional)',
-    metavar='AMI_ID'
-)
-deprecation_image_id.add_argument(
-    '--image-name',
-    dest='depImgName',
-    help='The image name of the image to be deprecated (Optional)',
-    metavar='IMAGE_NAME'
-)
-help_msg = 'An image name fragment to match the image name of the image to be '
-help_msg += 'deprecated (Optional)'
-deprecation_image_id.add_argument(
-    '--image-name-frag',
-    dest='depImgNameFrag',
-    help=help_msg,
-    metavar='IMAGE_NAME_FRAGMENT'
-)
-help_msg = 'A regular expression to match the image name of the image to be '
-help_msg += 'deprecated (Optional)'
-deprecation_image_id.add_argument(
-    '--image-name-match',
-    dest='depImgNameMatch',
-    help=help_msg,
-    metavar='REGEX'
-)
-argparse.add_argument(
-    '--image-virt-type',
-    choices=['hvm', 'para'],
-    dest='virtType',
-    help='The virtualization type of the image to be deprecated (Optional)',
-    metavar='VIRT_TYPE'
-)
-argparse.add_argument(
-    '--public-only',
-    action='store_true',
-    default=False,
-    dest='publicOnly',
-    help='Only consider images that are public (Optional)'
-)
-# Note, one of the arguments in the group is required if --version is
-# not specified. However setting this behavior through the parser
-# also requiers one argument to be specified even if --version is specified
-# This parser behavior is true even if --version and the group are part of the
-# same subgroup
-replacement_image_id = argparse.add_mutually_exclusive_group()
-help_msg = 'The AMI ID of the image used as a replacement for the image(s) '
-help_msg += 'being deprecated (Optional), one of --replacement-id or '
-help_msg += '--replacement-name is required'
-replacement_image_id.add_argument(
-    '--replacement-id',
-    dest='replImgID',
-    help=help_msg,
-    metavar='AMI_ID'
-)
-help_msg = 'The name of the image used as a replacement for the image(s) '
-help_msg += 'being deprecated (Optional), one of --replacement-id or '
-help_msg += '--replacement-name is required'
-replacement_image_id.add_argument(
-    '--replacement-name',
-    dest='replImgName',
-    help=help_msg,
-    metavar='IMAGE_NAME'
-)
-help_msg = 'An image name fragment to match the image name of the image to be '
-help_msg += 'deprecated (Optional)'
-replacement_image_id.add_argument(
-    '--replacement-name-frag',
-    dest='replImgNameFrag',
-    help=help_msg,
-    metavar='IMAGE_NAME_FRAGMENT'
-)
-help_msg = 'A regular expression to match the image name of the image to be '
-help_msg += 'deprecated (Optional)'
-replacement_image_id.add_argument(
-    '--replacement-name-match',
-    dest='replImgNameMatch',
-    help=help_msg,
-    metavar='REGEX'
-)
-help_msg = 'Comma separated list of regions for publishing, all integrated '
-help_msg += 'region sif not given (Optional)'
-argparse.add_argument(
-    '-r', '--regions',
-    dest='regions',
-    help=help_msg,
-    metavar='EC2_REGIONS'
-)
-argparse.add_argument(
-    '-s', '--secret-key',
-    dest='secretKey',
-    help='AWS secret access key (Optional)',
-    metavar='AWS_SECRET_KEY'
-)
-argparse.add_argument(
-    '--verbose',
-    action='store_true',
-    default=False,
-    dest='verbose',
-    help='Enable on verbose output'
-)
-argparse.add_argument(
-    '--version',
-    action='version',
-    version=utils.get_version(),
-    help='Program version'
-)
+def check_required_arguments(args, logger):
+    """This function is used to assure the additional requirements over
+    arguments (which ones are mandatory, etc.) are met.
+    """
+    check_deprecated_image_args_present(args, logger)
 
-args = argparse.parse_args()
 
-logger = utils.get_logger(args.verbose)
-
-# Explicit check required to to the group issue, see comment above
-if (
+# ----------------------------------------------------------------------------
+def check_deprecated_image_args_present(args, logger):
+    """This function checks that at least one of the possible args to specify
+    the deprecated image is present
+    """
+    if (
         not args.depImgID and not
         args.depImgName and not
         args.depImgNameFrag and not
-        args.depImgNameMatch):
-    error_msg = 'ec2deprecateimg: error: one of the arguments '
-    error_msg += '--image-id --image-name --image-name-frag '
-    error_msg += '--image-name-match is required'
-    logger.error(error_msg)
-    sys.exit(1)
-
-config_file = os.path.expanduser(args.configFilePath)
-config = None
-if not os.path.isfile(config_file):
-    logger.error('Configuration file "%s" not found.' % config_file)
-    sys.exit(1)
-try:
-    config = utils.get_config(config_file)
-except Exception as e:
-    logger.exception(e)
-    sys.exit(1)
-
-access_key = args.accessKey
-if not access_key:
-    try:
-        access_key = utils.get_from_config(args.accountName,
-                                           config,
-                                           None,
-                                           'access_key_id',
-                                           '--access-id')
-    except EC2AccountException as e:
-        logger.error(e)
+        args.depImgNameMatch
+    ):
+        error_msg = 'ec2deprecateimg: error: one of the arguments '
+        error_msg += '--image-id --image-name --image-name-frag '
+        error_msg += '--image-name-match is required'
+        logger.error(error_msg)
         sys.exit(1)
 
-if not access_key:
-    logger.error('Could not determine account access key')
-    sys.exit(1)
 
-secret_key = args.secretKey
-if not secret_key:
+# ----------------------------------------------------------------------------
+def get_config(args, logger):
+    """Function to the the configutation parsed from the configuration file
+    provided as an argument (or the default path)
+    """
+    config_file = os.path.expanduser(args.configFilePath)
+    config = None
+    if not os.path.isfile(config_file):
+        logger.error('Configuration file "%s" not found.' % config_file)
+        sys.exit(1)
     try:
-        secret_key = utils.get_from_config(args.accountName,
-                                           config,
-                                           None,
-                                           'secret_access_key',
-                                           '--secret-key')
-    except EC2AccountException as e:
+        config = utils.get_config(config_file)
+    except Exception as e:
+        logger.exception(e)
+        sys.exit(1)
+    return config
+
+
+# ----------------------------------------------------------------------------
+def get_access_key(args, config, logger):
+    """Function to get the access_key to AWS with the data provided as command
+    line args and configuration.
+    """
+    access_key = args.accessKey
+    if not access_key:
+        try:
+            access_key = utils.get_from_config(
+                args.accountName,
+                config,
+                None,
+                'access_key_id',
+                '--access-id'
+            )
+        except EC2AccountException as e:
+            logger.error(e)
+            sys.exit(1)
+
+    if not access_key:
+        logger.error('Could not determine account access key')
+        sys.exit(1)
+    return access_key
+
+
+# ----------------------------------------------------------------------------
+def get_secret_key(args, config, logger):
+    """Function to get the secret_key to AWS with the data provided as command
+    line args and configuration.
+    """
+    secret_key = args.secretKey
+    if not secret_key:
+        try:
+            secret_key = utils.get_from_config(
+                args.accountName,
+                config,
+                None,
+                'secret_access_key',
+                '--secret-key'
+            )
+        except EC2AccountException as e:
+            logger.error(e)
+            sys.exit(1)
+
+    if not secret_key:
+        logger.error('Could not determine account secret access key')
+        sys.exit(1)
+    return secret_key
+
+
+# ----------------------------------------------------------------------------
+def get_image_deprecator(args, access_key, secret_key, logger):
+    """Function to get an instance of the ec2imgutils.ec2deprecateimg class"""
+    try:
+        deprecator = ec2depimg.EC2DeprecateImg(
+            access_key=access_key,
+            deprecation_date=args.depDate,
+            deprecation_period=args.depTime,
+            deprecation_image_id=args.depImgID,
+            deprecation_image_name=args.depImgName,
+            deprecation_image_name_fragment=args.depImgNameFrag,
+            deprecation_image_name_match=args.depImgNameMatch,
+            force=args.force,
+            image_virt_type=args.virtType,
+            public_only=args.publicOnly,
+            replacement_image_id=args.replImgID,
+            replacement_image_name=args.replImgName,
+            replacement_image_name_fragment=args.replImgNameFrag,
+            replacement_image_name_match=args.replImgNameMatch,
+            secret_key=secret_key,
+            log_callback=logger
+        )
+    except EC2DeprecateImgException as e:
         logger.error(e)
         sys.exit(1)
+    return deprecator
 
-if not secret_key:
-    logger.error('Could not determine account secret access key')
-    sys.exit(1)
 
-regions = utils.get_regions(args, access_key, secret_key)
-
-# Collect all the errors to be displayed later
-errors = {}
-try:
-    deprecator = ec2depimg.EC2DeprecateImg(
-        access_key=access_key,
-        deprecation_date=args.depDate,
-        deprecation_period=args.depTime,
-        deprecation_image_id=args.depImgID,
-        deprecation_image_name=args.depImgName,
-        deprecation_image_name_fragment=args.depImgNameFrag,
-        deprecation_image_name_match=args.depImgNameMatch,
-        force=args.force,
-        image_virt_type=args.virtType,
-        public_only=args.publicOnly,
-        replacement_image_id=args.replImgID,
-        replacement_image_name=args.replImgName,
-        replacement_image_name_fragment=args.replImgNameFrag,
-        replacement_image_name_match=args.replImgNameMatch,
-        secret_key=secret_key,
-        log_callback=logger
+# ----------------------------------------------------------------------------
+def parse_args(args):
+    """Command argument parsing function."""
+    parser = argparse.ArgumentParser(description='Deprecate images in EC2')
+    parser.add_argument(
+        '-a', '--account',
+        dest='accountName',
+        help='Account to use',
+        metavar='ACCOUNT_NAME',
     )
-except EC2DeprecateImgException as e:
-    logger.exception(e)
-    sys.exit(1)
+    parser.add_argument(
+        '--access-id',
+        dest='accessKey',
+        help='AWS access key (Optional)',
+        metavar='AWS_ACCESS_KEY'
+    )
+    help_msg = 'The deprecation date, the date the image is considered '
+    help_msg += 'deprecated. The default value is today\'s date (Optional)'
+    parser.add_argument(
+        '--deprecation-date',
+        default='',
+        dest='depDate',
+        help=help_msg,
+        metavar='DEPRECATION_DATE',
+        type=valid_YYYYMMDD_date
+    )
+    help_msg = 'The deprecation period, image will be tagged for removal '
+    help_msg += 'on "deprecation date + deprecation period", specified '
+    help_msg += 'in months, default is 6 month (Optional)'
+    parser.add_argument(
+        '-d', '--deprecation-period',
+        default=6,
+        dest='depTime',
+        help=help_msg,
+        metavar='NUMBER_OF_MONTHS',
+        type=int
+    )
+    help_msg = 'Do not perform any action, print information about actions '
+    help_msg += 'that would be performed instared (Optional)'
+    parser.add_argument(
+        '-n', '--dry-run',
+        action='store_true',
+        default=False,
+        dest='dryRun',
+        help=help_msg
+    )
+    parser.add_argument(
+        '-f', '--file',
+        default=os.sep.join(['~', '.ec2utils.conf']),
+        dest='configFilePath',
+        help='Path to configuration file, default ~/.ec2utils.conf (Optional)',
+        metavar='CONFIG_FILE'
+    )
+    parser.add_argument(
+        '--force',
+        action='store_true',
+        default=False,
+        dest='force',
+        help='Overwrite existing deprecation tags (Optional)',
+    )
+    # Note, one of the arguments in the group is required if --version is
+    # not specified. However setting this behavior through the parser
+    # also requiers one argument to be specified even if --version is specified
+    # This parser behavior is true even if --version and the group are part of
+    # the same subgroup
+    deprecation_image_id = parser.add_mutually_exclusive_group()
+    deprecation_image_id.add_argument(
+        '--image-id',
+        dest='depImgID',
+        help='The AMI ID of the image to be deprecated (Optional)',
+        metavar='AMI_ID'
+    )
+    deprecation_image_id.add_argument(
+        '--image-name',
+        dest='depImgName',
+        help='The image name of the image to be deprecated (Optional)',
+        metavar='IMAGE_NAME'
+    )
+    help_msg = 'An image name fragment to match the image name of the image '
+    help_msg += 'to be deprecated (Optional)'
+    deprecation_image_id.add_argument(
+        '--image-name-frag',
+        dest='depImgNameFrag',
+        help=help_msg,
+        metavar='IMAGE_NAME_FRAGMENT'
+    )
+    help_msg = 'A regular expression to match the image name of the image '
+    help_msg += 'to be deprecated (Optional)'
+    deprecation_image_id.add_argument(
+        '--image-name-match',
+        dest='depImgNameMatch',
+        help=help_msg,
+        metavar='REGEX'
+    )
+    help_msg = 'The virtualization type of the image to be deprecated '
+    help_msg += '(Optional)'
+    parser.add_argument(
+        '--image-virt-type',
+        choices=['hvm', 'para'],
+        dest='virtType',
+        help=help_msg,
+        metavar='VIRT_TYPE'
+    )
+    parser.add_argument(
+        '--public-only',
+        action='store_true',
+        default=False,
+        dest='publicOnly',
+        help='Only consider images that are public (Optional)'
+    )
+    # Note, one of the arguments in the group is required if --version is
+    # not specified. However setting this behavior through the parser
+    # also requiers one argument to be specified even if --version is specified
+    # This prser behavior is true even if --version and the group are part
+    # of the same subgroup
+    replacement_image_id = parser.add_mutually_exclusive_group()
+    help_msg = 'The AMI ID of the image used as a replacement for the '
+    help_msg += 'image(s) being deprecated (Optional), one of --replacement-id'
+    help_msg += ' or --replacement-name is required'
+    replacement_image_id.add_argument(
+        '--replacement-id',
+        dest='replImgID',
+        help=help_msg,
+        metavar='AMI_ID'
+    )
+    help_msg = 'The name of the image used as a replacement for the image(s) '
+    help_msg += 'being deprecated (Optional), one of --replacement-id or '
+    help_msg += '--replacement-name is required'
+    replacement_image_id.add_argument(
+        '--replacement-name',
+        dest='replImgName',
+        help=help_msg,
+        metavar='IMAGE_NAME'
+    )
+    help_msg = 'An image name fragment to match the image name of the image '
+    help_msg += 'to be deprecated (Optional)'
+    replacement_image_id.add_argument(
+        '--replacement-name-frag',
+        dest='replImgNameFrag',
+        help=help_msg,
+        metavar='IMAGE_NAME_FRAGMENT'
+    )
+    help_msg = 'A regular expression to match the image name of the image '
+    help_msg += 'to be deprecated (Optional)'
+    replacement_image_id.add_argument(
+        '--replacement-name-match',
+        dest='replImgNameMatch',
+        help=help_msg,
+        metavar='REGEX'
+    )
+    help_msg = 'Comma separated list of regions for publishing, all integrated'
+    help_msg += ' regions if not given (Optional)'
+    parser.add_argument(
+        '-r', '--regions',
+        dest='regions',
+        help=help_msg,
+        metavar='EC2_REGIONS'
+    )
+    parser.add_argument(
+        '-s', '--secret-key',
+        dest='secretKey',
+        help='AWS secret access key (Optional)',
+        metavar='AWS_SECRET_KEY'
+    )
+    parser.add_argument(
+        '--verbose',
+        action='store_true',
+        default=False,
+        dest='verbose',
+        help='Enable on verbose output'
+    )
+    parser.add_argument(
+        '--version',
+        action='version',
+        version=utils.get_version(),
+        help='Program version'
+    )
+    parsed_args = parser.parse_args(args)
+    return parsed_args
 
-for region in regions:
-    deprecator.set_region(region)
+
+# ----------------------------------------------------------------------------
+def deprecate_images_in_region(deprecator, dryRun, region, errors, logger):
+    """Function that deprecates the specified images for a AWS region. The
+    function returns the errors dictionary with any error it found added
+    """
     try:
-        if args.dryRun:
+        if dryRun:
             logger.info('Dry run, image attributes will not be modified')
             deprecator.print_deprecation_info()
         else:
@@ -314,15 +361,53 @@ for region in regions:
     except EC2DeprecateImgException as e:
         errors[region] = format(e)
     except Exception as e:
-        if errors:
-            logger.error('Collected errors:')
-            for region, error in list(errors.items()):
-                logger.error('Region: %s -> %s' % (region, error))
+        print_errors(errors, logger)
         logger.exception(e)
         sys.exit(1)
+    return errors
 
-if errors:
-    logger.error('Errors encountered:')
-    for region, error in list(errors.items()):
-        logger.error('Region: %s -> %s' % (region, error))
-    sys.exit(1)
+
+# ----------------------------------------------------------------------------
+def print_errors(errors, logger):
+    """Function that prints the collected errors during image deprecation
+    process
+    """
+    if errors:
+        logger.error('Collected errors:')
+        for region, error in list(errors.items()):
+            logger.error('Region: %s -> %s' % (region, error))
+
+
+# ----------------------------------------------------------------------------
+def main(args):
+    args = parse_args(args)
+    logger = utils.get_logger(args.verbose)
+    check_required_arguments(args, logger)
+
+    config = get_config(args, logger)
+    access_key = get_access_key(args, config, logger)
+    secret_key = get_secret_key(args, config, logger)
+
+    regions = utils.get_regions(args, access_key, secret_key)
+    deprecator = get_image_deprecator(args, access_key, secret_key, logger)
+
+    # Collect all the errors to be displayed later
+    errors = {}
+    for region in regions:
+        deprecator.set_region(region)
+        errors = deprecate_images_in_region(
+            deprecator,
+            args.dryRun,
+            region,
+            errors,
+            logger
+        )
+
+    if errors:
+        print_errors(errors, logger)
+        sys.exit(1)
+
+
+# ----------------------------------------------------------------------------
+if __name__ == '__main__':
+    main(sys.argv[1:])
