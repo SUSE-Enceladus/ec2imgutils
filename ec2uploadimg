@@ -56,8 +56,6 @@ def print_ex(logger, msg=None):
 def signal_handler(signum, frame):
     """Handle signals and clean up resources properly"""
     global aborted
-    global uploader
-    global setup
     if aborted:
         # if it got already aborted before,
         # we kill the upload without proper clean up
