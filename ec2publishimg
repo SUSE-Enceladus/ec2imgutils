@@ -303,6 +303,7 @@ def get_publisher(args, access_key, secret_key, logger):
 def publish_images_in_region(publisher, dryRun, region, logger):
     """Function to publish images in region"""
     try:
+        publisher.set_region(region)
         if dryRun:
             logger.info('Dry run, image attributes will not be modified')
             publisher.print_publish_info()
@@ -330,7 +331,6 @@ def main(args):
     publisher = get_publisher(args, access_key, secret_key, logger)
 
     for region in regions:
-        publisher.set_region(region)
         publish_images_in_region(publisher, args.dryRun, region, logger)
 
 
