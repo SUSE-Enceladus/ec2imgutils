@@ -1,6 +1,6 @@
 #!/usr/bin/python3
 
-# Copyright 2020 SUSE LLC
+# Copyright 2022 SUSE LLC
 #
 # This file is part of ec2imgutils
 #
@@ -28,226 +28,312 @@ from ec2imgutils.ec2imgutilsExceptions import (
     EC2PublishImgException
 )
 
-# Set up command line argument parsing
-argparse = argparse.ArgumentParser(description='Publish (share) images in EC2')
-argparse.add_argument(
-    '-a', '--account',
-    dest='accountName',
-    help='Account to use',
-    metavar='ACCOUNT_NAME',
-)
-argparse.add_argument(
-    '--access-id',
-    dest='accessKey',
-    help='AWS access key (Optional)',
-    metavar='AWS_ACCESS_KEY'
-)
-help_msg = 'Allow the image to be copied. image, none, or a comma '
-help_msg += 'separated list of AWS account numbers, default "none". (Optional)'
-argparse.add_argument(
-    '--allow-copy',
-    default='none',
-    dest='allowCopy',
-    help=help_msg
-)
-help_msg = 'Do not perform any action, print information about actions that '
-help_msg += 'would be performed instead, default "False" (Optional)'
-argparse.add_argument(
-    '-n', '--dry-run',
-    action='store_true',
-    default=False,
-    dest='dryRun',
-    help=help_msg
-)
-argparse.add_argument(
-    '-f', '--file',
-    default=os.sep.join(['~', '.ec2utils.conf']),
-    dest='configFilePath',
-    help='Path to configuration file, default ~/.ec2utils.conf (Optional)',
-    metavar='CONFIG_FILE'
-)
-# Note, one of the arguments in the group is required if --version is
-# not specified. However setting this behavior through the parser
-# also requires one argument to be specified even if --version is specified
-# This parser behavior is true even if --version and the group are part of the
-# same subgroup
-publish_image_condition_group = argparse.add_mutually_exclusive_group()
-publish_image_condition_group.add_argument(
-    '--image-id',
-    dest='pubImgID',
-    help='The AMI ID of the image to be published (Optional)',
-    metavar='AMI_ID'
-)
-publish_image_condition_group.add_argument(
-    '--image-name',
-    dest='pubImgName',
-    help='The image name of the image to be published (Optional)',
-    metavar='IMAGE_NAME'
-)
-help_msg = 'An image name fragment to match the image name of the image to be '
-help_msg += 'published (Optional)'
-publish_image_condition_group.add_argument(
-    '--image-name-frag',
-    dest='pubImgNameFrag',
-    help=help_msg,
-    metavar='IMAGE_NAME_FRAGMENT'
-)
-help_msg = 'A regular expression to match the image name of the image to be '
-help_msg += 'published (Optional)'
-publish_image_condition_group.add_argument(
-    '--image-name-match',
-    dest='pubImgNameMatch',
-    help=help_msg,
-    metavar='REGEX'
-)
-help_msg = 'Comma separated list of regions for publishing, all integrated '
-help_msg += 'regions if not given (Optional)'
-argparse.add_argument(
-    '-r', '--regions',
-    dest='regions',
-    help=help_msg,
-    metavar='EC2_REGIONS'
-)
-argparse.add_argument(
-    '-s', '--secret-key',
-    dest='secretKey',
-    help='AWS secret access key (Optional)',
-    metavar='AWS_SECRET_KEY'
-)
-help_msg = 'all, none, or a comma separated list of AWS account numbers '
-help_msg += 'to share the image(s) with, default "all"'
-argparse.add_argument(
-    '--share-with',
-    default='all',
-    dest='share',
-    help=help_msg,
-    metavar='SHARE'
-)
-argparse.add_argument(
-    '--verbose',
-    action='store_true',
-    default=False,
-    dest='verbose',
-    help='Enable verbose output, default "False"'
-)
 
-argparse.add_argument(
-    '--version',
-    action='version',
-    version=utils.get_version(),
-    help='Program version'
-)
+# ----------------------------------------------------------------------------
+def parse_args(args):
+    """Commang argument parsing function."""
+    parser = argparse.ArgumentParser(
+        description='Publish (share) images in EC2'
+    )
+    parser.add_argument(
+        '-a', '--account',
+        dest='accountName',
+        help='Account to use',
+        metavar='ACCOUNT_NAME',
+    )
+    parser.add_argument(
+        '--access-id',
+        dest='accessKey',
+        help='AWS access key (Optional)',
+        metavar='AWS_ACCESS_KEY'
+    )
+    help_msg = 'Allow the image to be copied. image, none, or a comma '
+    help_msg += 'separated list of AWS account numbers, default "none". '
+    help_msg += '(Optional)'
+    parser.add_argument(
+        '--allow-copy',
+        default='none',
+        dest='allowCopy',
+        help=help_msg
+    )
+    help_msg = 'Do not perform any action, print information about actions '
+    help_msg += 'that would be performed instead, default "False" (Optional)'
+    parser.add_argument(
+        '-n', '--dry-run',
+        action='store_true',
+        default=False,
+        dest='dryRun',
+        help=help_msg
+    )
+    parser.add_argument(
+        '-f', '--file',
+        default=os.sep.join(['~', '.ec2utils.conf']),
+        dest='configFilePath',
+        help='Path to configuration file, default ~/.ec2utils.conf (Optional)',
+        metavar='CONFIG_FILE'
+    )
+    # Note, one of the arguments in the group is required if --version is
+    # not specified. However setting this behavior through the parser
+    # also requires one argument to be specified even if --version is specified
+    # This parser behavior is true even if --version and the group are part
+    # of the same subgroup
+    publish_image_condition_group = parser.add_mutually_exclusive_group()
+    publish_image_condition_group.add_argument(
+        '--image-id',
+        dest='pubImgID',
+        help='The AMI ID of the image to be published (Optional)',
+        metavar='AMI_ID'
+    )
+    publish_image_condition_group.add_argument(
+        '--image-name',
+        dest='pubImgName',
+        help='The image name of the image to be published (Optional)',
+        metavar='IMAGE_NAME'
+    )
+    help_msg = 'An image name fragment to match the image name of the image '
+    help_msg += 'to be published (Optional)'
+    publish_image_condition_group.add_argument(
+        '--image-name-frag',
+        dest='pubImgNameFrag',
+        help=help_msg,
+        metavar='IMAGE_NAME_FRAGMENT'
+    )
+    help_msg = 'A regular expression to match the image name of the image '
+    help_msg += 'to be published (Optional)'
+    publish_image_condition_group.add_argument(
+        '--image-name-match',
+        dest='pubImgNameMatch',
+        help=help_msg,
+        metavar='REGEX'
+    )
+    help_msg = 'Comma separated list of regions for publishing, all '
+    help_msg += 'integrated regions if not given (Optional)'
+    parser.add_argument(
+        '-r', '--regions',
+        dest='regions',
+        help=help_msg,
+        metavar='EC2_REGIONS'
+    )
+    parser.add_argument(
+        '-s', '--secret-key',
+        dest='secretKey',
+        help='AWS secret access key (Optional)',
+        metavar='AWS_SECRET_KEY'
+    )
+    help_msg = 'all, none, or a comma separated list of AWS account numbers '
+    help_msg += 'to share the image(s) with, default "all"'
+    parser.add_argument(
+        '--share-with',
+        default='all',
+        dest='share',
+        help=help_msg,
+        metavar='SHARE'
+    )
+    parser.add_argument(
+        '--verbose',
+        action='store_true',
+        default=False,
+        dest='verbose',
+        help='Enable verbose output, default "False"'
+    )
+    parser.add_argument(
+        '--version',
+        action='version',
+        version=utils.get_version(),
+        help='Program version'
+    )
 
-args = argparse.parse_args()
+    parsed_args = parser.parse_args(args)
+    return parsed_args
 
-logger = utils.get_logger(args.verbose)
 
-# Explicit check required to to the group issue, see comment above
-if (
+# ----------------------------------------------------------------------------
+def check_required_arguments(args, logger):
+    """This function is used to assure the additional requirements over
+    arguments (which ones are mandatory, etc.) are met."""
+    check_publish_image_args_present(args, logger)
+    check_allow_copy_arg(args, logger)
+    check_shared_arg(args, logger)
+
+
+# ----------------------------------------------------------------------------
+def check_publish_image_args_present(args, logger):
+    """This function checks that at least one of the possible args to specify
+    the image to publish is present"""
+    if (
         not args.pubImgID and not
         args.pubImgName and not
         args.pubImgNameFrag and not
-        args.pubImgNameMatch):
-    error_msg = 'ec2publishimg: error: one of the arguments '
-    error_msg += '--image-id --image-name --image-name-frag '
-    error_msg += '--image-name-match is required'
-    logger.error(error_msg)
-    sys.exit(1)
-
-
-config_file = os.path.expanduser(args.configFilePath)
-config = None
-if not os.path.isfile(config_file):
-    logger.error('Configuration file "%s" not found.' % config_file)
-    sys.exit(1)
-try:
-    config = utils.get_config(config_file)
-except Exception as e:
-    logger.error(e)
-    sys.exit(1)
-
-access_key = args.accessKey
-if not access_key:
-    try:
-        access_key = utils.get_from_config(args.accountName,
-                                           config,
-                                           None,
-                                           'access_key_id',
-                                           '--access-id')
-    except EC2AccountException as e:
-        logger.error(e)
+        args.pubImgNameMatch
+    ):
+        error_msg = 'ec2publishimg: error: one of the arguments '
+        error_msg += '--image-id --image-name --image-name-frag '
+        error_msg += '--image-name-match is required'
+        logger.error(error_msg)
         sys.exit(1)
 
-if not access_key:
-    logger.error('Could not determine account access key')
-    sys.exit(1)
 
-secret_key = args.secretKey
-if not secret_key:
-    try:
-        secret_key = utils.get_from_config(args.accountName,
-                                           config,
-                                           None,
-                                           'secret_access_key',
-                                           '--secret-key')
-    except EC2AccountException as e:
-        logger.error(e)
-        sys.exit(1)
-
-if not secret_key:
-    logger.error('Could not determine account secret access key')
-    sys.exit(1)
-
-regions = utils.get_regions(args, access_key, secret_key)
-snap_copy = args.allowCopy.lower()
-if (
+# ----------------------------------------------------------------------------
+def check_allow_copy_arg(args, logger):
+    """This function checks that the --allow-copy argument has a valid value"""
+    snap_copy = args.allowCopy.lower()
+    if (
         snap_copy != 'image' and
         snap_copy != 'none' and not
         utils.validate_account_numbers(snap_copy)
-):
-    msg = 'Expecting "image", "none", or comma separated list of 12 digit AWS '
-    msg += 'account numbers as value of --allow-copy'
-    logger.error(msg)
-    sys.exit(1)
+    ):
+        msg = 'Expecting "image", "none", or comma separated list of 12 digit '
+        msg += 'AWS account numbers as value of --allow-copy'
+        logger.error(msg)
+        sys.exit(1)
 
-visibility = args.share.lower()
-if (
-    visibility != 'all' and
-    visibility != 'none' and not
-    utils.validate_account_numbers(visibility)
-):
-    msg = 'Expecting "all", "none", or comma separated list of 12 digit AWS '
-    msg += 'account numbers as value of --share'
-    logger.error(msg)
-    sys.exit(1)
 
-if visibility[-1] == ',':
-    visibility = visibility[:-1]
+# ----------------------------------------------------------------------------
+def check_shared_arg(args, logger):
+    """This function checks that the --share argument has a valid value"""
+    visibility = args.share.lower()
+    if (
+        visibility != 'all' and
+        visibility != 'none' and not
+        utils.validate_account_numbers(visibility)
+    ):
+        msg = 'Expecting "all", "none", or comma separated list of 12 digit '
+        msg += 'AWS account numbers as value of --share'
+        logger.error(msg)
+        sys.exit(1)
 
-publisher = ec2pubimg.EC2PublishImage(
-        access_key=access_key,
-        allow_copy=snap_copy,
-        image_id=args.pubImgID,
-        image_name=args.pubImgName,
-        image_name_fragment=args.pubImgNameFrag,
-        image_name_match=args.pubImgNameMatch,
-        secret_key=secret_key,
-        visibility=visibility,
-        log_callback=logger
-)
 
-if args.dryRun:
-    logger.info('Dry run, image attributes will not be modified')
-try:
-    for region in regions:
+# ----------------------------------------------------------------------------
+def get_config(args, logger):
+    """Function to the the configutation parsed from the configuration file
+    provided as an argument (or the default path)"""
+
+    config_file = os.path.expanduser(args.configFilePath)
+    config = None
+    if not os.path.isfile(config_file):
+        logger.error('Configuration file "%s" not found.' % config_file)
+        sys.exit(1)
+    try:
+        config = utils.get_config(config_file)
+    except Exception as e:
+        logger.error(e)
+        sys.exit(1)
+    return config
+
+
+# ----------------------------------------------------------------------------
+def get_access_key(args, config, logger):
+    """Function to get the access_key to AWS with the data provided as command
+    line args and configuration.
+    """
+    access_key = args.accessKey
+    if not access_key:
+        try:
+            access_key = utils.get_from_config(
+                args.accountName,
+                config,
+                None,
+                'access_key_id',
+                '--access-id'
+            )
+        except EC2AccountException as e:
+            logger.error(e)
+            sys.exit(1)
+
+    if not access_key:
+        logger.error('Could not determine account access key')
+        sys.exit(1)
+    return access_key
+
+
+# ----------------------------------------------------------------------------
+def get_secret_key(args, config, logger):
+    """Function to get the secret_key to AWS with the data provided as command
+    line args and configuration.
+    """
+    secret_key = args.secretKey
+    if not secret_key:
+        try:
+            secret_key = utils.get_from_config(
+                args.accountName,
+                config,
+                None,
+                'secret_access_key',
+                '--secret-key'
+            )
+        except EC2AccountException as e:
+            logger.error(e)
+            sys.exit(1)
+
+    if not secret_key:
+        logger.error('Could not determine account secret access key')
+        sys.exit(1)
+    return secret_key
+
+
+# ----------------------------------------------------------------------------
+def get_publisher(args, access_key, secret_key, logger):
+    """Function to get an instance of the ec2imgutils.EC2PublishImage class"""
+    try:
+
+        snap_copy = args.allowCopy.lower()
+        visibility = args.share.lower()
+
+        if visibility[-1] == ',':
+            visibility = visibility[:-1]
+
+        publisher = ec2pubimg.EC2PublishImage(
+            access_key=access_key,
+            allow_copy=snap_copy,
+            image_id=args.pubImgID,
+            image_name=args.pubImgName,
+            image_name_fragment=args.pubImgNameFrag,
+            image_name_match=args.pubImgNameMatch,
+            secret_key=secret_key,
+            visibility=visibility,
+            log_callback=logger
+        )
+    except EC2PublishImgException as e:
+        logger.error(e)
+        sys.exit(1)
+    return publisher
+
+
+# ----------------------------------------------------------------------------
+def publish_images_in_region(publisher, dryRun, region, logger):
+    """Function to publish images in region"""
+    try:
         publisher.set_region(region)
-        if args.dryRun:
+        if dryRun:
+            logger.info('Dry run, image attributes will not be modified')
             publisher.print_publish_info()
         else:
             publisher.publish_images()
-except EC2PublishImgException as e:
-    logger.exception(e)
-    sys.exit(1)
-except Exception as e:
-    logger.exception(e)
-    sys.exit(1)
+    except EC2PublishImgException as e:
+        logger.exception(e)
+        sys.exit(1)
+    except Exception as e:
+        logger.exception(e)
+        sys.exit(1)
+
+
+# ----------------------------------------------------------------------------
+def main(args):
+    args = parse_args(args)
+    logger = utils.get_logger(args.verbose)
+    check_required_arguments(args, logger)
+
+    config = get_config(args, logger)
+    access_key = get_access_key(args, config, logger)
+    secret_key = get_secret_key(args, config, logger)
+
+    regions = utils.get_regions(args, access_key, secret_key)
+    publisher = get_publisher(args, access_key, secret_key, logger)
+
+    for region in regions:
+        publish_images_in_region(publisher, args.dryRun, region, logger)
+
+
+# ----------------------------------------------------------------------------
+if __name__ == '__main__':
+    main(sys.argv[1:])
