@@ -1468,6 +1468,51 @@ def test_main_happy_path_other(
     assert "myAmi" in caplog.text
 
 
+@patch('ec2uploadimg.ec2upimg.EC2ImageUploader')
+def test_failed_upload(
+    EC2ImageUploader_mock,
+    caplog
+):
+    ec2I = MagicMock()
+    ec2I.create_image.return_value = 'myAmi'
+    ec2I.create_image.side_effect = ValueError('upload failed (mock)')
+    EC2ImageUploader_mock.return_value = ec2I
+
+    cli_args = [
+        "--account",
+        "testAccName",
+        "--access-id",
+        "testAccId",
+        "--description",
+        "This is a test description for the image",
+        "--ec2-ami",
+        "testAWSAmiId",
+        "--machine",
+        "x86_64",
+        "--name",
+        "testImageName",
+        "--regions",
+        "region1",
+        "--secret-key",
+        "testAwsSecretKey",
+        "--security-group-ids",
+        "testSG1,testSG2",
+        "--ssh-key-pair",
+        "testSshKeyPair",
+        "--type",
+        "testType",
+        "--user",
+        "testUser",
+        "--verbose",
+        "--virt-type",
+        "hvm",
+        data_path + os.sep + 'complete.cfg'
+    ]
+    with pytest.raises(SystemExit) as excinfo:
+        ec2uploadimg.main(cli_args)
+    assert excinfo.value.code != 0
+
+
 @patch('ec2uploadimg.utils.get_from_config')
 def test_main_unable_to_get_access_keys(
     get_from_config_mock

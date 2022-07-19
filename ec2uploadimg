@@ -916,9 +916,10 @@ def upload_image_to_region(
         logger
 ):
     """ Function to upload the image to a region"""
+    errors = 0
+    global setup
+    global uploader
     try:
-        global setup
-        global uploader
         setup = EC2Setup(
             access_key,
             region,
@@ -955,10 +956,20 @@ def upload_image_to_region(
                 logger.info('Created image: {}'.format(str(ami)))
     except EC2UploadImgException as e:
         print_ex(logger, e)
+        errors += 1
     except Exception as e:
         print_ex(logger, e)
+        errors += 1
     finally:
-        setup.clean_up()
+        # avoid unclean termination in case of issues in the cleanup routine
+        try:
+            setup.clean_up()
+        except Exception as e:
+            print_ex(logger, e)
+            errors += 1
+        finally:
+            if errors > 0:
+                sys.exit(1)
 
 
 # ----------------------------------------------------------------------------
