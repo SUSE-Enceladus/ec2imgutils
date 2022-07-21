@@ -31,7 +31,7 @@ tar: clean
 	rm -rf "$(NAME)-$(verSrc)"
 
 test:
-	py.test tests/ec2utilsutilstest.py
+	py.test tests
 
 install:
 	python3 setup.py install --prefix="$(PREFIX)" --root="$(DESTDIR)"
