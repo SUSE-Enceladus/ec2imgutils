@@ -29,7 +29,7 @@ Source0:        %{upstream_name}-%{version}.tar.bz2
 Requires:       python3
 Requires:       python3-boto3 >= 1.29.84
 Requires:       python3-dateutil
-Requires:       python3-paramiko
+Requires:       python3-paramiko >= 2.2.0
 BuildRequires:  python3-boto3 >= 1.29.84
 BuildRequires:  python3-dateutil
 BuildRequires:  python3-setuptools
@@ -87,5 +87,3 @@ gzip %{buildroot}/%{_mandir}/man1/*
 %{_bindir}/*
 
 %changelog
-
-
