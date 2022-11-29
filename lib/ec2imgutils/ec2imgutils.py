@@ -24,7 +24,12 @@ from ec2imgutils.ec2imgutilsExceptions import EC2ConnectionException
 class EC2ImgUtils:
     """Base class for EC2 Image Utilities"""
 
-    def __init__(self, log_level=logging.INFO, log_callback=None):
+    def __init__(
+        self,
+        log_level=logging.INFO,
+        log_callback=None,
+        ec2_client=None
+    ):
 
         self.region = None
         self.session_token = None
@@ -41,9 +46,15 @@ class EC2ImgUtils:
         except AttributeError:
             self.log_level = self.log.logger.level  # LoggerAdapter
 
+        self.durable_ec2_client = ec2_client
+
     # ---------------------------------------------------------------------
     def _connect(self):
         """Connect to EC2"""
+
+        # Allow dependency injection for easier testing
+        if self.durable_ec2_client:
+            return self.durable_ec2_client
 
         ec2 = None
         if self.region:

@@ -62,12 +62,14 @@ class EC2ImageUploader(EC2ImgUtils):
                  log_level=logging.INFO,
                  log_callback=None,
                  boot_mode=None,
-                 tpm_support=None
+                 tpm_support=None,
+                 ec2_client=None,
                  ):
         EC2ImgUtils.__init__(
             self,
             log_level=log_level,
-            log_callback=log_callback
+            log_callback=log_callback,
+            ec2_client=ec2_client
         )
 
         self.access_key = access_key

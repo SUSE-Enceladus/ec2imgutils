@@ -37,12 +37,14 @@ class EC2PublishImage(EC2ImgUtils):
             secret_key=None,
             visibility='all',
             log_level=logging.INFO,
-            log_callback=None
+            log_callback=None,
+            ec2_client=None
     ):
         EC2ImgUtils.__init__(
             self,
             log_level=log_level,
-            log_callback=log_callback
+            log_callback=log_callback,
+            ec2_client=ec2_client
         )
 
         self.access_key = access_key
