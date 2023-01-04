@@ -1960,9 +1960,6 @@ def test_unpack_image_aborted(
     caplog
 ):
     # Mocks
-    volume = {
-        'VolumeId': 'myVolumeId'
-    }
 
     # Instance creation
     uploader = ec2upimg.EC2ImageUploader(
