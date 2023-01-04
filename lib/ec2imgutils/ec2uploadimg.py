@@ -299,7 +299,8 @@ class EC2ImageUploader(EC2ImgUtils):
                 repeat_count = self._check_wait_status(
                     wait_status,
                     error_msg,
-                    repeat_count
+                    repeat_count,
+                    skip_cleanup=True
                 )
         if self.created_volumes:
             for volume in self.created_volumes:
@@ -352,7 +353,7 @@ class EC2ImageUploader(EC2ImgUtils):
         else:
             helper_instance = self._launch_helper_instance()
         self.helper_instance = helper_instance
-        store_volume = self._create_storge_volume()
+        store_volume = self._create_storage_volume()
         self._attach_volume(store_volume)
         self._establish_ssh_connection()
         store_device_id = self._find_device_name(self.storage_volume_size)
@@ -428,7 +429,7 @@ class EC2ImageUploader(EC2ImgUtils):
         return result
 
     # ---------------------------------------------------------------------
-    def _create_storge_volume(self):
+    def _create_storage_volume(self):
         """Create the volume that will be used to store the image before
            dumping it to the new root volume"""
         return self._create_volume('%s' % self.storage_volume_size)
