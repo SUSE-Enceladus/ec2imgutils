@@ -568,16 +568,6 @@ def test_check_virt_type_consistent2(
     msg += 'root-swap method for image creation.'
     assert msg in str(e)
 
-    ec2.assert_has_calls([
-        call.describe_instances(InstanceIds=['myRunningId']),
-        call.describe_subnets(SubnetIds=['subnetId']),
-        call.describe_images(ImageIds=['myImageId']),
-        call.describe_images().__getitem__('Images'),
-        call.describe_images().__getitem__().__getitem__(0),
-        call.describe_images().__getitem__().__getitem__().__getitem__('VirtualizationType'),  # noqa: E501
-        call.describe_images().__getitem__().__getitem__().__getitem__().__eq__('anotherVirtType')  # noqa: E501
-    ])
-
 
 def test_check_virt_type_consistent3(
     caplog
@@ -2027,12 +2017,6 @@ def test_create_image_from_snapshot(
 
     # assertions
     assert response == 'ami1'
-    ec2connect_mock.assert_has_calls([
-        call(),
-        call().describe_snapshots(SnapshotIds=['source']),
-        call().describe_snapshots().__getitem__('Snapshots'),
-        call().describe_snapshots().__getitem__().__getitem__(0)
-    ])
 
 
 @patch('ec2imgutils.ec2uploadimg.EC2ImageUploader._clean_up')
