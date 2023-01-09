@@ -1,6 +1,6 @@
 #!/usr/bin/python3
 #
-# Copyright (c) 2015 SUSE Linux GmbH.  All rights reserved.
+# Copyright (c) 2023 SUSE Linux GmbH.  All rights reserved.
 #
 # This file is part of ec2utils
 #
@@ -19,11 +19,8 @@
 # <http://www.gnu.org/licenses/>.
 #
 
-# import datetime
-# import dateutil.relativedelta
 import logging
 import pytest
-# import time
 
 from unittest.mock import patch, MagicMock, call
 
