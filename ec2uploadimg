@@ -107,11 +107,13 @@ def parse_args(args):
         help='AWS kernel ID (aki) to boot the new image (Optional)',
         metavar='AWS_AKI_ID'
     )
+    help_msg = 'Set the boot mode for the image, legacy-bios, uefi, '
+    help_msg += 'or uefi-preferred (Optional)'
     parser.add_argument(
         '--boot-mode',
         dest='bootMode',
-        help='Set the boot mode for the image, legacy-bios or uefi (Optional)',
-        choices=['', 'legacy-bios', 'uefi'],
+        help=help_msg,
+        choices=['', 'legacy-bios', 'uefi', 'uefi-preferred'],
         metavar='BOOT_MODE'
     )
     parser.add_argument(
@@ -430,7 +432,7 @@ def check_tpm_support_has_allowed_boot_options(args, logger):
     """This function checks that in case tpm is enabled, boot options are
     correct
     """
-    tpm_boot_options = ['uefi']
+    tpm_boot_options = ['uefi', 'uefi-preferred']
     if args.tpm and args.bootMode not in tpm_boot_options:
         logger.error(
             'TPM can only be set with --boot-mode set to %s' % str(
