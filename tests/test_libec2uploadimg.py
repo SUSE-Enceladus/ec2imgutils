@@ -1486,7 +1486,9 @@ def test_establish_ssh_connection(
             key_filename=None,
             username=None,
             hostname='1.2.3.4',
-            timeout=10
+            timeout=300,
+            banner_timeout=300,
+            auth_timeout=300
         ),
     ])
 
