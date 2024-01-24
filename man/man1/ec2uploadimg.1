@@ -85,11 +85,14 @@ or
 value in the configuration file.
 .IP "--boot-mode"
 Optionally specify the boot mode for the image. Accepted values are
-.I legacy-bios
+.I legacy-bios,
+.I uefi,
 or
-.I uefi .
+.I uefi-preferred .
 If no boot mode is specified the default behavior for the instance type
 applies, uefi for aarch64 instances and bios for x86_64 based instances.
+An image with the uefi-preferred setting will boot using uefi if the instance
+type supports uefi, otherwise it will use bios.
 .IP "-d --description IMAGE_DESCRIPTION"
 Specifies a description for the image. The description will also be used for
 the snapshot.
