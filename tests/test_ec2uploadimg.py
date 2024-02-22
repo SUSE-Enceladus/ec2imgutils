@@ -65,6 +65,8 @@ test_cli_args_data = [
       "--file",
       "/path/to/configuration/file",
       "--grub2",
+      "--imds-support",
+      "2.0",
       "--instance-id",
       "testInstanceId",
       "--machine",
@@ -149,6 +151,7 @@ def test_args(cli_args):
     assert parsed_args.waitCount == 8
     assert parsed_args.useSnap is True
     assert parsed_args.source == "testSource"
+    assert parsed_args.imdsVersion == "2.0"
 
 
 # --------------------------------------------------------------------
@@ -174,6 +177,8 @@ test_cli_args_data = [
       "--file",
       "/path/to/configuration/file",
       "--grub2",
+      "--imds-support",
+      "v2.0",
       "--machine",
       "x86_64",
       "--name",
@@ -196,7 +201,7 @@ test_cli_args_data = [
       "--ssh-timeout",
       "257",
       "--tpm-support",
-      "2.0",
+      "v2.0",
       "--type",
       "testType",
       "--user",
@@ -244,7 +249,7 @@ def test_args_check(cli_args):
     assert parsed_args.snapOnly is False
     assert parsed_args.sriov is True
     assert parsed_args.sshTimeout == 257
-    assert parsed_args.tpm == "2.0"
+    assert parsed_args.tpm == "v2.0"
     assert parsed_args.instType == "testType"
     assert parsed_args.sshUser == "testUser"
     assert parsed_args.usePrivateIP is True
@@ -253,6 +258,7 @@ def test_args_check(cli_args):
     assert parsed_args.vpcSubnetId == "testVpcSubnetId"
     assert parsed_args.waitCount == 8
     assert parsed_args.source == "testSource"
+    assert parsed_args.imdsVersion == "v2.0"
 
 
 # --------------------------------------------------------------------
