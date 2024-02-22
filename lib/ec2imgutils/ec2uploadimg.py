@@ -64,7 +64,7 @@ class EC2ImageUploader(EC2ImgUtils):
                  boot_mode=None,
                  tpm_support=None,
                  imds_support=None
-    ):
+                 ):
         EC2ImgUtils.__init__(
             self,
             log_level=log_level,

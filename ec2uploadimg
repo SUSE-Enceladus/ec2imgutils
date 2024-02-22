@@ -150,7 +150,7 @@ def parse_args(args):
         dest='grub2',
         help='The image uses the GRUB2 bootloader (Optional)'
     )
-    help_msg = 'Set he protocol version to be used when instances are '
+    help_msg = 'Set the protocol version to be used when instances are '
     help_msg += 'launched from the image, supported values 2.0/v2.0. '
     help_msg += '(Optional)'
     parser.add_argument(

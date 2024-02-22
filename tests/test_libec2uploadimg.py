@@ -34,8 +34,8 @@ test_path = os.path.abspath(
 code_path = os.path.abspath('%s/../lib' % test_path)
 sys.path.insert(0, code_path)
 
-import ec2imgutils.ec2uploadimg as ec2upimg
-from ec2imgutils.ec2imgutilsExceptions import (
+import ec2imgutils.ec2uploadimg as ec2upimg  # noqa: E402
+from ec2imgutils.ec2imgutilsExceptions import (  # noqa: E402
     EC2UploadImgException
 )
 
