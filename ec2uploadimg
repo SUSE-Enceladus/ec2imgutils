@@ -720,9 +720,10 @@ def get_security_group_ids(
     security_group_ids = args.securityGroupIds
 
     if not security_group_ids and not args.runningID:
-        if not args.accountName:
-            security_group_ids = setup.create_security_group()
-        else:
+        # Not specified on the command line and we are not using a
+        # running instance try to get a preferred security group from
+        # the config
+        if args.accountName:
             try:
                 security_group_ids = utils.get_from_config(
                     args.accountName,
@@ -736,32 +737,35 @@ def get_security_group_ids(
                     msg = 'Using Security Group IDs: %s'
                     logger.debug(msg % security_group_ids)
             except Exception:
-                msg = 'No security group specified in the '
-                msg += 'configuration, "security_group_ids_%s" or '
-                msg += 'given on the command line.'
+                pass
+
+        if not security_group_ids and vpc_subnet_id:
+            ec2 = boto3.client(
+                aws_access_key_id=access_key,
+                aws_secret_access_key=secret_key,
+                region_name=region,
+                service_name='ec2'
+            )
+
+            subnet_data = ec2.describe_subnets(SubnetIds=[vpc_subnet_id])
+
+            subnets = subnet_data.get('Subnets')
+            if not subnets:
+                msg = 'Unable to obtain VPC information for '
+                msg += 'provided subnet "%s". ' % vpc_subnet_id
+                msg += 'Subnet ID is invalid.'
                 logger.error(msg)
-
-            if not security_group_ids and vpc_subnet_id:
-                ec2 = boto3.client(
-                    aws_access_key_id=access_key,
-                    aws_secret_access_key=secret_key,
-                    region_name=region,
-                    service_name='ec2'
-                )
-
-                subnet_data = ec2.describe_subnets(SubnetIds=[vpc_subnet_id])
-
-                subnets = subnet_data.get('Subnets')
-                if not subnets:
-                    msg = 'Unable to obtain VPC information for '
-                    msg += 'provided subnet "%s". ' % vpc_subnet_id
-                    msg += 'Subnet ID is invalid.'
-                    logger.error(msg)
-                    sys.exit(1)
-                vpc_id = subnets[0]['VpcId']
-                security_group_ids = setup.create_security_group(
+                sys.exit(1)
+            vpc_id = subnets[0]['VpcId']
+            security_group_ids = setup.create_security_group(
                     vpc_id
-                )
+            )
+
+        if not security_group_ids:
+            msg = 'Auto creating a security group'
+            logger.info(msg)
+            security_group_ids = setup.create_security_group()
+
     return security_group_ids
 
 
