@@ -150,6 +150,16 @@ def parse_args(args):
         dest='grub2',
         help='The image uses the GRUB2 bootloader (Optional)'
     )
+    help_msg = 'Set the protocol version to be used when instances are '
+    help_msg += 'launched from the image, supported values 2.0/v2.0. '
+    help_msg += '(Optional)'
+    parser.add_argument(
+        '--imds-support',
+        dest='imdsVersion',
+        help=help_msg,
+        choices=['', '2.0', 'v2.0'],
+        metavar='IMDS_VERSION'
+    )
     parser.add_argument(
         '-i', '--instance-id',
         dest='runningID',
@@ -244,7 +254,7 @@ def parse_args(args):
         metavar='SSH_TIME_OUT',
         type=int
     )
-    help_msg = 'The image supports NitroTPM, supported value 2.0/v2.0'
+    help_msg = 'The image supports NitroTPM, supported values 2.0/v2.0'
     help_msg += ' (Optional)'
     parser.add_argument(
         '--tpm-support',
@@ -897,7 +907,8 @@ def get_uploader(
                 wait_count=args.waitCount,
                 log_callback=logger,
                 boot_mode=args.bootMode,
-                tpm_support=args.tpm
+                tpm_support=args.tpm,
+                imds_support=args.imdsVersion
             )
             return uploader
     except EC2UploadImgException as e:

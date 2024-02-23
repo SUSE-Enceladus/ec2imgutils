@@ -19,14 +19,23 @@
 # <http://www.gnu.org/licenses/>.
 #
 
+import inspect
 import logging
+import os
 import pytest
+import sys
+
 
 from unittest.mock import patch, MagicMock, call
 
-import ec2imgutils.ec2uploadimg as ec2upimg
+# Load the module from the source tree not the one on the system
+test_path = os.path.abspath(
+    os.path.dirname(inspect.getfile(inspect.currentframe())))
+code_path = os.path.abspath('%s/../lib' % test_path)
+sys.path.insert(0, code_path)
 
-from ec2imgutils.ec2imgutilsExceptions import (
+import ec2imgutils.ec2uploadimg as ec2upimg  # noqa: E402
+from ec2imgutils.ec2imgutilsExceptions import (  # noqa: E402
     EC2UploadImgException
 )
 
@@ -2099,3 +2108,29 @@ def test_create_image_use_root_swap(
     show_progress_mock.assert_has_calls([call(), call()])
     detach_volume_mock.assert_has_calls([call(None)])
     attach_volume_mock.assert_has_calls([call('targetRootVol', None)])
+
+
+def test_invalid_tpm_value():
+    with pytest.raises(EC2UploadImgException) as e:
+        # Instance creation
+        ec2upimg.EC2ImageUploader(
+            access_key='',
+            wait_count=1,
+            log_callback=logger,
+            tpm_support='1'
+        )
+    msg = "tpm_support must be one of ['2.0', 'v2.0']"
+    assert msg in str(e)
+
+
+def test_invalid_imds_value():
+    with pytest.raises(EC2UploadImgException) as e:
+        # Instance creation
+        ec2upimg.EC2ImageUploader(
+            access_key='',
+            wait_count=1,
+            log_callback=logger,
+            imds_support='1'
+        )
+    msg = "imds_support must be one of ['2.0', 'v2.0']"
+    assert msg in str(e)

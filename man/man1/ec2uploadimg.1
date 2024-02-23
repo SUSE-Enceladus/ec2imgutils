@@ -118,6 +118,13 @@ Setting this switch will select the
 value from the configuration file or will use the value given with
 .I --boot-kernel
 as the aki ID when a para virtual image is being registered.
+.IP "--imds-support"
+Optionally specify the version for accessing the Instance MetaData Service
+(IMDS). The default is to access the IMDS using the version 1.0 implementation.
+Accepted values are
+.I 2.0
+alternatively prefixed with a
+.I "v".
 .IP "-m --machine ARCH"
 Specifies the architecture for the VM to be created. Supported values
 are

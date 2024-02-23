@@ -62,7 +62,8 @@ class EC2ImageUploader(EC2ImgUtils):
                  log_level=logging.INFO,
                  log_callback=None,
                  boot_mode=None,
-                 tpm_support=None
+                 tpm_support=None,
+                 imds_support=None
                  ):
         EC2ImgUtils.__init__(
             self,
@@ -80,6 +81,7 @@ class EC2ImageUploader(EC2ImgUtils):
         self.image_description = image_description
         self.image_name = image_name
         self.image_virt_type = image_virt_type
+        self.imds_support = imds_support
         self.inst_user_name = inst_user_name
         self.launch_ami_id = launch_ami
         self.launch_ins_type = launch_inst_type
@@ -120,6 +122,11 @@ class EC2ImageUploader(EC2ImgUtils):
         if tpm_support and tpm_support not in tpm_versions:
             raise EC2UploadImgException(
                 'tpm_support must be one of %s' % str(tpm_versions)
+            )
+        imds_versions = ['2.0', 'v2.0']
+        if imds_support and imds_support not in imds_versions:
+            raise EC2UploadImgException(
+                'imds_support must be one of %s' % str(imds_versions)
             )
 
     def abort(self):
@@ -893,6 +900,11 @@ class EC2ImageUploader(EC2ImgUtils):
             if not tpm_version.startswith('v'):
                 tpm_version = 'v%s' % tpm_version
             register_args['TpmSupport'] = tpm_version
+        if self.imds_support:
+            imds_version = self.imds_support
+            if not imds_version.startswith('v'):
+                imds_version = 'v%s' % imds_version
+            register_args['ImdsSupport'] = imds_version
 
         ami = self._connect().register_image(**register_args)
 
