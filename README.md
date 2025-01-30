@@ -19,6 +19,14 @@ A collection of utilities for image management in AWS EC2
 > pip install ec2imgutils
 ```
 
+## Test
+```
+> pyenv virtualenv 3.9.21 ec2imgutils
+> pyenv activate ec2imgutils
+> pip install -e .
+> pytest
+```
+
 ## Utilities
 
 ### ec2deprecateimg
@@ -122,7 +130,7 @@ follows:
 
 * Start an instance
 * Create a storage volume and attach it to the running instance
-* Create volume that will be the new root and attach it to the running 
+* Create volume that will be the new root and attach it to the running
   instance
 * Upload the image
 * Unpack the image and dump it to the new root volume
