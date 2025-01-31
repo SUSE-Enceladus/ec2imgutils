@@ -685,10 +685,7 @@ def get_ssh_user(args, config, region, logger):
 # ----------------------------------------------------------------------------
 def get_vpc_subnet_id(args, config, region, setup,  logger):
     """Function to get the vpn_subnet parameter"""
-    vpc_subnet_id = args.vpcSubnetId
-
-    if not vpc_subnet_id and not args.accountName:
-        vpc_subnet_id = setup.create_vpc_subnet()
+    vpc_subnet_id = args.vpcSubnetId or setup.create_vpc_subnet()
 
     if not vpc_subnet_id and not (args.amiID or args.runningID):
         # Depending on instance type an instance may possibly only
