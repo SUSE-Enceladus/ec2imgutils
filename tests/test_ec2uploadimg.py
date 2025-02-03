@@ -1079,8 +1079,8 @@ def test_get_security_group_ids(caplog):
 def test_get_security_group_ids_accName(get_from_config_mock, caplog):
     global logger
 
-    # setup = MagicMock()
-    # setup.create_security_group.return_value = 'securityGroupId'
+    setup = MagicMock()
+    setup.create_security_group.return_value = None
     logger.setLevel(logging.DEBUG)
     get_from_config_mock.return_value = 'securityGroupId'
 
@@ -1098,7 +1098,7 @@ def test_get_security_group_ids_accName(get_from_config_mock, caplog):
         "reg1",
         None,
         None,
-        None,
+        setup,
         None,
         logger
     )

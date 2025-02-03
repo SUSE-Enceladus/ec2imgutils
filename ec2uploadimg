@@ -727,9 +727,7 @@ def get_security_group_ids(
     security_group_ids = args.securityGroupIds
 
     if not security_group_ids and not args.runningID:
-        if not args.accountName:
-            security_group_ids = setup.create_security_group()
-        else:
+        if args.accountName:
             try:
                 security_group_ids = utils.get_from_config(
                     args.accountName,
@@ -769,6 +767,7 @@ def get_security_group_ids(
                 security_group_ids = setup.create_security_group(
                     vpc_id
                 )
+    security_group_ids = security_group_ids or setup.create_security_group()
     return security_group_ids
 
 
