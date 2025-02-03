@@ -1046,6 +1046,7 @@ def test_get_vpc_subnet_id_exc(get_from_config_mock, caplog):
     assert 'Not using a subnet-id, none given on the' in caplog.text
     assert excinfo.value.code == 1
 
+
 # --------------------------------------------------------------------
 # Tests for get_security_group_ids functions
 def test_get_security_group_ids(caplog):
