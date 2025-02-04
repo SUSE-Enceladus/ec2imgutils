@@ -1021,12 +1021,41 @@ def test_get_vpc_subnet_id_exc(get_from_config_mock, caplog):
     global logger
 
     setup = MagicMock()
-    setup.create_vpc_subnet.return_value = ''
 
     def my_side_eff(a1, a2, a3, a4, a5):
         raise Exception('myexception')
 
     get_from_config_mock.side_effect = my_side_eff
+
+    class Args:
+        accountName = 'testAccountName'
+        vpcSubnetId = None
+        amiID = None
+        runningID = None
+
+    myArgs = Args()
+    ec2uploadimg.get_vpc_subnet_id(
+        myArgs,
+        None,
+        "reg1",
+        setup,
+        logger
+    )
+    assert 'Not using a subnet-id, none given on the' in caplog.text
+
+
+@patch('ec2uploadimg.utils.get_from_config')
+def test_get_vpc_subnet_id_create_exc(get_from_config_mock, caplog):
+    global logger
+
+    setup = MagicMock()
+
+    def my_side_eff(a1, a2, a3, a4, a5):
+        raise Exception('myexception')
+
+    get_from_config_mock.side_effect = my_side_eff
+
+    setup.create_vpc_subnet.side_effect = Exception('createSubnetException')
 
     class Args:
         accountName = 'testAccountName'
@@ -1044,6 +1073,7 @@ def test_get_vpc_subnet_id_exc(get_from_config_mock, caplog):
             logger
         )
     assert 'Not using a subnet-id, none given on the' in caplog.text
+    assert 'Unable to create a VPC Subnet' in caplog.text
     assert excinfo.value.code == 1
 
 
@@ -1305,9 +1335,7 @@ def test_get_uploader_exc2(EC2ImageUploader_mock, caplog):
 # --------------------------------------------------------------------
 # Tests for main
 @patch('ec2uploadimg.ec2upimg.EC2ImageUploader')
-@patch('ec2imgutils.ec2setup.EC2Setup.create_vpc_subnet')
 def test_main_happy_path_snapOnly(
-    create_vpc_subnet_mock,
     EC2ImageUploader_mock,
     caplog
 ):
@@ -1316,8 +1344,6 @@ def test_main_happy_path_snapOnly(
     ec2I = MagicMock()
     ec2I.create_snapshot.return_value = mySnapshot
     EC2ImageUploader_mock.return_value = ec2I
-
-    create_vpc_subnet_mock.return_value = 'subnetVPCValue'
 
     cli_args = [
         "--account",
@@ -1355,22 +1381,19 @@ def test_main_happy_path_snapOnly(
         data_path + os.sep + 'complete.cfg'
     ]
     ec2uploadimg.main(cli_args)
+
     assert "Created snapshot" in caplog.text
     assert "mySnapshotId" in caplog.text
 
 
 @patch('ec2uploadimg.ec2upimg.EC2ImageUploader')
-@patch('ec2imgutils.ec2setup.EC2Setup.create_vpc_subnet')
 def test_main_happy_path_rootSwapMethod(
-    create_vpc_subnet_mock,
     EC2ImageUploader_mock,
     caplog
 ):
     ec2I = MagicMock()
     ec2I.create_image_use_root_swap.return_value = 'myAmi'
     EC2ImageUploader_mock.return_value = ec2I
-
-    create_vpc_subnet_mock.return_value = 'subnetVPCValue'
 
     cli_args = [
         "--account",
@@ -1413,17 +1436,13 @@ def test_main_happy_path_rootSwapMethod(
 
 
 @patch('ec2uploadimg.ec2upimg.EC2ImageUploader')
-@patch('ec2imgutils.ec2setup.EC2Setup.create_vpc_subnet')
 def test_main_happy_path_useSnap(
-    create_vpc_subnet_mock,
     EC2ImageUploader_mock,
     caplog
 ):
     ec2I = MagicMock()
     ec2I.create_image_from_snapshot.return_value = 'myAmi'
     EC2ImageUploader_mock.return_value = ec2I
-
-    create_vpc_subnet_mock.return_value = 'subnetVPCValue'
 
     cli_args = [
         "--account",
@@ -1466,17 +1485,13 @@ def test_main_happy_path_useSnap(
 
 
 @patch('ec2uploadimg.ec2upimg.EC2ImageUploader')
-@patch('ec2imgutils.ec2setup.EC2Setup.create_vpc_subnet')
 def test_main_happy_path_other(
-    create_vpc_subnet_mock,
     EC2ImageUploader_mock,
     caplog
 ):
     ec2I = MagicMock()
     ec2I.create_image.return_value = 'myAmi'
     EC2ImageUploader_mock.return_value = ec2I
-
-    create_vpc_subnet_mock.return_value = 'subnetVPCValue'
 
     cli_args = [
         "--account",
