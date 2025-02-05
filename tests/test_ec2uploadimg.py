@@ -1045,6 +1045,37 @@ def test_get_vpc_subnet_id_exc(get_from_config_mock, caplog):
 
 
 @patch('ec2uploadimg.utils.get_from_config')
+def test_get_vpc_subnet_id_create(get_from_config_mock, caplog):
+    global logger
+
+    setup = MagicMock()
+    setup.create_vpc_subnet.return_value = 'vpcSubnetId'
+
+    def my_side_eff(a1, a2, a3, a4, a5):
+        raise Exception('myexception')
+
+    get_from_config_mock.side_effect = my_side_eff
+
+    class Args:
+        accountName = 'testAccountName'
+        vpcSubnetId = None
+        amiID = None
+        runningID = None
+
+    myArgs = Args()
+    ec2uploadimg.get_vpc_subnet_id(
+        myArgs,
+        None,
+        "reg1",
+        setup,
+        logger
+    )
+
+    assert 'Not using a subnet-id, none given on the' in caplog.text
+    setup.create_vpc_subnet.assert_called_with()
+
+
+@patch('ec2uploadimg.utils.get_from_config')
 def test_get_vpc_subnet_id_create_exc(get_from_config_mock, caplog):
     global logger
 
