@@ -712,7 +712,7 @@ def get_vpc_subnet_id(args, config, region, setup,  logger):
             msg = 'Not using a subnet-id, none given on the '
             msg += 'command line and none found in config for '
             msg += '"subnet_id_%s" value' % region
-            logger.info(msg)
+            logger.error(msg)
             logger.error('Unable to create a VPC Subnet')
             setup.clean_up()
             sys.exit(1)
