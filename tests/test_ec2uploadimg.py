@@ -1017,7 +1017,7 @@ def test_get_vpc_subnet_id_account_name(caplog):
 
 
 @patch('ec2uploadimg.utils.get_from_config')
-def test_get_vpc_subnet_id_exc(get_from_config_mock, caplog):
+def test_get_vpc_subnet_id_exc(get_from_config_mock):
     global logger
 
     setup = MagicMock()
@@ -1079,7 +1079,7 @@ def test_get_vpc_subnet_id_create_exc(get_from_config_mock, caplog):
 
 # --------------------------------------------------------------------
 # Tests for get_security_group_ids functions
-def test_get_security_group_ids(caplog):
+def test_get_security_group_ids():
     global logger
 
     setup = MagicMock()
