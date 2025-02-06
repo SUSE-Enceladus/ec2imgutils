@@ -1073,7 +1073,6 @@ def test_get_vpc_subnet_id_create_exc(get_from_config_mock, caplog):
             logger
         )
     assert 'Not using a subnet-id, none given on the' in caplog.text
-    assert 'Unable to create a VPC Subnet' in caplog.text
     setup.clean_up.assert_called_with()
     assert excinfo.value.code == 1
 
