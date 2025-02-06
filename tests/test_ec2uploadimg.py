@@ -1072,11 +1072,6 @@ def test_get_vpc_subnet_id_create_exc(get_from_config_mock, caplog):
             setup,
             logger
         )
-    # msg = 'Not using a subnet-id, none given on the '
-    # msg += 'command line, none found in config for '
-    # msg += '"subnet_id_%s" value ' % region
-    # msg += 'and unable to create a VPC Subnet'
-
     error_message = 'Not using a subnet-id, none given on the '
     error_message += 'command line, none found in config for '
     error_message += '"subnet_id_reg1" value '
