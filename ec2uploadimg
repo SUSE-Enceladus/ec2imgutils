@@ -724,11 +724,6 @@ def get_vpc_subnet_id(args, config, region, setup,  logger):
             sys.exit(1)
 
 
-def _vpc_subnet_id_with_logger(vpc_subnet_id, logger):
-    logger.debug('Using VPC subnet: %s' % vpc_subnet_id)
-    return vpc_subnet_id
-
-
 # ----------------------------------------------------------------------------
 def get_security_group_ids(
         args,
