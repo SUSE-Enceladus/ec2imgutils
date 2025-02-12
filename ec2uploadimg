@@ -686,10 +686,10 @@ def get_ssh_user(args, config, region, logger):
 def get_vpc_subnet_id(args, config, region, setup,  logger):
     """Function to get the vpn_subnet parameter"""
     vpc_subnet_id = args.vpcSubnetId
-    log_msg = 'Using VPC subnet: %s'
+    base_log_msg = 'Using VPC subnet: %s'
 
     if vpc_subnet_id:
-        logger.debug(log_msg % vpc_subnet_id)
+        logger.debug(base_log_msg % vpc_subnet_id)
         return vpc_subnet_id
 
     if not (args.amiID or args.runningID):
@@ -710,17 +710,16 @@ def get_vpc_subnet_id(args, config, region, setup,  logger):
         try:
             # falls back to setup.create_vpc_subnet()
             vpc_subnet_id = vpc_subnet_id or setup.create_vpc_subnet()
-            logger.debug(log_msg % vpc_subnet_id)
+            logger.debug(base_log_msg % vpc_subnet_id)
             return vpc_subnet_id
-
         except Exception:
             msg = (
                 'Not using a subnet-id, none given on the '
                 'command line, none found in config for '
-                f'"subnet_id_{region}" value '
+                '"subnet_id_%s" value '
                 'and unable to create a VPC Subnet'
             )
-            logger.error(msg)
+            logger.error(msg % region)
             setup.clean_up()
             sys.exit(1)
 
