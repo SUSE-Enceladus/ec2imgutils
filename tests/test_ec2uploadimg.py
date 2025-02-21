@@ -990,8 +990,34 @@ def test_get_vpc_subnet_id(caplog):
     logger.setLevel(logging.INFO)
 
 
+def test_get_vpc_subnet_id_account_name(caplog):
+    global logger
+
+    logger.setLevel(logging.DEBUG)
+    setup = MagicMock()
+    setup.create_vpc_subnet.return_value = 'vpcSubnetId'
+
+    class Args:
+        accountName = 'testAccountName'
+        vpcSubnetId = None
+        amiID = None
+        runningID = None
+
+    myArgs = Args()
+    vpc_subnet_id = ec2uploadimg.get_vpc_subnet_id(
+        myArgs,
+        None,
+        "reg1",
+        setup,
+        logger
+    )
+    assert 'Using VPC subnet: vpcSubnetId' in caplog.text
+    assert 'vpcSubnetId' == vpc_subnet_id
+    logger.setLevel(logging.INFO)
+
+
 @patch('ec2uploadimg.utils.get_from_config')
-def test_get_vpc_subnet_id_exc(get_from_config_mock, caplog):
+def test_get_vpc_subnet_id_exc(get_from_config_mock):
     global logger
 
     setup = MagicMock()
@@ -1008,6 +1034,36 @@ def test_get_vpc_subnet_id_exc(get_from_config_mock, caplog):
         runningID = None
 
     myArgs = Args()
+    ec2uploadimg.get_vpc_subnet_id(
+        myArgs,
+        None,
+        "reg1",
+        setup,
+        logger
+    )
+    setup.create_vpc_subnet.assert_called_with()
+
+
+@patch('ec2uploadimg.utils.get_from_config')
+def test_get_vpc_subnet_id_create_exc(get_from_config_mock, caplog):
+    global logger
+
+    setup = MagicMock()
+
+    def my_side_eff(a1, a2, a3, a4, a5):
+        raise Exception('myexception')
+
+    get_from_config_mock.side_effect = my_side_eff
+
+    setup.create_vpc_subnet.side_effect = Exception('createSubnetException')
+
+    class Args:
+        accountName = 'testAccountName'
+        vpcSubnetId = None
+        amiID = None
+        runningID = None
+
+    myArgs = Args()
     with pytest.raises(SystemExit) as excinfo:
         ec2uploadimg.get_vpc_subnet_id(
             myArgs,
@@ -1016,13 +1072,22 @@ def test_get_vpc_subnet_id_exc(get_from_config_mock, caplog):
             setup,
             logger
         )
-    assert 'Not using a subnet-id, none given on the' in caplog.text
+
+    error_message = (
+        'Not using a subnet-id, none given on the '
+        'command line, none found in config for '
+        '"subnet_id_reg1" value '
+        'and unable to create a VPC Subnet'
+    )
+
+    assert error_message in caplog.text
+    setup.clean_up.assert_called_with()
     assert excinfo.value.code == 1
 
 
 # --------------------------------------------------------------------
-# Tests for get_vpc_subnet_id functions
-def test_get_security_group_ids(caplog):
+# Tests for get_security_group_ids functions
+def test_get_security_group_ids():
     global logger
 
     setup = MagicMock()
@@ -1053,8 +1118,8 @@ def test_get_security_group_ids(caplog):
 def test_get_security_group_ids_accName(get_from_config_mock, caplog):
     global logger
 
-    # setup = MagicMock()
-    # setup.create_security_group.return_value = 'securityGroupId'
+    setup = MagicMock()
+    setup.create_security_group.return_value = None
     logger.setLevel(logging.DEBUG)
     get_from_config_mock.return_value = 'securityGroupId'
 
@@ -1072,7 +1137,7 @@ def test_get_security_group_ids_accName(get_from_config_mock, caplog):
         "reg1",
         None,
         None,
-        None,
+        setup,
         None,
         logger
     )
@@ -1324,6 +1389,7 @@ def test_main_happy_path_snapOnly(
         data_path + os.sep + 'complete.cfg'
     ]
     ec2uploadimg.main(cli_args)
+
     assert "Created snapshot" in caplog.text
     assert "mySnapshotId" in caplog.text
 

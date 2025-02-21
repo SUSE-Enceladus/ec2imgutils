@@ -686,11 +686,13 @@ def get_ssh_user(args, config, region, logger):
 def get_vpc_subnet_id(args, config, region, setup,  logger):
     """Function to get the vpn_subnet parameter"""
     vpc_subnet_id = args.vpcSubnetId
+    base_log_msg = 'Using VPC subnet: %s'
 
-    if not vpc_subnet_id and not args.accountName:
-        vpc_subnet_id = setup.create_vpc_subnet()
+    if vpc_subnet_id:
+        logger.debug(base_log_msg % vpc_subnet_id)
+        return vpc_subnet_id
 
-    if not vpc_subnet_id and not (args.amiID or args.runningID):
+    if not (args.amiID or args.runningID):
         # Depending on instance type an instance may possibly only
         # launch inside a subnet. Look in the config for a subnet if
         # no subnet ID is given and the AMI to use was not
@@ -704,15 +706,22 @@ def get_vpc_subnet_id(args, config, region, setup,  logger):
                 '--vpc-subnet-id'
             )
         except Exception:
-            msg = 'Not using a subnet-id, none given on the '
-            msg += 'command line and none found in config for '
-            msg += '"subnet_id_%s" value' % region
-            logger.error(msg)
+            pass
+        try:
+            # falls back to setup.create_vpc_subnet()
+            vpc_subnet_id = vpc_subnet_id or setup.create_vpc_subnet()
+            logger.debug(base_log_msg % vpc_subnet_id)
+            return vpc_subnet_id
+        except Exception:
+            msg = (
+                'Not using a subnet-id, none given on the '
+                'command line, none found in config for '
+                '"subnet_id_%s" value '
+                'and unable to create a VPC Subnet'
+            )
+            logger.error(msg % region)
+            setup.clean_up()
             sys.exit(1)
-
-    if vpc_subnet_id:
-        logger.debug('Using VPC subnet: %s' % vpc_subnet_id)
-    return vpc_subnet_id
 
 
 # ----------------------------------------------------------------------------
@@ -730,9 +739,7 @@ def get_security_group_ids(
     security_group_ids = args.securityGroupIds
 
     if not security_group_ids and not args.runningID:
-        if not args.accountName:
-            security_group_ids = setup.create_security_group()
-        else:
+        if args.accountName:
             try:
                 security_group_ids = utils.get_from_config(
                     args.accountName,
@@ -772,6 +779,7 @@ def get_security_group_ids(
                 security_group_ids = setup.create_security_group(
                     vpc_id
                 )
+    security_group_ids = security_group_ids or setup.create_security_group()
     return security_group_ids
 
 
