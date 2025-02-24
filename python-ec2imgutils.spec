@@ -26,7 +26,7 @@
 %{?sle15_python_module_pythons}
 
 Name:           python-ec2imgutils
-Version:        10.0.3
+Version:        10.0.4
 Release:        0
 Summary:        Image management utilities for AWS EC2
 License:        GPL-3.0-or-later
