@@ -105,6 +105,8 @@ test_cli_args_data = [
       "--verbose",
       "--vpc-subnet-id",
       "testVpcSubnetId",
+      "--enclave-options",
+      "Enabled=true",
       "--wait-count",
       "8",
       "testSource"]),
@@ -148,6 +150,7 @@ def test_args(cli_args):
     assert parsed_args.rootSwapMethod is True
     assert parsed_args.verbose == 1
     assert parsed_args.vpcSubnetId == "testVpcSubnetId"
+    assert parsed_args.enclaveOptions == "Enabled=true"
     assert parsed_args.waitCount == 8
     assert parsed_args.useSnap is True
     assert parsed_args.source == "testSource"
@@ -213,6 +216,8 @@ test_cli_args_data = [
       "--verbose",
       "--vpc-subnet-id",
       "testVpcSubnetId",
+      "--enclave-options",
+      "Enabled=true",
       "--wait-count",
       "8",
       "testSource"]),
@@ -255,6 +260,7 @@ def test_args_check(cli_args):
     assert parsed_args.usePrivateIP is True
     assert parsed_args.rootSwapMethod is False
     assert parsed_args.verbose == 1
+    assert parsed_args.enclaveOptions == "Enabled=true"
     assert parsed_args.vpcSubnetId == "testVpcSubnetId"
     assert parsed_args.waitCount == 8
     assert parsed_args.source == "testSource"

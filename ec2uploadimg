@@ -330,6 +330,14 @@ def parse_args(args):
         help=help_msg,
         metavar='VPC_SUBNET_ID'
     )
+    parser.add_argument(
+        '--enclave-options',
+        default='',
+        dest='enclaveOptions',
+        help='Sets AWS Nitro Enclave options (Optional)',
+        metavar='ENCLAVE_OPTIONS'
+    )
+
     help_msg = 'Wait N-number of times for AWS operation timeout, default 1 '
     help_msg += ' = 600 seconds (Optional)'
     parser.add_argument(
@@ -912,6 +920,7 @@ def get_uploader(
                 use_grub2=args.grub2,
                 use_private_ip=args.usePrivateIP,
                 vpc_subnet_id=vpc_subnet_id,
+                enclave_options=args.enclaveOptions,
                 wait_count=args.waitCount,
                 log_callback=logger,
                 boot_mode=args.bootMode,
