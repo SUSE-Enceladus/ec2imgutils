@@ -779,6 +779,7 @@ class EC2ImageUploader(EC2ImgUtils):
                 KeyName=self.ssh_key_pair_name,
                 InstanceType=self.launch_ins_type,
                 Placement={'AvailabilityZone': self.zone},
+                EnclaveOptions=self.enclave_options,
                 NetworkInterfaces=[
                     {
                         'DeviceIndex': 0,
@@ -807,6 +808,7 @@ class EC2ImageUploader(EC2ImgUtils):
                 KeyName=self.ssh_key_pair_name,
                 InstanceType=self.launch_ins_type,
                 Placement={'AvailabilityZone': self.zone},
+                EnclaveOptions=self.enclave_options,
                 NetworkInterfaces=[
                     {
                         'DeviceIndex': 0,
