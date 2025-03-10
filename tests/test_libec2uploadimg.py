@@ -1687,7 +1687,7 @@ def test_launch_helper_instance(
     uploader.ssh_key_pair_name = 'keyPairName'
     uploader.launch_ins_type = 'instanceType'
     uploader.use_private_ip = False
-    uploader.enclave_options = '{ "Enabled": false }'
+    uploader.enclave_options = True
     uploader.vpc_subnet_id = 'mySubnetId'
     uploader.wait_count = 0
 
@@ -1705,7 +1705,7 @@ def test_launch_helper_instance(
             KeyName='keyPairName',
             InstanceType='instanceType',
             Placement={'AvailabilityZone': 'myZone'},
-            EnclaveOptions='{ "Enabled": false }',
+            EnclaveOptions={'Enabled': True},
             NetworkInterfaces=[{
                 'DeviceIndex': 0,
                 'AssociatePublicIpAddress': True,
