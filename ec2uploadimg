@@ -335,7 +335,7 @@ def parse_args(args):
         action='store_true',
         default=False,
         dest='enclaveOptions',
-        help='Sets AWS Nitro Enclave options (Optional)',
+        help='Enables AWS Nitro Enclave options (Optional)',
     )
 
     help_msg = 'Wait N-number of times for AWS operation timeout, default 1 '
