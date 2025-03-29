@@ -331,10 +331,10 @@ def parse_args(args):
         metavar='VPC_SUBNET_ID'
     )
     parser.add_argument(
-        '--enclave-options',
+        '--enable-enclave',
         action='store_true',
         default=False,
-        dest='enclaveOptions',
+        dest='enableEnclave',
         help='Enables AWS Nitro Enclave options (Optional)',
     )
 
@@ -920,7 +920,7 @@ def get_uploader(
                 use_grub2=args.grub2,
                 use_private_ip=args.usePrivateIP,
                 vpc_subnet_id=vpc_subnet_id,
-                enclave_options=args.enclaveOptions,
+                enclave_options=args.enableEnclave,
                 wait_count=args.waitCount,
                 log_callback=logger,
                 boot_mode=args.bootMode,
