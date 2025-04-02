@@ -247,8 +247,9 @@ argument and using the
 .I --vpc-subnet-id
 argument is incompatible. When targeting multiple regions the subnet-id must
 be set in the configuration file.
-.IP "--enable-enclave"
-Indicates whether the instance is enable for AWS Nitro Enclaves (Optional)
+.IP "--use-enclave"
+Start the helper instance that is used to upload the image file and to register
+the image to be created as an AWS Enclave.
 .IP "--wait-count AWS_WAIT_COUNT"
 Specifies the number of times to wait for the AWS operation timeout. The
 default value is 1 which is equivalent to 600 seconds.
