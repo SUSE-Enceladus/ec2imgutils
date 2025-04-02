@@ -330,12 +330,14 @@ def parse_args(args):
         help=help_msg,
         metavar='VPC_SUBNET_ID'
     )
+    help_msg = 'Indicates whether the instance is enable for'
+    help_msg += ' AWS Nitro Enclaves (Optional)'
     parser.add_argument(
         '--enable-enclave',
         action='store_true',
         default=False,
         dest='enableEnclave',
-        help='Enables AWS Nitro Enclave options (Optional)',
+        help=help_msg,
     )
 
     help_msg = 'Wait N-number of times for AWS operation timeout, default 1 '
