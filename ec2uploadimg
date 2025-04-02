@@ -330,8 +330,9 @@ def parse_args(args):
         help=help_msg,
         metavar='VPC_SUBNET_ID'
     )
-    help_msg = 'Start the helper instance that is used to upload the image file'
-    help_msg += ' and to register the image to be created as an AWS Enclave.'
+    help_msg = 'Start the helper instance that is used to'
+    help_msg += ' upload the image file and to register'
+    help_msg += ' the image to be created as an AWS Enclave.'
     parser.add_argument(
         '--use-enclave',
         action='store_true',
