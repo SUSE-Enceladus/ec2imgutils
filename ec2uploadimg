@@ -330,13 +330,13 @@ def parse_args(args):
         help=help_msg,
         metavar='VPC_SUBNET_ID'
     )
-    help_msg = 'Indicates whether the instance is enable for'
-    help_msg += ' AWS Nitro Enclaves (Optional)'
+    help_msg = 'Start the helper instance that is used to upload the image file'
+    help_msg += ' and to register the image to be created as an AWS Enclave.'
     parser.add_argument(
-        '--enable-enclave',
+        '--use-enclave',
         action='store_true',
         default=False,
-        dest='enableEnclave',
+        dest='useEnclave',
         help=help_msg,
     )
 
@@ -922,7 +922,7 @@ def get_uploader(
                 use_grub2=args.grub2,
                 use_private_ip=args.usePrivateIP,
                 vpc_subnet_id=vpc_subnet_id,
-                enclave_options=args.enableEnclave,
+                use_enclave=args.useEnclave,
                 wait_count=args.waitCount,
                 log_callback=logger,
                 boot_mode=args.bootMode,

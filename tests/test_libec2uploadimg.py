@@ -1687,7 +1687,7 @@ def test_launch_helper_instance(
     uploader.ssh_key_pair_name = 'keyPairName'
     uploader.launch_ins_type = 'instanceType'
     uploader.use_private_ip = False
-    uploader.enclave_options = True
+    uploader.use_enclave = True
     uploader.vpc_subnet_id = 'mySubnetId'
     uploader.wait_count = 0
 
