@@ -58,7 +58,7 @@ class EC2ImageUploader(EC2ImgUtils):
                  use_grub2=False,
                  use_private_ip=False,
                  vpc_subnet_id='',
-                 enclave_options=False,
+                 use_enclave=False,
                  wait_count=1,
                  log_level=logging.INFO,
                  log_callback=None,
@@ -100,7 +100,7 @@ class EC2ImageUploader(EC2ImgUtils):
         self.use_grub2 = use_grub2
         self.use_private_ip = use_private_ip
         self.vpc_subnet_id = vpc_subnet_id
-        self.enclave_options = enclave_options
+        self.use_enclave = use_enclave
         self.wait_count = wait_count
 
         self.created_volumes = []
@@ -779,7 +779,7 @@ class EC2ImageUploader(EC2ImgUtils):
                 KeyName=self.ssh_key_pair_name,
                 InstanceType=self.launch_ins_type,
                 Placement={'AvailabilityZone': self.zone},
-                EnclaveOptions={'Enabled': self.enclave_options},
+                EnclaveOptions={'Enabled': self.use_enclave},
                 NetworkInterfaces=[
                     {
                         'DeviceIndex': 0,
@@ -808,7 +808,7 @@ class EC2ImageUploader(EC2ImgUtils):
                 KeyName=self.ssh_key_pair_name,
                 InstanceType=self.launch_ins_type,
                 Placement={'AvailabilityZone': self.zone},
-                EnclaveOptions={'Enabled': self.enclave_options},
+                EnclaveOptions={'Enabled': self.use_enclave},
                 NetworkInterfaces=[
                     {
                         'DeviceIndex': 0,

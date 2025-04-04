@@ -330,12 +330,15 @@ def parse_args(args):
         help=help_msg,
         metavar='VPC_SUBNET_ID'
     )
+    help_msg = 'Start the helper instance that is used to'
+    help_msg += ' upload the image file and to register'
+    help_msg += ' the image to be created as an AWS Enclave.'
     parser.add_argument(
-        '--enclave-options',
+        '--use-enclave',
         action='store_true',
         default=False,
-        dest='enclaveOptions',
-        help='Sets AWS Nitro Enclave options (Optional)',
+        dest='useEnclave',
+        help=help_msg,
     )
 
     help_msg = 'Wait N-number of times for AWS operation timeout, default 1 '
@@ -920,7 +923,7 @@ def get_uploader(
                 use_grub2=args.grub2,
                 use_private_ip=args.usePrivateIP,
                 vpc_subnet_id=vpc_subnet_id,
-                enclave_options=args.enclaveOptions,
+                use_enclave=args.useEnclave,
                 wait_count=args.waitCount,
                 log_callback=logger,
                 boot_mode=args.bootMode,

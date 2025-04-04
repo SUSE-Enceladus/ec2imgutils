@@ -105,7 +105,7 @@ test_cli_args_data = [
       "--verbose",
       "--vpc-subnet-id",
       "testVpcSubnetId",
-      "--enclave-options",
+      "--use-enclave",
       "--wait-count",
       "8",
       "testSource"]),
@@ -149,7 +149,7 @@ def test_args(cli_args):
     assert parsed_args.rootSwapMethod is True
     assert parsed_args.verbose == 1
     assert parsed_args.vpcSubnetId == "testVpcSubnetId"
-    assert parsed_args.enclaveOptions is True
+    assert parsed_args.useEnclave is True
     assert parsed_args.waitCount == 8
     assert parsed_args.useSnap is True
     assert parsed_args.source == "testSource"
@@ -215,7 +215,7 @@ test_cli_args_data = [
       "--verbose",
       "--vpc-subnet-id",
       "testVpcSubnetId",
-      "--enclave-options",
+      "--use-enclave",
       "--wait-count",
       "8",
       "testSource"]),
@@ -258,7 +258,7 @@ def test_args_check(cli_args):
     assert parsed_args.usePrivateIP is True
     assert parsed_args.rootSwapMethod is False
     assert parsed_args.verbose == 1
-    assert parsed_args.enclaveOptions is True
+    assert parsed_args.useEnclave is True
     assert parsed_args.vpcSubnetId == "testVpcSubnetId"
     assert parsed_args.waitCount == 8
     assert parsed_args.source == "testSource"
@@ -268,8 +268,6 @@ def test_args_check(cli_args):
 # --------------------------------------------------------------------
 # Tests for get_access_key functions
 def test_check_snapshot_arguments():
-    global logger
-
     class Args:
         useSnap = True
         snapOnly = False
@@ -600,7 +598,6 @@ def test_get_root_volume_size2():
 # --------------------------------------------------------------------
 # Tests for get_access_key functions
 def test_check_ena_image_is_hvm():
-    global logger
 
     class Args:
         ena = True
@@ -615,7 +612,6 @@ def test_check_ena_image_is_hvm():
 # --------------------------------------------------------------------
 # Tests for get_bootkernel functions
 def test_get_bootkernel_hvm():
-    global logger
 
     class Args:
         akiID = "testBootkernel"
@@ -629,7 +625,6 @@ def test_get_bootkernel_hvm():
 @patch('ec2uploadimg.utils.get_from_config')
 def test_get_bootkernel_grub2(get_from_config_mock):
     get_from_config_mock.return_value = "myBootKernel"
-    global logger
 
     class Args:
         accountName = 'testAccountName'
@@ -645,7 +640,6 @@ def test_get_bootkernel_grub2(get_from_config_mock):
 @patch('ec2uploadimg.utils.get_from_config')
 def test_get_bootkernel_arch_x86_64(get_from_config_mock):
     get_from_config_mock.return_value = "myBootKernel"
-    global logger
 
     class Args:
         accountName = 'testAccountName'
@@ -662,7 +656,6 @@ def test_get_bootkernel_arch_x86_64(get_from_config_mock):
 @patch('ec2uploadimg.utils.get_from_config')
 def test_get_bootkernel_arch_i386(get_from_config_mock):
     get_from_config_mock.return_value = "myBootKernel"
-    global logger
 
     class Args:
         accountName = 'testAccountName'
@@ -677,7 +670,6 @@ def test_get_bootkernel_arch_i386(get_from_config_mock):
 
 
 def test_get_bootkernel_arch_arm64():
-    global logger
 
     class Args:
         accountName = 'testAccountName'
@@ -693,7 +685,6 @@ def test_get_bootkernel_arch_arm64():
 
 
 def test_get_bootkernel_arch_other():
-    global logger
 
     class Args:
         accountName = 'testAccountName'
@@ -709,7 +700,6 @@ def test_get_bootkernel_arch_other():
 
 
 def test_get_bootkernel_exc():
-    global logger
 
     class Args:
         accountName = 'testAccountName'
@@ -729,7 +719,6 @@ def test_get_bootkernel_exc():
 @patch('ec2uploadimg.utils.get_from_config')
 def test_get_amiID(get_from_config_mock):
     get_from_config_mock.return_value = "myAmiID"
-    global logger
 
     class Args:
         accountName = 'testAccountName'
@@ -744,7 +733,6 @@ def test_get_amiID(get_from_config_mock):
 # --------------------------------------------------------------------
 # Tests for get_ssh_user functions
 def test_get_ssh_user():
-    global logger
 
     class Args:
         accountName = 'testAccountName'
@@ -757,8 +745,6 @@ def test_get_ssh_user():
 
 @patch('ec2uploadimg.utils.get_from_config')
 def test_get_ssh_user_config(get_from_config_mock):
-    global logger
-
     get_from_config_mock.return_value = 'mySshUser'
 
     class Args:
@@ -772,8 +758,6 @@ def test_get_ssh_user_config(get_from_config_mock):
 
 @patch('ec2uploadimg.utils.get_from_config')
 def test_get_ssh_user_config_exc(get_from_config_mock, caplog):
-    global logger
-
     def my_side_eff(a1, a2, a3, a4, a5):
         raise Exception('myexception')
 
@@ -792,8 +776,6 @@ def test_get_ssh_user_config_exc(get_from_config_mock, caplog):
 
 @patch('ec2uploadimg.utils.get_from_config')
 def test_get_ssh_user_config_exc2(get_from_config_mock, caplog):
-    global logger
-
     get_from_config_mock.return_value = None
 
     class Args:
@@ -810,8 +792,6 @@ def test_get_ssh_user_config_exc2(get_from_config_mock, caplog):
 # --------------------------------------------------------------------
 # Tests for get_key_pair_name_and_ssh_private_key_file function
 def test_get_key_pair_name_and_ssh_private_key_file_file_not_exists(caplog):
-
-    global logger
     setup = MagicMock()
     setup.create_upload_key_pair.return_value = \
         ('myKeyPairName', 'myPrivateKeyFile')
@@ -841,7 +821,6 @@ def test_get_key_pair_name_and_ssh_private_key_file_file_nopairname(
     caplog
 ):
 
-    global logger
     setup = MagicMock()
     setup.create_upload_key_pair.return_value = \
         (None, None)
@@ -872,7 +851,6 @@ def test_get_key_pair_name_and_ssh_private_key_file_file_exc(
     caplog
 ):
 
-    global logger
     setup = MagicMock()
     setup.create_upload_key_pair.return_value = \
         (None, None)
@@ -906,7 +884,6 @@ def test_get_key_pair_name_and_ssh_private_key_file_nokeyfile(
     caplog
 ):
 
-    global logger
     setup = MagicMock()
     setup.create_upload_key_pair.return_value = \
         ('keyPairName', None)
@@ -938,7 +915,6 @@ def test_get_key_pair_name_and_ssh_private_key_file_exc(
     caplog
 ):
 
-    global logger
     setup = MagicMock()
     setup.create_upload_key_pair.return_value = \
         ('keyPairName', None)
@@ -969,8 +945,6 @@ def test_get_key_pair_name_and_ssh_private_key_file_exc(
 # --------------------------------------------------------------------
 # Tests for get_vpc_subnet_id functions
 def test_get_vpc_subnet_id(caplog):
-    global logger
-
     logger.setLevel(logging.DEBUG)
     setup = MagicMock()
     setup.create_vpc_subnet.return_value = 'vpcSubnetId'
@@ -995,8 +969,6 @@ def test_get_vpc_subnet_id(caplog):
 
 
 def test_get_vpc_subnet_id_account_name(caplog):
-    global logger
-
     logger.setLevel(logging.DEBUG)
     setup = MagicMock()
     setup.create_vpc_subnet.return_value = 'vpcSubnetId'
@@ -1022,8 +994,6 @@ def test_get_vpc_subnet_id_account_name(caplog):
 
 @patch('ec2uploadimg.utils.get_from_config')
 def test_get_vpc_subnet_id_exc(get_from_config_mock):
-    global logger
-
     setup = MagicMock()
 
     def my_side_eff(a1, a2, a3, a4, a5):
@@ -1050,8 +1020,6 @@ def test_get_vpc_subnet_id_exc(get_from_config_mock):
 
 @patch('ec2uploadimg.utils.get_from_config')
 def test_get_vpc_subnet_id_create_exc(get_from_config_mock, caplog):
-    global logger
-
     setup = MagicMock()
 
     def my_side_eff(a1, a2, a3, a4, a5):
@@ -1092,8 +1060,6 @@ def test_get_vpc_subnet_id_create_exc(get_from_config_mock, caplog):
 # --------------------------------------------------------------------
 # Tests for get_security_group_ids functions
 def test_get_security_group_ids():
-    global logger
-
     setup = MagicMock()
     setup.create_security_group.return_value = 'securityGroupId'
 
@@ -1120,8 +1086,6 @@ def test_get_security_group_ids():
 
 @patch('ec2uploadimg.utils.get_from_config')
 def test_get_security_group_ids_accName(get_from_config_mock, caplog):
-    global logger
-
     setup = MagicMock()
     setup.create_security_group.return_value = None
     logger.setLevel(logging.DEBUG)
@@ -1156,7 +1120,6 @@ def test_get_security_group_ids_accName_exc(
     boto3_client_mock,
     caplog
 ):
-    global logger
 
     # setup = MagicMock()
     # setup.create_security_group.return_value = 'securityGroupId'
@@ -1210,7 +1173,6 @@ def test_get_security_group_ids_accName_exc_noSubnets(
     boto3_client_mock,
     caplog
 ):
-    global logger
 
     # setup = MagicMock()
     # setup.create_security_group.return_value = 'securityGroupId'
@@ -1263,8 +1225,6 @@ def test_get_security_group_ids_accName_exc_noSubnets(
 # Tests for get_inst_type functions
 @patch('ec2uploadimg.utils.get_from_config')
 def test_get_inst_type_exc(get_from_config_mock, caplog):
-    global logger
-
     def my_side_eff(a1, a2, a3, a4, a5):
         raise Exception('myException')
 
@@ -1290,8 +1250,6 @@ def test_get_inst_type_exc(get_from_config_mock, caplog):
 # Tests for get_uploader functions
 @patch('ec2uploadimg.ec2upimg.EC2ImageUploader')
 def test_get_uploader_exc1(EC2ImageUploader_mock, caplog):
-    global logger
-
     def my_side_eff(a1, a2, a3, a4, a5):
         raise Exception('myException')
 
@@ -1318,8 +1276,6 @@ def test_get_uploader_exc1(EC2ImageUploader_mock, caplog):
 
 @patch('ec2uploadimg.ec2upimg.EC2ImageUploader')
 def test_get_uploader_exc2(EC2ImageUploader_mock, caplog):
-    global logger
-
     def my_side_eff(a1, a2, a3, a4, a5):
         raise ec2uploadimg.EC2UploadImgException
 
