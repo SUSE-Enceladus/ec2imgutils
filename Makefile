@@ -5,7 +5,7 @@ MANPATH=/usr/share/man
 dirs = lib man
 files = Makefile README.md LICENSE ec2deprecateimg ec2listimg ec2publishimg ec2removeimg ec2uploadimg setup.py requirements-dev.txt requirements.txt
 
-verSpec = $(shell rpm -q --specfile --qf '%{VERSION}' *.spec)
+verSpec = $(shell awk '/^Version:/ { print $$2 }' *.spec)
 verSrc = $(shell cat lib/ec2imgutils/VERSION)
 
 ifneq "$(verSpec)" "$(verSrc)"
@@ -13,7 +13,7 @@ $(error "Version mismatch, will not take any action")
 endif
 
 clean:
-	@find . -name "*.pyc" | xargs rm -f 
+	@find . -name "*.pyc" | xargs rm -f
 	@find . -name "__pycache__" | xargs rm -rf
 	@find . -name "*.cache" | xargs rm -rf
 	@find . -name "*.egg-info" | xargs rm -rf
