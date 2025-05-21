@@ -3,37 +3,12 @@ name: Continuous testing & Linting
 on: [push]
 
 jobs:
-  test36:
-
-    runs-on: ubuntu-20.04
-    strategy:
-      matrix:
-        python-version: [3.6]
-
-    steps:
-    - uses: actions/checkout@v2
-    - name: Set up Python ${{ matrix.python-version }}
-      uses: actions/setup-python@v2
-      with:
-        python-version: ${{ matrix.python-version }}
-    - name: Install dependencies
-      run: |
-        python -m pip install --upgrade pip
-        pip install -e .[dev]
-    - name: Lint with flake8
-      run: |
-        flake8
-        flake8 ec2*img
-    - name: Test with pytest
-      run: |
-        pytest
-
   test:
 
     runs-on: ubuntu-22.04
     strategy:
       matrix:
-        python-version: [3.7, 3.8, 3.9]
+        python-version: [3.7, 3.8, 3.9, "3.10", 3.11, 3.12, 3.13]
 
     steps:
     - uses: actions/checkout@v2
