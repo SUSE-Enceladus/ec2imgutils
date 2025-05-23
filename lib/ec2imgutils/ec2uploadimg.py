@@ -33,7 +33,7 @@ class EC2ImageUploader(EC2ImgUtils):
 
     def __init__(self,
                  access_key=None,
-                 backing_store='ssd',
+                 backing_store='gp3',
                  billing_codes=None,
                  bootkernel=None,
                  config=None,
