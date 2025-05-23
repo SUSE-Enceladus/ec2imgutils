@@ -90,7 +90,7 @@ def parse_args(args):
     help_msg += 'storage IDs'
     parser.add_argument(
         '-B', '--backing-store',
-        default='ssd',
+        default='gp3',
         dest='backingStore',
         help=help_msg,
         metavar='EC2_BACKING_STORE'
