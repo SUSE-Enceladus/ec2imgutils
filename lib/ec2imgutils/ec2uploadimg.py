@@ -330,7 +330,7 @@ class EC2ImageUploader(EC2ImgUtils):
         if self.backing_store == 'mag':
             backing_store = 'standard'
         elif self.backing_store == 'ssd':
-            backing_store = 'gp2'
+            backing_store = 'gp3'
         else:
             backing_store = self.backing_store
 

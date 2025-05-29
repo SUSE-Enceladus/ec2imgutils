@@ -868,7 +868,7 @@ def test_create_block_device_map2(
     assert bdm[0]['Ebs']['SnapshotId'] == 'mySnapshotId'
     assert bdm[0]['Ebs']['VolumeSize'] == 10
     assert bdm[0]['Ebs']['DeleteOnTermination'] is True
-    assert bdm[0]['Ebs']['VolumeType'] == 'gp2'
+    assert bdm[0]['Ebs']['VolumeType'] == 'gp3'
 
 
 @patch('ec2imgutils.ec2uploadimg.EC2ImageUploader._connect')
