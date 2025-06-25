@@ -57,7 +57,7 @@ def get_config(args, logger):
     """Function to the the configutation parsed from the configuration file
     provided as an argument (or the default path)
     """
-    config_file = os.path.expanduser(args.configFilePath)
+    config_file = os.path.expanduser(args.config_file_path)
     config = None
     if not os.path.isfile(config_file):
         logger.error('Configuration file "%s" not found.' % config_file)
@@ -75,11 +75,11 @@ def get_access_key(args, config, logger):
     """Function to get the access_key to AWS with the data provided as command
     line args and configuration.
     """
-    access_key = args.accessKey
+    access_key = args.access_key
     if not access_key:
         try:
             access_key = utils.get_from_config(
-                args.accountName,
+                args.account_name,
                 config,
                 None,
                 'access_key_id',
@@ -100,11 +100,11 @@ def get_secret_key(args, config, logger):
     """Function to get the secret_key to AWS with the data provided as command
     line args and configuration.
     """
-    secret_key = args.secretKey
+    secret_key = args.secret_key
     if not secret_key:
         try:
             secret_key = utils.get_from_config(
-                args.accountName,
+                args.account_name,
                 config,
                 None,
                 'secret_access_key',
@@ -131,7 +131,7 @@ def get_image_deprecation_disabler(args, access_key, secret_key, logger):
             access_key=access_key,
             image_id=args.image_id,
             image_name=args.image_name,
-            public_only=args.publicOnly,
+            public_only=args.public_only,
             secret_key=secret_key,
             log_callback=logger
         )
@@ -197,7 +197,7 @@ def parse_args(args):
         '--public-only',
         action='store_true',
         default=False,
-        dest='publicOnly',
+        dest='public_only',
         help='Only consider images that are public (Optional)'
     )
     help_msg = 'Comma separated list of regions for publishing, all integrated'
@@ -245,9 +245,9 @@ def disable_images_deprecation_in_region(
     try:
         if dry_run:
             logger.info('Dry run, image attributes will not be modified')
-            deprecation_disabler.print_disable_deprecation_info()
+            deprecation_disabler.print_disable_images_deprecation_info()
         else:
-            deprecation_disabler.disable_deprecation_for_images()
+            deprecation_disabler.disable_images_deprecation()
     except EC2DisableImgDeprecationException as e:
         errors[region] = format(e)
     except Exception as e:

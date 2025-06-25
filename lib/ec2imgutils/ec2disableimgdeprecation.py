@@ -104,13 +104,11 @@ class EC2DisableImgDeprecation(EC2ImgUtils):
         images = None
         if self.image_id:
             images = self._find_images_by_id(
-                self.image_id,
-                True
+                self.image_id
             )
         elif self.image_name:
             images = self._find_images_by_name(
-                self.image_name,
-                True
+                self.image_name
             )
         else:
             msg = 'No image condition set to disable deprecation. Should not '
@@ -154,7 +152,7 @@ class EC2DisableImgDeprecation(EC2ImgUtils):
             ]
 
             if tagged:
-                ec2.remove_tags(
+                ec2.delete_tags(
                     Resources=[image['ImageId']], Tags=tags_to_remove
                 )
                 self.log.debug(
@@ -176,7 +174,7 @@ class EC2DisableImgDeprecation(EC2ImgUtils):
             )
 
     # ---------------------------------------------------------------------
-    def print_disable_image_deprecation_info(self):
+    def print_disable_images_deprecation_info(self):
         """
         Print information about the images that would get their deprecation
         disabled.
