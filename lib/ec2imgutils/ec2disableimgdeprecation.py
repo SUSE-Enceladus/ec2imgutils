@@ -19,10 +19,10 @@ import logging
 
 import ec2imgutils.ec2utils as utils
 from ec2imgutils.ec2imgutils import EC2ImgUtils
-from ec2imgutils.ec2imgutilsExceptions import EC2DisableDeprecationImgException
+from ec2imgutils.ec2imgutilsExceptions import EC2DisableImgDeprecationException
 
 
-class EC2DisableDeprecationImg(EC2ImgUtils):
+class EC2DisableImgDeprecation(EC2ImgUtils):
     """
     Disables the deprecation of EC2 image(s) removing the image tagging of
     3 tags, Deprecated on, Removal date, and Replacement image. Additionally
@@ -115,12 +115,12 @@ class EC2DisableDeprecationImg(EC2ImgUtils):
         else:
             msg = 'No image condition set to disable deprecation. Should not '
             msg += 'reach this point.'
-            raise EC2DisableDeprecationImgException(msg)
+            raise EC2DisableImgDeprecationException(msg)
 
         return images
 
     # ---------------------------------------------------------------------
-    def disable_deprecation_for_images(self):
+    def disable_images_deprecation(self):
         """Disables deprecation for images in the connected region"""
         self._connect()
         images = self._get_images_to_disable_deprecation()
@@ -176,7 +176,7 @@ class EC2DisableDeprecationImg(EC2ImgUtils):
             )
 
     # ---------------------------------------------------------------------
-    def print_disable_deprecation_info(self):
+    def print_disable_image_deprecation_info(self):
         """
         Print information about the images that would get their deprecation
         disabled.

@@ -48,5 +48,5 @@ class EC2UploadImgException(Exception):
     pass
 
 
-class EC2DisableDeprecationImgException(Exception):
+class EC2DisableImgDeprecationException(Exception):
     pass

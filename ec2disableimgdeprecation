@@ -22,10 +22,10 @@ import os
 import sys
 
 import ec2imgutils.ec2utils as utils
-import ec2imgutils.ec2disabledeprecationimg as ec2disdepimg
+import ec2imgutils.ec2disableimgdeprecation as ec2disimgdep
 from ec2imgutils.ec2imgutilsExceptions import (
     EC2AccountException,
-    EC2DisableDeprecationImgException
+    EC2DisableImgDeprecationException
 )
 
 
@@ -34,11 +34,11 @@ def check_required_arguments(args, logger):
     """This function is used to assure the additional requirements over
     arguments (which ones are mandatory, etc.) are met.
     """
-    check_disable_deprecation_image_args_present(args, logger)
+    check_disable_image_deprecation_args_present(args, logger)
 
 
 # ----------------------------------------------------------------------------
-def check_disable_deprecation_image_args_present(args, logger):
+def check_disable_image_deprecation_args_present(args, logger):
     """This function checks that at least one of the possible args to specify
     the image to disable deprecation is present
     """
@@ -46,7 +46,7 @@ def check_disable_deprecation_image_args_present(args, logger):
         not args.image_id and not
         args.image_name
     ):
-        error_msg = 'ec2disabledeprecationimg: error: one of the arguments '
+        error_msg = 'ec2disableimgdeprecation: error: one of the arguments '
         error_msg += '--image-id --image-name is required'
         logger.error(error_msg)
         sys.exit(1)
@@ -123,11 +123,11 @@ def get_secret_key(args, config, logger):
 # ----------------------------------------------------------------------------
 def get_image_deprecation_disabler(args, access_key, secret_key, logger):
     """
-    Function to get an instance of the ec2imgutils.EC2DisableDeprecationImg
+    Function to get an instance of the ec2imgutils.EC2DisableImgDeprecation
      class
     """
     try:
-        undeprecator = ec2disdepimg.EC2DisableDeprecationImg(
+        undeprecator = ec2disimgdep.EC2DisableImgDeprecation(
             access_key=access_key,
             image_id=args.image_id,
             image_name=args.image_name,
@@ -135,7 +135,7 @@ def get_image_deprecation_disabler(args, access_key, secret_key, logger):
             secret_key=secret_key,
             log_callback=logger
         )
-    except EC2DisableDeprecationImgException as e:
+    except EC2DisableImgDeprecationException as e:
         logger.error(e)
         sys.exit(1)
     return undeprecator
@@ -144,7 +144,9 @@ def get_image_deprecation_disabler(args, access_key, secret_key, logger):
 # ----------------------------------------------------------------------------
 def parse_args(args):
     """Command argument parsing function."""
-    parser = argparse.ArgumentParser(description='Deprecate images in EC2')
+    parser = argparse.ArgumentParser(
+        description='Disables the deprecation of images in EC2'
+    )
     parser.add_argument(
         '-a', '--account',
         dest='account_name',
@@ -230,7 +232,7 @@ def parse_args(args):
 
 
 # ----------------------------------------------------------------------------
-def disable_deprecation_images_in_region(
+def disable_images_deprecation_in_region(
     deprecation_disabler,
     dry_run,
     region,
@@ -246,7 +248,7 @@ def disable_deprecation_images_in_region(
             deprecation_disabler.print_disable_deprecation_info()
         else:
             deprecation_disabler.disable_deprecation_for_images()
-    except EC2DisableDeprecationImgException as e:
+    except EC2DisableImgDeprecationException as e:
         errors[region] = format(e)
     except Exception as e:
         print_errors(errors, logger)
@@ -288,7 +290,7 @@ def main(args):
     errors = {}
     for region in regions:
         deprecation_disabler.set_region(region)
-        errors = disable_deprecation_images_in_region(
+        errors = disable_images_deprecation_in_region(
             deprecation_disabler,
             args.dry_run,
             region,

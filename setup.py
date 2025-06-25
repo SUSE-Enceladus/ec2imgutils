@@ -62,7 +62,7 @@ if __name__ == '__main__':
             'ec2publishimg',
             'ec2removeimg',
             'ec2uploadimg',
-            'ec2disabledeprecationimg'
+            'ec2disableimgdeprecation'
         ],
         classifiers=[
             'Development Status :: 5 - Production/Stable',
