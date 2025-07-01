@@ -97,7 +97,8 @@ test_cli_args_data = [
       "region1,region2,region3",
       "--secret-key",
       "testSecretKey",
-      "--verbose"]),
+      "--verbose",
+      "--undo"]),
 ]
 
 
@@ -122,6 +123,7 @@ def test_args(cli_args):
     assert parsed_args.regions == "region1,region2,region3"
     assert parsed_args.secretKey == "testSecretKey"
     assert parsed_args.verbose is True
+    assert parsed_args.undo is True
 
 
 # --------------------------------------------------------------------
@@ -1191,6 +1193,97 @@ def test_deprecate_images_filtering_by_id_replacement_by_name_frag_dry_run(
     assert "20220801" in caplog.text
     assert "ami-000cc31892067693a" in caplog.text
     assert "Replacement image ami-000cc31892067693c" in caplog.text
+
+
+@patch('ec2deprecateimg.ec2depimg.EC2DeprecateImg._get_owned_images')
+@patch('ec2deprecateimg.ec2depimg.EC2DeprecateImg._connect')
+def test_undo_deprecate_images_filtering_by_id(
+    ec2connect_mock,
+    get_owned_imgs_mock,
+    caplog
+):
+    def log_args(**kwargs):
+        logger.info(str(kwargs))
+
+    ec2 = MagicMock()
+    ec2.delete_tags.return_value = None
+    ec2.delete_tags.side_effect = log_args
+    ec2.describe_image_attribute.return_value = {
+        'LaunchPermissions': [
+            {
+                'Group': "111222333"
+            }
+        ]
+    }
+    ec2.disable_image_deprecation.return_value = None
+    ec2connect_mock.return_value = ec2
+    get_owned_imgs_mock.return_value = mock_get_owned_images()
+
+    cli_args = [
+      "--account",
+      "testAccName",
+      "--access-id",
+      "testAccId",
+      "--deprecation-date",
+      "20220101",
+      "--deprecation-period",
+      "7",
+      "--file",
+      data_path + os.sep + 'complete.cfg',
+      "--image-id",
+      "ami-000cc31892067693c",
+      "--regions",
+      "region1",
+      "--secret-key",
+      "testSecretKey",
+      "--undo"
+    ]
+    ec2deprecateimg.main(cli_args)
+    ec2.delete_tags.assert_called_with(
+        Resources=['ami-000cc31892067693c'],
+        Tags=[{'Key': 'Deprecated on'}]
+    )
+    ec2.disable_image_deprecation.assert_called_with(
+        ImageId='ami-000cc31892067693c'
+    )
+
+
+@patch('ec2deprecateimg.ec2depimg.EC2DeprecateImg._get_owned_images')
+@patch('ec2deprecateimg.ec2depimg.EC2DeprecateImg._connect')
+def test_undo_deprecate_images_filtering_by_name_dry_run(
+    ec2connect_mock,
+    get_owned_imgs_mock,
+    caplog
+):
+    def log_args(**kwargs):
+        logger.info(str(kwargs))
+
+    ec2 = MagicMock()
+    ec2.delete_tags.return_value = None
+    ec2.delete_tags.side_effect = log_args
+    ec2.disable_image_deprecation.return_value = None
+    ec2connect_mock.return_value = ec2
+    get_owned_imgs_mock.return_value = mock_get_owned_images()
+
+    cli_args = [
+      "--account",
+      "testAccName",
+      "--access-id",
+      "testAccId",
+      "--file",
+      data_path + os.sep + 'complete.cfg',
+      "--image-name",
+      "NotTestImage2",
+      "--regions",
+      "region1",
+      "--secret-key",
+      "testSecretKey",
+      "--undo",
+      "--dry-run"
+    ]
+    ec2deprecateimg.main(cli_args)
+    assert "ami-000cc31892067693c" in caplog.text
+    assert "NotTestImage2" in caplog.text
 
 
 # --------------------------------------------------------------------

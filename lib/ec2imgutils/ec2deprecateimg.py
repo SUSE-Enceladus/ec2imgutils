@@ -340,6 +340,80 @@ class EC2DeprecateImg(EC2ImgUtils):
             )
 
     # ---------------------------------------------------------------------
+    def remove_deprecation_of_images(self):
+        """Removes the deprecation for images in the connected region"""
+        # self._connect()
+        images = self._get_images_to_deprecate()
+        if not images:
+            self.log.debug('No images to remove the deprecation found')
+            return False
+
+        self.log.debug(
+            'Removing the deprecation for images in region: {}'.format(
+                self.region
+            )
+        )
+
+        keys_to_delete = [
+            'Deprecated on',
+            'Removal date',
+            'Replacement image'
+        ]
+        tags_to_remove = []
+
+        ec2 = self._connect()
+        for image in images:
+            existing_tags = image.get('Tags')
+            if existing_tags:
+                for existing_tag in existing_tags:
+                    if existing_tag['Key'] in keys_to_delete:
+                        tags_to_remove.append({
+                            'Key': existing_tag['Key']
+                        })
+
+                ec2.delete_tags(
+                    Resources=[image['ImageId']], Tags=tags_to_remove
+                )
+                self.log.debug(
+                    '\t\tRemoved the tags:%s\t%s' % (
+                        image['ImageId'],
+                        image['Name']
+                    )
+                )
+            else:
+                self.log.debug(
+                    '\t\tImage not tagged:%s\t%s' % (
+                        image['ImageId'],
+                        image['Name']
+                    )
+                )
+
+            # Check if the image is public, as the disable_image_deprecation
+            # operation is NOT allowed for public images
+            public_image = False
+            launch_attributes = self._connect().describe_image_attribute(
+                ImageId=image['ImageId'],
+                Attribute='launchPermission')['LaunchPermissions']
+            launch_permission = None
+            if launch_attributes:
+                launch_permission = launch_attributes[0].get('Group', None)
+            if launch_permission == 'all':
+                public_image = True
+
+            if public_image:
+                msg = '\t\tPublic image, skipping disable_image_deprecation'
+                msg += '%s\t%s' % (image['ImageId'], image['Name'])
+                self.log.debug(msg)
+            else:
+                ec2.disable_image_deprecation(ImageId=image['ImageId'])
+                self.log.debug(
+                    '\t\tDisabled deprecation:%s\t%s' % (
+                        image['ImageId'],
+                        image['Name']
+                    )
+                )
+
+    # ---------------------------------------------------------------------
     def print_deprecation_info(self):
         """Print information about the images that would be deprecated."""
         self._connect()
@@ -362,6 +436,29 @@ class EC2DeprecateImg(EC2ImgUtils):
             self.log.info("\tNo replacement image provided")
 
         self.log.info('\tImages to deprecate:\n\t\tID\t\t\t\tName')
+        for image in images:
+            self.log.info('\t\t%s\t%s' % (image['ImageId'], image['Name']))
+
+        return True
+
+    # ---------------------------------------------------------------------
+    def print_remove_deprecation_info(self):
+        """
+        Print information about the images whose deprecation would be
+        removed.
+        """
+        self._connect()
+        images = self._get_images_to_deprecate()
+        if not images:
+            self.log.info('No images found to remove the deprecation')
+            return True
+
+        self.log.info(
+            'Would remove the deprecation of images in region: {}'.format(
+                self.region
+            )
+        )
+        self.log.info('\tImages to remove deprecation:\n\t\tID\t\t\t\tName')
         for image in images:
             self.log.info('\t\t%s\t%s' % (image['ImageId'], image['Name']))
 
