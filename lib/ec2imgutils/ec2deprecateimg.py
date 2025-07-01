@@ -342,7 +342,6 @@ class EC2DeprecateImg(EC2ImgUtils):
     # ---------------------------------------------------------------------
     def remove_deprecation_of_images(self):
         """Removes the deprecation for images in the connected region"""
-        # self._connect()
         images = self._get_images_to_deprecate()
         if not images:
             self.log.debug('No images to remove the deprecation found')
@@ -372,7 +371,8 @@ class EC2DeprecateImg(EC2ImgUtils):
                         })
 
                 ec2.delete_tags(
-                    Resources=[image['ImageId']], Tags=tags_to_remove
+                    Resources=[image['ImageId']],
+                    Tags=tags_to_remove
                 )
                 self.log.debug(
                     '\t\tRemoved the tags:%s\t%s' % (
@@ -393,7 +393,9 @@ class EC2DeprecateImg(EC2ImgUtils):
             public_image = False
             launch_attributes = self._connect().describe_image_attribute(
                 ImageId=image['ImageId'],
-                Attribute='launchPermission')['LaunchPermissions']
+                Attribute='launchPermission'
+            )['LaunchPermissions']
+
             launch_permission = None
             if launch_attributes:
                 launch_permission = launch_attributes[0].get('Group', None)
