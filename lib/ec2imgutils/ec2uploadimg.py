@@ -971,6 +971,7 @@ class EC2ImageUploader(EC2ImgUtils):
         filename = source.split(os.sep)[-1]
         sftp = self.ssh_client.open_sftp()
         try:
+            sftp.get_channel().settimeout(self.ssh_timeout)
             self.log.debug('Uploading image file: {}'.format(source))
             sftp.put(source,
                      '%s/%s' % (target_dir, filename),
@@ -980,6 +981,8 @@ class EC2ImageUploader(EC2ImgUtils):
         except Exception as e:
             self._clean_up()
             raise e
+        finally:
+            sftp.close()
 
         return filename
 

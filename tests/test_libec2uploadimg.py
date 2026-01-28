@@ -1920,6 +1920,8 @@ def test_upload_image(
     ssh_client_mock.assert_has_calls([
         call(),
         call.open_sftp(),
+        call.open_sftp().get_channel(),
+        call.open_sftp().get_channel().settimeout(300),
         call.open_sftp().put(
             '/test/imageName.img',
             'targetDir/imageName.img',
