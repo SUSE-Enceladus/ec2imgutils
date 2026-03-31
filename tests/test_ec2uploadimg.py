@@ -218,6 +218,8 @@ test_cli_args_data = [
       "--use-enclave",
       "--wait-count",
       "8",
+      "--image-tags",
+      '[{"Key": "key", "Value": "value"}]',
       "testSource"]),
 ]
 
@@ -263,6 +265,7 @@ def test_args_check(cli_args):
     assert parsed_args.waitCount == 8
     assert parsed_args.source == "testSource"
     assert parsed_args.imdsVersion == "v2.0"
+    assert str(parsed_args.imageTags) == "[{'Key': 'key', 'Value': 'value'}]"
 
 
 # --------------------------------------------------------------------

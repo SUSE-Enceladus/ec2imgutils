@@ -119,6 +119,16 @@ Setting this switch will select the
 value from the configuration file or will use the value given with
 .I --boot-kernel
 as the aki ID when a para virtual image is being registered.
+.IP "--image-tags"
+Optionally specify tags that should be applied to the image once it has been
+uploaded. The value for the argument is a valid json string representing
+a list of dictionaries where each dictionary specifies the key for the tag
+using the keyword "Key" and the value for this key with the keyword "Value".
+Alternatively the value of the argument may point to a file that specifies
+the same json construct. Example:
+.I '[{"Key":"1234", "Value":"5678"},{"Key":"Hello", "Value":"Goodbye"}]'
+Would lead to the uploaded image having 2 tags, one with the key "1234"
+and the other with the key "Hello". Each key would have the assigned values.
 .IP "--imds-support"
 Optionally specify the version for accessing the Instance MetaData Service
 (IMDS). The default is to access the IMDS using the version 1.0 implementation.
