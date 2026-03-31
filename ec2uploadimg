@@ -20,6 +20,7 @@
 
 import argparse
 import boto3
+import json
 import os
 import sys
 import signal
@@ -149,6 +150,16 @@ def parse_args(args):
         default=False,
         dest='grub2',
         help='The image uses the GRUB2 bootloader (Optional)'
+    )
+    help_msg = 'Provide valid json or a file name of a list of dicts '
+    help_msg += 'each dict having a "Key" and "Value" assignment '
+    help_msg += 'representing the key and value of a tag to be applied to '
+    help_msg += 'the image. (Optional)'
+    parser.add_argument(
+        '--image-tags',
+        dest='imageTags',
+        help=help_msg,
+        metavar='IMAGE_TAGS'
     )
     help_msg = 'Set the protocol version to be used when instances are '
     help_msg += 'launched from the image, supported values 2.0/v2.0. '
@@ -369,6 +380,53 @@ def check_required_arguments_and_constraints(args, logger):
     check_amiID_or_runningID_provided(args, logger)
     check_regions_parameter(args, logger)
     check_tpm_support_has_allowed_boot_options(args, logger)
+    check_image_tags(args, logger)
+
+
+# ----------------------------------------------------------------------------
+def check_image_tags(args, logger):
+    """This function determines if a file path is provided and if this
+    is the case loads the json from the file. Set the argument to the
+    resulting json object. If the json is provided as a string create the
+    json object"""
+    imgTags = None
+    error = ''
+    usr_img_tags = args.imageTags
+    if usr_img_tags:
+        if 'Key' in usr_img_tags and 'Value' in usr_img_tags:
+            try:
+                imgTags = json.loads(usr_img_tags)
+            except json.decoder.JSONDecodeError:
+                error = 'Decode'
+        # The given argument is not valid json it could be a file path with
+        # Key abd Value as part of the file name
+        if not imgTags:
+            if os.path.isfile(os.path.expanduser(usr_img_tags)):
+                try:
+                    imgTags = json.loads(open(usr_img_tags, 'r').read())
+                except PermissionError:
+                    error = 'File'
+                except json.decoder.JSONDecodeError:
+                    error = 'Decode'
+                except Exception:
+                    error = 'Unknown'
+            else:
+                error = 'File'
+
+        if not imgTags:
+            if error == 'File':
+                err_msg = 'Attempted to load file %s but the file could '
+                err_msg += 'not be found or read'
+                logger.error(err_msg % usr_img_tags)
+                sys.exit(1)
+            elif error == 'Decode':
+                logger.error('Provided json for tags is invalid')
+                sys.exit(1)
+            else:
+                logger.error('Unknown error processing image-tags argument')
+                sys.exit(1)
+
+    args.imageTags = imgTags
 
 
 # ----------------------------------------------------------------------------
@@ -928,7 +986,8 @@ def get_uploader(
                 log_callback=logger,
                 boot_mode=args.bootMode,
                 tpm_support=args.tpm,
-                imds_support=args.imdsVersion
+                imds_support=args.imdsVersion,
+                image_tags=args.imageTags
             )
             return uploader
     except EC2UploadImgException as e:

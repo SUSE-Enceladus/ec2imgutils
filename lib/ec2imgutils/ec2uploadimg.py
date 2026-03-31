@@ -15,6 +15,7 @@
 # You should have received a copy of the GNU General Public License
 # along with ec2uploadimg. If not, see <http://www.gnu.org/licenses/>.
 
+import botocore
 import json
 import logging
 import os
@@ -64,7 +65,8 @@ class EC2ImageUploader(EC2ImgUtils):
                  log_callback=None,
                  boot_mode=None,
                  tpm_support=None,
-                 imds_support=None
+                 imds_support=None,
+                 image_tags=None
                  ):
         EC2ImgUtils.__init__(
             self,
@@ -115,6 +117,7 @@ class EC2ImageUploader(EC2ImgUtils):
         self.ssh_client = None
         self.storage_volume_size = 2 * self.root_volume_size
         self.aborted = False
+        self.image_tags = image_tags
 
         if sriov_type and sriov_type != 'simple':
             raise EC2UploadImgException(
@@ -964,8 +967,25 @@ class EC2ImageUploader(EC2ImgUtils):
                 self.progress_timer.start()
 
     # ---------------------------------------------------------------------
+    def _tag_image(self, ami_id):
+        """Tag the image"""
+
+        if self.image_tags:
+            self.log.debug('Applying tags')
+            try:
+                self._connect().create_tags(
+                    Resources=[ami_id], Tags=self.image_tags
+                )
+            except botocore.exceptions.ParamValidationError:
+                msg = 'Tag appllication failed, please apply tags '
+                msg += 'manually via the aws tool or the web console. '
+                msg += 'Tag value validation failed.'
+                self.log.debug(msg)
+
+    # ---------------------------------------------------------------------
     def _upload_image(self, target_dir, source):
         """Upload the source file to the instance"""
+
         if self.aborted:
             return
         filename = source.split(os.sep)[-1]
@@ -1040,6 +1060,7 @@ class EC2ImageUploader(EC2ImgUtils):
         snapshot = self.create_snapshot(source)
 
         ami = self._register_image(snapshot)
+        self._tag_image(ami)
 
         return ami
 
@@ -1057,6 +1078,7 @@ class EC2ImageUploader(EC2ImgUtils):
 
         snapshot = response['Snapshots'][0]
         ami = self._register_image(snapshot)
+        self._tag_image(ami)
 
         return ami
 
@@ -1169,6 +1191,8 @@ class EC2ImageUploader(EC2ImgUtils):
             )
 
         self._clean_up()
+
+        self._tag_image(ami['ImageId'])
         return ami['ImageId']
 
     # ---------------------------------------------------------------------
