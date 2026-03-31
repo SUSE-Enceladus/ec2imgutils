@@ -265,6 +265,16 @@ def parse_args(args):
         metavar='SSH_TIME_OUT',
         type=int
     )
+    help_msg = 'Timeout value for inactivity in the channel used for the '
+    help_msg += 'image upload, default 900s (Optional)'
+    parser.add_argument(
+        '--channel-timeout',
+        default=900,
+        dest='channelTimeout',
+        help=help_msg,
+        metavar='CHANNEL_TIME_OUT',
+        type=int
+    )
     help_msg = 'The image supports NitroTPM, supported values 2.0/v2.0'
     help_msg += ' (Optional)'
     parser.add_argument(
@@ -978,6 +988,7 @@ def get_uploader(
                 ssh_key_pair_name=key_pair_name,
                 ssh_key_private_key_file=ssh_private_key_file,
                 ssh_timeout=args.sshTimeout,
+                channel_timeout=args.channelTimeout,
                 use_grub2=args.grub2,
                 use_private_ip=args.usePrivateIP,
                 vpc_subnet_id=vpc_subnet_id,

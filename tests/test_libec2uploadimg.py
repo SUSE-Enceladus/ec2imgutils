@@ -23,6 +23,7 @@ import inspect
 import logging
 import os
 import pytest
+import socket
 import sys
 
 
@@ -1920,12 +1921,48 @@ def test_upload_image(
     ssh_client_mock.assert_has_calls([
         call(),
         call.open_sftp(),
+        call.open_sftp().get_channel(),
+        call.open_sftp().get_channel().settimeout(900),
         call.open_sftp().put(
             '/test/imageName.img',
             'targetDir/imageName.img',
             upload_progress_mock
         )
     ])
+
+
+@patch('ec2imgutils.ec2uploadimg.EC2ImageUploader._upload_progress')
+def test_upload_image_socket_timeout(
+    upload_progress_mock,
+    caplog
+):
+    # Mocks
+    ssh_client_mock = MagicMock()
+    sftp_mock = MagicMock()
+    sftp_mock.put.side_effect = socket.timeout
+    ssh_client_mock.open_sftp.return_value = sftp_mock
+
+    # Instance creation
+    uploader = ec2upimg.EC2ImageUploader(
+        access_key='',
+        wait_count=1,
+        log_callback=logger
+    )
+    uploader.ssh_client = ssh_client_mock
+
+    with pytest.raises(EC2UploadImgException) as e:
+        uploader._upload_image('targetDir', '/test/imageName.img')
+
+    # assertions
+    msg = 'Channel timeout reached during upload process.'
+    assert msg in str(e)
+    ssh_client_mock.open_sftp.assert_called_once()
+    sftp_mock.get_channel().settimeout.assert_called_with(900)
+    sftp_mock.put.assert_called_with(
+        '/test/imageName.img',
+        'targetDir/imageName.img',
+        upload_progress_mock
+    )
 
 
 @patch('ec2imgutils.ec2uploadimg.EC2ImageUploader._clean_up')

@@ -20,6 +20,7 @@ import json
 import logging
 import os
 import paramiko
+import socket
 import sys
 import threading
 import time
@@ -56,6 +57,7 @@ class EC2ImageUploader(EC2ImgUtils):
                  ssh_key_pair_name=None,
                  ssh_key_private_key_file=None,
                  ssh_timeout=300,
+                 channel_timeout=900,
                  use_grub2=False,
                  use_private_ip=False,
                  vpc_subnet_id='',
@@ -98,6 +100,7 @@ class EC2ImageUploader(EC2ImgUtils):
         self.ssh_key_pair_name = ssh_key_pair_name
         self.ssh_key_private_key_file = ssh_key_private_key_file
         self.ssh_timeout = ssh_timeout
+        self.channel_timeout = channel_timeout
         self.tpm = tpm_support
         self.use_grub2 = use_grub2
         self.use_private_ip = use_private_ip
@@ -991,15 +994,22 @@ class EC2ImageUploader(EC2ImgUtils):
         filename = source.split(os.sep)[-1]
         sftp = self.ssh_client.open_sftp()
         try:
+            sftp.get_channel().settimeout(self.channel_timeout)
             self.log.debug('Uploading image file: {}'.format(source))
             sftp.put(source,
                      '%s/%s' % (target_dir, filename),
                      self._upload_progress)
             if self.log_level == logging.DEBUG:
                 print()
+        except socket.timeout:
+            self._clean_up()
+            error_msg = 'Channel timeout reached during upload process.'
+            raise EC2UploadImgException(error_msg)
         except Exception as e:
             self._clean_up()
             raise e
+        finally:
+            sftp.close()
 
         return filename
 

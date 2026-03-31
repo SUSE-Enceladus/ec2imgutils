@@ -91,6 +91,8 @@ test_cli_args_data = [
       "--sriov-support",
       "--ssh-timeout",
       "257",
+      "--channel-timeout",
+      "834",
       "--tpm-support",
       "2.0",
       "--type",
@@ -142,6 +144,7 @@ def test_args(cli_args):
     assert parsed_args.snapOnly is True
     assert parsed_args.sriov is True
     assert parsed_args.sshTimeout == 257
+    assert parsed_args.channelTimeout == 834
     assert parsed_args.tpm == "2.0"
     assert parsed_args.instType == "testType"
     assert parsed_args.sshUser == "testUser"
@@ -202,6 +205,8 @@ test_cli_args_data = [
       "--sriov-support",
       "--ssh-timeout",
       "257",
+      "--channel-timeout",
+      "834",
       "--tpm-support",
       "v2.0",
       "--type",
@@ -254,6 +259,7 @@ def test_args_check(cli_args):
     assert parsed_args.snapOnly is False
     assert parsed_args.sriov is True
     assert parsed_args.sshTimeout == 257
+    assert parsed_args.channelTimeout == 834
     assert parsed_args.tpm == "v2.0"
     assert parsed_args.instType == "testType"
     assert parsed_args.sshUser == "testUser"
