@@ -210,6 +210,10 @@ Specifies the AWS secret access key and overrides the value given for the
 with the
 .I secret_access_key
 in the configuration file.
+.IP "--undo"
+Removes the deprecation for the images provided. Note that for public images
+the operation of disable_image_deprecation is NOT allowed by EC2, so only the
+deprecation tags will be removed for these images.
 .IP "--verbose"
 Print extra output about the operations performed to STDOUT.
 .IP "--version"

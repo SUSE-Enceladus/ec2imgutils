@@ -279,7 +279,7 @@ def parse_args(args):
     # Note, one of the arguments in the group is required if --version is
     # not specified. However setting this behavior through the parser
     # also requiers one argument to be specified even if --version is specified
-    # This prser behavior is true even if --version and the group are part
+    # This parser behavior is true even if --version and the group are part
     # of the same subgroup
     replacement_image_id = parser.add_mutually_exclusive_group()
     help_msg = 'The AMI ID of the image used as a replacement for the '
@@ -343,6 +343,13 @@ def parse_args(args):
         version=utils.get_version(),
         help='Program version'
     )
+    parser.add_argument(
+        '--undo',
+        action='store_true',
+        default=False,
+        dest='undo',
+        help='Removes the deprecation of the images provided'
+    )
     parsed_args = parser.parse_args(args)
     return parsed_args
 
@@ -358,6 +365,34 @@ def deprecate_images_in_region(deprecator, dryRun, region, errors, logger):
             deprecator.print_deprecation_info()
         else:
             deprecator.deprecate_images()
+    except EC2DeprecateImgException as e:
+        errors[region] = format(e)
+    except Exception as e:
+        print_errors(errors, logger)
+        logger.exception(e)
+        sys.exit(1)
+    return errors
+
+
+# ----------------------------------------------------------------------------
+def remove_deprecation_of_images_in_region(
+    deprecator,
+    dryRun,
+    region,
+    errors,
+    logger
+):
+    """
+    Function that removes the deprecation of the specified images for a AWS
+    region. The function returns the errors dictionary with any error it found
+    added
+    """
+    try:
+        if dryRun:
+            logger.info('Dry run, image attributes will not be modified')
+            deprecator.print_remove_deprecation_info()
+        else:
+            deprecator.remove_deprecation_of_images()
     except EC2DeprecateImgException as e:
         errors[region] = format(e)
     except Exception as e:
@@ -395,13 +430,23 @@ def main(args):
     errors = {}
     for region in regions:
         deprecator.set_region(region)
-        errors = deprecate_images_in_region(
-            deprecator,
-            args.dryRun,
-            region,
-            errors,
-            logger
-        )
+        if args.undo:
+            # undo is set, removing the deprecation for the images
+            errors = remove_deprecation_of_images_in_region(
+                deprecator,
+                args.dryRun,
+                region,
+                errors,
+                logger
+            )
+        else:
+            errors = deprecate_images_in_region(
+                deprecator,
+                args.dryRun,
+                region,
+                errors,
+                logger
+            )
 
     if errors:
         print_errors(errors, logger)
