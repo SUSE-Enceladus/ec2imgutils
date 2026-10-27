@@ -19,6 +19,7 @@
 # <http://www.gnu.org/licenses/>.
 #
 
+import hashlib
 import inspect
 import logging
 import os
@@ -1895,74 +1896,313 @@ def test_set_zone_to_use(
     ])
 
 
-@patch('ec2imgutils.ec2uploadimg.EC2ImageUploader._upload_progress')
-def test_upload_image(
-    upload_progress_mock,
-    caplog
+def _upload_setup(
+    tmp_path,
+    content=b'image-data' * 10,
+    remote_checksum=None,
+    exit_status=0,
+    stdout_data=None,
+    stderr_data=b'',
+    transport=True
 ):
-    # Mocks
-    ssh_client_mock = MagicMock()
-    sftp_mock = MagicMock()
-    sftp_mock.put.side_effect = [None]
-    ssh_client_mock().open_sftp.side_effect = [sftp_mock]
+    """Create a source file and a fully mocked ssh client for uploads."""
+    source = tmp_path / 'imageName.img'
+    source.write_bytes(content)
+    local_checksum = hashlib.sha256(content).hexdigest()
+    if remote_checksum is None:
+        remote_checksum = local_checksum
+    if stdout_data is None:
+        stdout_data = ('%s  targetDir/imageName.img\n' % remote_checksum)
+        stdout_data = stdout_data.encode()
 
-    # Instance creation
+    remote_file_mock = MagicMock()
+    remote_file_ctx = MagicMock()
+    remote_file_ctx.__enter__.return_value = remote_file_mock
+    remote_file_ctx.__exit__.return_value = False
+
+    sftp_mock = MagicMock()
+    sftp_mock.open.return_value = remote_file_ctx
+
+    stdout_mock = MagicMock()
+    stdout_mock.channel.recv_exit_status.return_value = exit_status
+    stdout_mock.read.return_value = stdout_data
+    stderr_mock = MagicMock()
+    stderr_mock.read.return_value = stderr_data
+
+    ssh_client_mock = MagicMock()
+    ssh_client_mock.open_sftp.return_value = sftp_mock
+    ssh_client_mock.exec_command.return_value = (
+        None, stdout_mock, stderr_mock
+    )
+    transport_mock = MagicMock() if transport else None
+    ssh_client_mock.get_transport.return_value = transport_mock
+
     uploader = ec2upimg.EC2ImageUploader(
         access_key='',
         wait_count=1,
         log_callback=logger
     )
     uploader.ssh_client = ssh_client_mock
+
+    return (
+        uploader, str(source), content, local_checksum, ssh_client_mock,
+        sftp_mock, remote_file_mock, transport_mock
+    )
+
+
+@patch('ec2imgutils.ec2uploadimg.EC2ImageUploader._clean_up')
+@patch('ec2imgutils.ec2uploadimg.EC2ImageUploader._upload_progress')
+def test_upload_image(
+    upload_progress_mock,
+    clean_up_mock,
+    tmp_path,
+    caplog
+):
+    (
+        uploader, source, content, _, ssh_client_mock, sftp_mock,
+        remote_file_mock, transport_mock
+    ) = _upload_setup(tmp_path)
+
+    response = uploader._upload_image('targetDir', source)
+
+    # assertions
+    assert response == 'imageName.img'
+    transport_mock.set_keepalive.assert_called_once_with(30)
+    sftp_mock.get_channel().settimeout.assert_called_once_with(None)
+    sftp_mock.open.assert_called_once_with('targetDir/imageName.img', 'wb')
+    remote_file_mock.set_pipelined.assert_called_once_with(True)
+    remote_file_mock.write.assert_called_once_with(content)
+    upload_progress_mock.assert_called_once_with(len(content), len(content))
+    ssh_client_mock.exec_command.assert_called_once_with(
+        'sha256sum targetDir/imageName.img'
+    )
+    sftp_mock.close.assert_called_once_with()
+    clean_up_mock.assert_not_called()
+
+
+@patch('ec2imgutils.ec2uploadimg.EC2ImageUploader._clean_up')
+@patch('ec2imgutils.ec2uploadimg.EC2ImageUploader._upload_progress')
+def test_upload_image_quotes_remote_path(
+    upload_progress_mock,
+    clean_up_mock,
+    tmp_path,
+    caplog
+):
+    uploader, source, _, _, ssh_client_mock, _, _, _ = _upload_setup(
+        tmp_path
+    )
+
+    uploader._upload_image('target dir', source)
+
+    ssh_client_mock.exec_command.assert_called_once_with(
+        "sha256sum 'target dir/imageName.img'"
+    )
+
+
+@patch('ec2imgutils.ec2uploadimg.EC2ImageUploader._clean_up')
+@patch('ec2imgutils.ec2uploadimg.EC2ImageUploader._upload_progress')
+def test_upload_image_chunked(
+    upload_progress_mock,
+    clean_up_mock,
+    tmp_path,
+    caplog
+):
+    chunk_size = 4 * 1024 * 1024
+    content = os.urandom(chunk_size) + os.urandom(chunk_size) + b'tail'
+    uploader, source, _, _, _, _, remote_file_mock, _ = _upload_setup(
+        tmp_path, content=content
+    )
+
+    response = uploader._upload_image('targetDir', source)
+
+    # assertions
+    assert response == 'imageName.img'
+    assert remote_file_mock.write.call_args_list == [
+        call(content[:chunk_size]),
+        call(content[chunk_size:2 * chunk_size]),
+        call(b'tail')
+    ]
+    assert upload_progress_mock.call_args_list == [
+        call(chunk_size, len(content)),
+        call(2 * chunk_size, len(content)),
+        call(len(content), len(content))
+    ]
+
+
+@patch('ec2imgutils.ec2uploadimg.EC2ImageUploader._clean_up')
+@patch('ec2imgutils.ec2uploadimg.EC2ImageUploader._upload_progress')
+def test_upload_image_no_transport(
+    upload_progress_mock,
+    clean_up_mock,
+    tmp_path,
+    caplog
+):
+    uploader, source, _, _, _, _, _, _ = _upload_setup(
+        tmp_path, transport=False
+    )
+
+    response = uploader._upload_image('targetDir', source)
+
+    assert response == 'imageName.img'
+    clean_up_mock.assert_not_called()
+
+
+def test_upload_image_aborted(
+    caplog
+):
+    ssh_client_mock = MagicMock()
+    uploader = ec2upimg.EC2ImageUploader(
+        access_key='',
+        wait_count=1,
+        log_callback=logger
+    )
+    uploader.ssh_client = ssh_client_mock
+    uploader.aborted = True
 
     response = uploader._upload_image('targetDir', '/test/imageName.img')
 
     # assertions
+    assert response is None
+    ssh_client_mock.open_sftp.assert_not_called()
+
+
+@patch('ec2imgutils.ec2uploadimg.EC2ImageUploader._clean_up')
+def test_upload_image_aborted_during_upload(
+    clean_up_mock,
+    tmp_path,
+    caplog
+):
+    uploader, source, content, _, ssh_client_mock, sftp_mock, _, _ = (
+        _upload_setup(tmp_path)
+    )
+
+    def abort(*args):
+        uploader.aborted = True
+
+    with patch.object(uploader, '_upload_progress', side_effect=abort):
+        response = uploader._upload_image('targetDir', source)
+
+    # assertions
     assert response == 'imageName.img'
-    ssh_client_mock.assert_has_calls([
-        call(),
-        call.open_sftp(),
-        call.open_sftp().get_channel(),
-        call.open_sftp().get_channel().settimeout(900),
-        call.open_sftp().put(
-            '/test/imageName.img',
-            'targetDir/imageName.img',
-            upload_progress_mock
-        )
-    ])
+    ssh_client_mock.exec_command.assert_not_called()
+    sftp_mock.close.assert_called_once_with()
+    clean_up_mock.assert_not_called()
 
 
+@patch('ec2imgutils.ec2uploadimg.EC2ImageUploader._clean_up')
 @patch('ec2imgutils.ec2uploadimg.EC2ImageUploader._upload_progress')
 def test_upload_image_socket_timeout(
     upload_progress_mock,
+    clean_up_mock,
+    tmp_path,
     caplog
 ):
-    # Mocks
-    ssh_client_mock = MagicMock()
-    sftp_mock = MagicMock()
-    sftp_mock.put.side_effect = socket.timeout
-    ssh_client_mock.open_sftp.return_value = sftp_mock
-
-    # Instance creation
-    uploader = ec2upimg.EC2ImageUploader(
-        access_key='',
-        wait_count=1,
-        log_callback=logger
+    uploader, source, _, _, _, sftp_mock, remote_file_mock, _ = (
+        _upload_setup(tmp_path)
     )
-    uploader.ssh_client = ssh_client_mock
+    remote_file_mock.write.side_effect = socket.timeout
 
     with pytest.raises(EC2UploadImgException) as e:
-        uploader._upload_image('targetDir', '/test/imageName.img')
+        uploader._upload_image('targetDir', source)
 
     # assertions
     msg = 'Channel timeout reached during upload process.'
     assert msg in str(e)
-    ssh_client_mock.open_sftp.assert_called_once()
-    sftp_mock.get_channel().settimeout.assert_called_with(900)
-    sftp_mock.put.assert_called_with(
-        '/test/imageName.img',
-        'targetDir/imageName.img',
-        upload_progress_mock
+    sftp_mock.get_channel().settimeout.assert_called_with(None)
+    clean_up_mock.assert_called_once_with()
+    sftp_mock.close.assert_called_once_with()
+
+
+@patch('ec2imgutils.ec2uploadimg.EC2ImageUploader._clean_up')
+@patch('ec2imgutils.ec2uploadimg.EC2ImageUploader._upload_progress')
+def test_upload_image_other_exception(
+    upload_progress_mock,
+    clean_up_mock,
+    tmp_path,
+    caplog
+):
+    uploader, source, _, _, _, sftp_mock, remote_file_mock, _ = (
+        _upload_setup(tmp_path)
     )
+    remote_file_mock.write.side_effect = IOError('disk full')
+
+    with pytest.raises(IOError) as e:
+        uploader._upload_image('targetDir', source)
+
+    # assertions
+    assert 'disk full' in str(e)
+    clean_up_mock.assert_called_once_with()
+    sftp_mock.close.assert_called_once_with()
+
+
+@patch('ec2imgutils.ec2uploadimg.EC2ImageUploader._clean_up')
+@patch('ec2imgutils.ec2uploadimg.EC2ImageUploader._upload_progress')
+def test_upload_image_checksum_mismatch(
+    upload_progress_mock,
+    clean_up_mock,
+    tmp_path,
+    caplog
+):
+    bad_checksum = 'f' * 64
+    uploader, source, _, local_checksum, _, sftp_mock, _, _ = (
+        _upload_setup(tmp_path, remote_checksum=bad_checksum)
+    )
+
+    with pytest.raises(EC2UploadImgException) as e:
+        uploader._upload_image('targetDir', source)
+
+    # assertions
+    msg = 'Checksum mismatch! Local: %s, Remote: %s' % (
+        local_checksum, bad_checksum
+    )
+    assert msg in str(e)
+    clean_up_mock.assert_called_once_with()
+    sftp_mock.close.assert_called_once_with()
+
+
+@patch('ec2imgutils.ec2uploadimg.EC2ImageUploader._clean_up')
+@patch('ec2imgutils.ec2uploadimg.EC2ImageUploader._upload_progress')
+def test_upload_image_remote_checksum_failed(
+    upload_progress_mock,
+    clean_up_mock,
+    tmp_path,
+    caplog
+):
+    uploader, source, _, _, _, sftp_mock, _, _ = _upload_setup(
+        tmp_path,
+        exit_status=1,
+        stdout_data=b'',
+        stderr_data=b'sha256sum: No such file\n'
+    )
+
+    with pytest.raises(EC2UploadImgException) as e:
+        uploader._upload_image('targetDir', source)
+
+    # assertions
+    msg = 'Failed to calculate remote checksum: sha256sum: No such file'
+    assert msg in str(e)
+    clean_up_mock.assert_called_once_with()
+    sftp_mock.close.assert_called_once_with()
+
+
+@patch('ec2imgutils.ec2uploadimg.EC2ImageUploader._clean_up')
+@patch('ec2imgutils.ec2uploadimg.EC2ImageUploader._upload_progress')
+def test_upload_image_remote_checksum_empty_output(
+    upload_progress_mock,
+    clean_up_mock,
+    tmp_path,
+    caplog
+):
+    uploader, source, _, _, _, _, _, _ = _upload_setup(
+        tmp_path, stdout_data=b''
+    )
+
+    with pytest.raises(EC2UploadImgException) as e:
+        uploader._upload_image('targetDir', source)
+
+    # assertions
+    assert 'no output from sha256sum' in str(e)
+    clean_up_mock.assert_called_once_with()
 
 
 @patch('ec2imgutils.ec2uploadimg.EC2ImageUploader._clean_up')

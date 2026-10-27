@@ -16,10 +16,12 @@
 # along with ec2uploadimg. If not, see <http://www.gnu.org/licenses/>.
 
 import botocore
+import hashlib
 import json
 import logging
 import os
 import paramiko
+import shlex
 import socket
 import sys
 import threading
@@ -987,27 +989,95 @@ class EC2ImageUploader(EC2ImgUtils):
 
     # ---------------------------------------------------------------------
     def _upload_image(self, target_dir, source):
-        """Upload the source file to the instance"""
-
+        """Upload the source file to the instance and verify checksum."""
         if self.aborted:
-            return
+            return None
+
         filename = source.split(os.sep)[-1]
+
+        transport = self.ssh_client.get_transport()
+        if transport:
+            transport.set_keepalive(30)
+
         sftp = self.ssh_client.open_sftp()
         try:
-            sftp.get_channel().settimeout(self.channel_timeout)
-            self.log.debug('Uploading image file: {}'.format(source))
-            sftp.put(source,
-                     '%s/%s' % (target_dir, filename),
-                     self._upload_progress)
+            sftp.get_channel().settimeout(None)
+            self.log.debug(f"Uploading image file: {source}")
+
+            remote_path = f"{target_dir}/{filename}"
+            total_size = os.path.getsize(source)
+            uploaded_bytes = 0
+
+            # Read in 4MB chunks
+            chunk_size = 4 * 1024 * 1024
+
+            local_hash = hashlib.sha256()
+
+            with open(source, "rb") as local_file:
+                with sftp.open(remote_path, "wb") as remote_file:
+                    remote_file.set_pipelined(True)
+
+                    while True:
+                        if self.aborted:
+                            break
+
+                        chunk = local_file.read(chunk_size)
+                        if not chunk:
+                            break
+
+                        local_hash.update(chunk)
+
+                        remote_file.write(chunk)
+                        uploaded_bytes += len(chunk)
+
+                        self._upload_progress(uploaded_bytes, total_size)
+
             if self.log_level == logging.DEBUG:
-                print()
-        except socket.timeout:
+                print()  # noqa: T201
+
+            if not self.aborted:
+                self.log.debug("Verifying remote file integrity...")
+                local_checksum = local_hash.hexdigest()
+
+                _, stdout, stderr = self.ssh_client.exec_command(
+                    f"sha256sum {shlex.quote(remote_path)}"
+                )
+                exit_status = stdout.channel.recv_exit_status()
+
+                if exit_status != 0:
+                    err_text = stderr.read().decode().strip()
+                    error_msg = (
+                        f"Failed to calculate remote checksum: {err_text}"
+                    )
+                    raise EC2UploadImgException(error_msg)
+
+                output = stdout.read().decode().split()
+                if not output:
+                    raise EC2UploadImgException(
+                        "Failed to calculate remote checksum: "
+                        "no output from sha256sum"
+                    )
+                remote_checksum = output[0]
+
+                if local_checksum != remote_checksum:
+                    error_msg = (
+                        f"Checksum mismatch! Local: {local_checksum}, "
+                        f"Remote: {remote_checksum}"
+                    )
+                    raise EC2UploadImgException(error_msg)
+
+                self.log.debug(
+                    f"Checksum verified successfully: {local_checksum}"
+                )
+
+        except socket.timeout as err:
             self._clean_up()
-            error_msg = 'Channel timeout reached during upload process.'
-            raise EC2UploadImgException(error_msg)
-        except Exception as e:
+            raise EC2UploadImgException(
+                "Channel timeout reached during upload process."
+            ) from err
+        except Exception:
             self._clean_up()
-            raise e
+            raise
         finally:
             sftp.close()
 
