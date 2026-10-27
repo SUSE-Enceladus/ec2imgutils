@@ -40,12 +40,11 @@ and for the EC2 actions
 and
 .I ec2:CreateTags.
 .PP
-With
-.I --use-root-swap
-the image is uploaded with ssh to a helper instance, as described with
-that option. Options that configure the helper instance are only used with
-that method. They are deprecated otherwise, a warning is issued and the
-options are ignored.
+Earlier versions uploaded the image with ssh to a helper instance and also
+supported the root swap method and para-virtual images. This is no longer the
+case, only HVM images are supported. The options that configured the helper
+instance or the boot kernel are deprecated, a warning is issued and they are
+ignored. The matching entries in the configuration file are not used anymore.
 .SH OPTIONS
 .IP "-a --account ACCOUNT_NAME"
 Specifies the account to use to connect to EC2. The account is specified
@@ -55,8 +54,6 @@ The account is specified as a section with [account-ACCOUNT_NAME] delimiter.
 The options of the sections are
 .I access_key_id
 .I secret_access_key
-.I ssh_key_name
-.I ssh_private_key
 This allows the program to connect to EC2.
 If the access_key_id and/or secret_access_key are not found in
 .IR ~/.ec2utils.conf,
@@ -98,15 +95,8 @@ Specifies the billing product codes to apply to the image during
 registration. This functionality is restricted to specific accounts
 within EC2.
 .IP "--boot-kernel AWS_AKI_ID"
-Specifies the
-.I aki_id
-of the boot kernel that should be used when registering a Para-virtual
-image. This option overrides the
-.I aki_i386,
-.I aki_x86_64,
-or
-.I g2_aki_x86_64
-value in the configuration file.
+Deprecated and ignored. Para-virtual images are no longer supported, so
+no boot kernel is needed.
 .IP "--boot-mode"
 Optionally specify the boot mode for the image. Accepted values are
 .I legacy-bios,
@@ -121,30 +111,13 @@ type supports uefi, otherwise it will use bios.
 Specifies a description for the image. The description will also be used for
 the snapshot.
 .IP "-e --ec2-ami AWS_AMI_ID"
-Only used with
-.I --use-root-swap,
-deprecated and ignored otherwise.
-Specify the AMI ID of the image to launch that will be used to perform
-the upload operation. This value overrides the value given with the
-.I ami
-option for a given region in the configuration file.
+Deprecated and ignored. The image is uploaded with the EBS direct APIs,
+without a helper instance.
 .IP "-f --file CONFIG_FILE"
 Specifies the configuration file to use. The default is
 .I ~/.ec2utils.conf
 .IP "--grub2"
-Specifies if the image being uploaded and registered as AMI uses the
-.I GRUB2
-bootloader. In some cases
-.I GRUB2
-is referred to as
-.I GRUB
-and the first incarnation of GRUB is referred to as
-.I GRUB-Legacy.
-Setting this switch will select the
-.I g2_aki_x86_64
-value from the configuration file or will use the value given with
-.I --boot-kernel
-as the aki ID when a para virtual image is being registered.
+Deprecated and ignored. Para-virtual images are no longer supported.
 .IP "--image-tags"
 Optionally specify tags that should be applied to the image once it has been
 uploaded. The value for the argument is a valid json string representing
@@ -171,39 +144,21 @@ are
 or
 .I x86_64
 .IP "-i --instance-id AWS_INSTANCE_ID"
-Only used with
-.I --use-root-swap,
-deprecated and ignored otherwise.
-Specify the ID of a running instance to use as helper instance instead of
-launching one.
+Deprecated and ignored. The image is uploaded with the EBS direct APIs,
+without a helper instance.
 .IP "-n --name IMAGE_NAME"
 Specifies the name of the AMI to be registered.
 .IP "-p --private-key-file PRIVATE_KEY"
-Only used with
-.I --use-root-swap,
-deprecated and ignored otherwise.
-Specifies the path to the private ssh key file to use to connect with the
-instance that is being used to upload the raw image. This option overrides
-the value of the
-.I ssh_private_key
-in the configuration file.
+Deprecated and ignored. The image is uploaded with the EBS direct APIs,
+without a helper instance.
 .IP "-r --regions EC2_REGIONS"
 A comma separated list of Amazon EC2 regions, or a single region.
 .IP "--root-volume-size"
 Specify the size in GB of the new root volume for the AMI being created. It
 is recommended to keep the root volume size to 10GB or less.
 .IP "--ssh-key-pair AWS_KEY_PAIR_NAME"
-Only used with
-.I --use-root-swap,
-deprecated and ignored otherwise.
-Specifies the key-pair name to use when launching the instance that is used
-to upload the raw image. The specified private key file must correlate
-to the key pair name given with this argument. This value overrides the
-value given for the
-.I account
-with the
-.I ssh_key_name
-in the configuration file.
+Deprecated and ignored. The image is uploaded with the EBS direct APIs,
+without a helper instance.
 .IP "-s --secret-key AWS_SECRET_KEY"
 Specifies the AWS secret access key and overrides the value given for the
 .I account
@@ -211,11 +166,8 @@ with the
 .I secret_access_key
 in the configuration file.
 .IP "--security-group-ids AWS_SECURITY_GROUP_IDS"
-Only used with
-.I --use-root-swap,
-deprecated and ignored otherwise.
-Specifies a list of security group ids to apply to the helper instance. At
-least one of the groups must have port 22 open to support ssh connections.
+Deprecated and ignored. The image is uploaded with the EBS direct APIs,
+without a helper instance.
 .IP "--session-token AWS_SESSION_TOKEN"
 Specifies the AWS session token. Only necessary when using temporary credentials.
 .IP "--snaponly"
@@ -229,17 +181,11 @@ The snapshotID is specified as the source variable.
 Enable SRIOV support for HVM images. This implies that the appropriate
 driver has to be included in the image.
 .IP "--ssh-timeout SSH_TIME_OUT"
-Only used with
-.I --use-root-swap,
-deprecated and ignored otherwise.
-Specifies the amount of time to wait in seconds to establish an SSH connection
-with the helper instance. The default is 300.
+Deprecated and ignored. The image is uploaded with the EBS direct APIs,
+without a helper instance.
 .IP "--channel-timeout CHANNEL_TIME_OUT"
-Only used with
-.I --use-root-swap,
-deprecated and ignored otherwise.
-Specifies the amount of time to wait in seconds to consider an upload
-unsuccessful per inactivity in the channel used. The default is 900.
+Deprecated and ignored. The image is uploaded with the EBS direct APIs,
+without a helper instance.
 .IP "--tpm-support"
 Optionally specify the version of the TPM implementation the OS in the image
 supports. This option can only be used if
@@ -251,88 +197,34 @@ Accepted values are
 alternatively prefixed with a
 .I "v".
 .IP "-t --type AWS_UPLOAD_INST_TYPE"
-Only used with
-.I --use-root-swap,
-deprecated and ignored otherwise.
-Specifies the instance type to launch for the instance being used to upload
-the image. This value overrides the value given with the
-.I instance_type
-option for a given region in the configuration file.
+Deprecated and ignored. The image is uploaded with the EBS direct APIs,
+without a helper instance.
 .IP "-u --user AWS_INSTANCE_USER"
-Only used with
-.I --use-root-swap,
-deprecated and ignored otherwise.
-Specifies the user to use to connect to the instance being used to upload
-the image. This value overrides the value given with the
-.I user
-option for a given region in the configuration file.
+Deprecated and ignored. The image is uploaded with the EBS direct APIs,
+without a helper instance.
 .IP "--use-private-ip"
-Only used with
-.I --use-root-swap,
-deprecated and ignored otherwise.
-Use the private IP of the helper instance to upload the new image. This is
-helpful when an image is to be created and only a private VPC is available.
+Deprecated and ignored. The image is uploaded with the EBS direct APIs,
+without a helper instance.
 .IP "--upload-workers UPLOAD_WORKERS"
 Specifies the number of threads that write blocks of the image to the
 snapshot in parallel. The default is 8. A higher number may speed up the
 upload of large images if the network bandwidth and the EBS direct API
 request limits of the account allow it. Each block has a size of 512 KiB.
 .IP "--use-root-swap"
-Create the new image using the root swap method. A helper instance is started,
-the image is uploaded to it with ssh and written to a new volume, instead
-of using the EBS direct APIs. The helper instance used
-to upload the image will be stopped and the created image volume will be
-attached to the helper instance. A new image is registered from the
-helper instance. This method of image creation is useful when meta data
-associated with the image used to launch the helper instance needs to
-be transferred to the new image. The new image creation may time out as
-a copy of the complete image disk needs to be made. The code will then skip
-the clean up and a storage volume, a target root volume and a stopped
-instance will remain in the users account.
+Removed. The root swap method is no longer supported and the option causes
+an error. The image is uploaded with the EBS direct APIs.
 .IP "-V --virt-type AWS_VIRT_TYPE"
-Specifies the virtualization type to use for the image to be registered.
-Possible values are
-.I para (default)
-or
-.I hvm.
+Only
+.I hvm
+is supported, which is the default. Any other value, such as
+.I para,
+causes an error.
 .IP "--vpc-subnet-id VPC_SUBNET_ID"
-Only used with
-.I --use-root-swap,
-deprecated and ignored otherwise.
-Specify the VPC subnet ID into which the helper instance should be
-launched. This option is useful if no default VPC is configured or
-it is desired to launch the helper instance into a private subnet of the
-VPC. For the use of a private subnet it may also be necessary to use the
-.I --use-private-ip
-command line option. The ID should start with
-.I subnet-.
-Instance type and subnets are to a certain degree linked in that it may not
-be possible to launch the configured helper instance type outside a VPC
-subnet. Therefore, if the
-.I --vpc-subnet-id
-is not specified on the command line and neither
-.I --ec2-ami
-or
-.I --instance-id
-are specified on the command line an attempt will be made to retrieve the
-subnet-id from the configuration. The configuration is
-.I subnet_id_REGION
-where region is one of the known region identifiers such as
-.I us-east-1.
-The region given with the
-.I --regions
-command line argument is used. Specifying multiple regions with the
-.I --regions
-argument and using the
-.I --vpc-subnet-id
-argument is incompatible. When targeting multiple regions the subnet-id must
-be set in the configuration file.
+Deprecated and ignored. The image is uploaded with the EBS direct APIs,
+without a helper instance.
 .IP "--use-enclave"
-Only used with
-.I --use-root-swap,
-deprecated and ignored otherwise.
-Start the helper instance that is used to upload the image file and to register
-the image to be created as an AWS Enclave.
+Deprecated and ignored. The image is uploaded with the EBS direct APIs,
+without a helper instance.
 .IP "--wait-count AWS_WAIT_COUNT"
 Specifies the number of times to wait for the AWS operation timeout, for
 example while the snapshot is being completed. The

@@ -126,7 +126,8 @@ The image is written directly to a new EBS snapshot using the EBS direct
 APIs, no helper instance is needed. The apparent size of the raw image is
 recommended to be 10 GB or less and must not exceed the root volume size. It
 is expected that the raw image has 1 partition, i.e. the root partition is
-_/dev/sda1._ The process of creating the image is as follows:
+_/dev/sda1._ Only HVM images are supported. The process of creating the image
+is as follows:
 
 * Start a snapshot
 * Read the image, decompress it on the fly and write it in blocks to the
@@ -141,13 +142,16 @@ The credentials need permission for the EBS direct API actions
 as for the EC2 actions `ec2:DescribeImages`, `ec2:DescribeSnapshots`,
 `ec2:DeleteSnapshot`, `ec2:RegisterImage` and `ec2:CreateTags`.
 
-With _--use-root-swap_ a helper instance is still started and the image is
-uploaded to it with ssh. The options and configuration values that describe
-the helper instance (_--ec2-ami_, _--instance-id_, _--ssh-key-pair_,
-_--private-key-file_, _--user_, _--type_, _--ssh-timeout_,
-_--channel-timeout_, _--security-group-ids_, _--vpc-subnet-id_,
-_--use-private-ip_, _--use-enclave_) are only used with that method. They are
-deprecated otherwise, a warning is issued and they are ignored.
+Earlier versions uploaded the image with ssh to a helper instance and also
+supported the root swap method and para-virtual images. This is no longer the
+case. `--use-root-swap` and a virtualization type other than _hvm_ are
+rejected. The options that configured the helper instance or the boot kernel
+(_--ec2-ami_, _--instance-id_, _--ssh-key-pair_, _--private-key-file_,
+_--user_, _--type_, _--ssh-timeout_, _--channel-timeout_,
+_--security-group-ids_, _--vpc-subnet-id_, _--use-private-ip_,
+_--use-enclave_, _--boot-kernel_, _--grub2_) are deprecated, a warning is
+issued and they are ignored. The matching entries in the configuration file
+are not used anymore.
 
 #### Usage
 
