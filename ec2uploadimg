@@ -33,6 +33,26 @@ from ec2imgutils.ec2imgutilsExceptions import (
 )
 from ec2imgutils.ec2setup import EC2Setup
 
+# Options that configure the helper instance of the root swap method. The
+# default upload uses the EBS direct APIs, such an instance is not involved
+# and the options are ignored.
+ROOT_SWAP_ONLY_OPTIONS = (
+    ('amiID', '--ec2-ami'),
+    ('channelTimeout', '--channel-timeout'),
+    ('instType', '--type'),
+    ('privateKey', '--private-key-file'),
+    ('runningID', '--instance-id'),
+    ('securityGroupIds', '--security-group-ids'),
+    ('sshName', '--ssh-key-pair'),
+    ('sshTimeout', '--ssh-timeout'),
+    ('sshUser', '--user'),
+    ('useEnclave', '--use-enclave'),
+    ('usePrivateIP', '--use-private-ip'),
+    ('vpcSubnetId', '--vpc-subnet-id')
+)
+DEFAULT_SSH_TIMEOUT = 300
+DEFAULT_CHANNEL_TIMEOUT = 900
+
 # Global variables
 aborted = False
 logger = None
@@ -127,7 +147,8 @@ def parse_args(args):
     parser.add_argument(
         '-e', '--ec2-ami',
         dest='amiID',
-        help='AWS AMI id for the image to use to upload (Optional)',
+        help='AWS AMI id of the helper instance. Only used with '
+             '--use-root-swap, ignored otherwise (Optional)',
         metavar='AWS_AMI_ID',
     )
     parser.add_argument(
@@ -174,7 +195,8 @@ def parse_args(args):
     parser.add_argument(
         '-i', '--instance-id',
         dest='runningID',
-        help='ID of running instance to use to upload (Optional)',
+        help='ID of running helper instance. Only used with '
+             '--use-root-swap, ignored otherwise (Optional)',
         metavar='AWS_INSTANCE_ID',
     )
     parser.add_argument(
@@ -194,7 +216,8 @@ def parse_args(args):
     parser.add_argument(
         '-p', '--private-key-file',
         dest='privateKey',
-        help='Private SSH key file (Optional)',
+        help='Private SSH key file. Only used with --use-root-swap, '
+             'ignored otherwise (Optional)',
         metavar='PRIVATE_KEY'
     )
     parser.add_argument(
@@ -213,7 +236,8 @@ def parse_args(args):
     parser.add_argument(
         '--ssh-key-pair',
         dest='sshName',
-        help='AWS SSH key pair name (Optional)',
+        help='AWS SSH key pair name. Only used with --use-root-swap, '
+             'ignored otherwise (Optional)',
         metavar='AWS_KEY_PAIR_NAME'
     )
     parser.add_argument(
@@ -223,7 +247,8 @@ def parse_args(args):
         metavar='AWS_SECRET_KEY'
     )
     help_msg = 'A comma separated listof security group ids to apply to the '
-    help_msg += 'helper instance. At least port 22 must be open (Optional)'
+    help_msg += 'helper instance. At least port 22 must be open. Only used '
+    help_msg += 'with --use-root-swap, ignored otherwise (Optional)'
     parser.add_argument(
         '--security-group-ids',
         default='',
@@ -256,20 +281,22 @@ def parse_args(args):
         help='The path to the image source file'
     )
     help_msg = 'Timeout value to wait for ssh connection, default '
-    help_msg += '300s (Optional)'
+    help_msg += '300s. Only used with --use-root-swap, ignored otherwise '
+    help_msg += '(Optional)'
     parser.add_argument(
         '--ssh-timeout',
-        default=300,
+        default=None,
         dest='sshTimeout',
         help=help_msg,
         metavar='SSH_TIME_OUT',
         type=int
     )
     help_msg = 'Timeout value for inactivity in the channel used for the '
-    help_msg += 'image upload, default 900s (Optional)'
+    help_msg += 'image upload, default 900s. Only used with --use-root-swap, '
+    help_msg += 'ignored otherwise (Optional)'
     parser.add_argument(
         '--channel-timeout',
-        default=900,
+        default=None,
         dest='channelTimeout',
         help=help_msg,
         metavar='CHANNEL_TIME_OUT',
@@ -287,13 +314,15 @@ def parse_args(args):
     parser.add_argument(
         '-t', '--type',
         dest='instType',
-        help='Instance type to use to upload image (Optional)',
+        help='Instance type of the helper instance. Only used with '
+             '--use-root-swap, ignored otherwise (Optional)',
         metavar='AWS_UPLOAD_INST_TYPE'
     )
     parser.add_argument(
         '-u', '--user',
         dest='sshUser',
-        help='The user for the ssh connection to the instance (Optional)',
+        help='The user for the ssh connection to the helper instance. Only '
+             'used with --use-root-swap, ignored otherwise (Optional)',
         metavar='AWS_INSTANCE_USER'
     )
     parser.add_argument(
@@ -301,7 +330,8 @@ def parse_args(args):
         action='store_true',
         default=False,
         dest='usePrivateIP',
-        help='Use the instance private IP address to connect (Optional)'
+        help='Use the helper instance private IP address to connect. Only '
+             'used with --use-root-swap, ignored otherwise (Optional)'
     )
     parser.add_argument(
         '--use-snapshot',
@@ -316,7 +346,10 @@ def parse_args(args):
         action='store_true',
         default=False,
         dest='rootSwapMethod',
-        help='Use the root swap method to create the new image (Optional)'
+        help='Use the root swap method to create the new image. This '
+             'method starts a helper instance and uploads the image with '
+             'ssh, by default the image is written to a snapshot with the '
+             'EBS direct APIs (Optional)'
     )
     help_msg = 'The virtualization type, (para)virtual or (hvm), '
     help_msg += 'default hvm (Optional)'
@@ -343,7 +376,8 @@ def parse_args(args):
         help='Program version'
     )
     help_msg = 'The ID, starts with "subnet-" of the VPC subnet in which the '
-    help_msg += 'helper instance should run (Optional)'
+    help_msg += 'helper instance should run. Only used with --use-root-swap, '
+    help_msg += 'ignored otherwise (Optional)'
     parser.add_argument(
         '--vpc-subnet-id',
         default='',
@@ -353,13 +387,25 @@ def parse_args(args):
     )
     help_msg = 'Start the helper instance that is used to'
     help_msg += ' upload the image file and to register'
-    help_msg += ' the image to be created as an AWS Enclave.'
+    help_msg += ' the image to be created as an AWS Enclave. Only used with'
+    help_msg += ' --use-root-swap, ignored otherwise (Optional)'
     parser.add_argument(
         '--use-enclave',
         action='store_true',
         default=False,
         dest='useEnclave',
         help=help_msg,
+    )
+
+    help_msg = 'Number of threads writing blocks of the image to the '
+    help_msg += 'snapshot in parallel, default 8 (Optional)'
+    parser.add_argument(
+        '--upload-workers',
+        default=8,
+        dest='uploadWorkers',
+        help=help_msg,
+        metavar='UPLOAD_WORKERS',
+        type=int
     )
 
     help_msg = 'Wait N-number of times for AWS operation timeout, default 1 '
@@ -391,6 +437,35 @@ def check_required_arguments_and_constraints(args, logger):
     check_regions_parameter(args, logger)
     check_tpm_support_has_allowed_boot_options(args, logger)
     check_image_tags(args, logger)
+    check_upload_workers(args, logger)
+    warn_root_swap_only_arguments(args, logger)
+
+
+# ----------------------------------------------------------------------------
+def check_upload_workers(args, logger):
+    """This function checks that at least one upload worker is requested"""
+    if args.uploadWorkers < 1:
+        logger.error('The number of upload workers must be at least 1')
+        sys.exit(1)
+
+
+# ----------------------------------------------------------------------------
+def warn_root_swap_only_arguments(args, logger):
+    """This function warns about arguments that only have an effect with the
+    root swap method, the default method does not use a helper instance
+    """
+    if args.rootSwapMethod:
+        return
+    ignored = [
+        option for attr, option in ROOT_SWAP_ONLY_OPTIONS
+        if getattr(args, attr, None)
+    ]
+    if ignored:
+        logger.warning(
+            'The following options are deprecated and ignored, the image is '
+            'uploaded with the EBS direct APIs without a helper instance. '
+            'They are only used with --use-root-swap: %s' % ', '.join(ignored)
+        )
 
 
 # ----------------------------------------------------------------------------
@@ -534,15 +609,12 @@ def check_tpm_support_has_allowed_boot_options(args, logger):
 def check_regions_parameter(args, logger):
     """This function checks that the provided regions parameter is allowed"""
     regions = args.regions.split(',')
-    if (
-        len(regions) > 1 and
-        (
-            args.amiID or
-            args.akiID or
-            args.runningID or
-            args.vpcSubnetId
-        )
-    ):
+    # The boot kernel is used to register the image, the other options
+    # are only meaningful with a helper instance
+    region_specific = [args.akiID]
+    if args.rootSwapMethod:
+        region_specific += [args.amiID, args.runningID, args.vpcSubnetId]
+    if len(regions) > 1 and any(region_specific):
         logger.error('Incompatible arguments: multiple regions specified')
         logger.error('Cannot process region unique argument for --ec2-ami,')
         logger.error('--instance-id, or --boot-kernel')
@@ -909,6 +981,80 @@ def get_root_volume_size(args):
 
 
 # ----------------------------------------------------------------------------
+def get_root_swap_arguments(
+        args,
+        config,
+        region,
+        access_key,
+        secret_key,
+        setup,
+        logger
+):
+    """Function to get the arguments of the EC2ImageUploader that describe the
+    helper instance, only the root swap method needs one
+    """
+    ami_id = args.amiID
+    running_id = args.runningID
+
+    if not ami_id and not running_id:
+        ami_id = get_amiID(args, config, region, logger)
+
+    inst_type = get_inst_type(args, config, region, logger)
+
+    key_pair_name, ssh_private_key_file = \
+        get_key_pair_name_and_ssh_private_key_file(
+            args,
+            config,
+            region,
+            setup,
+            logger
+        )
+
+    ssh_user = get_ssh_user(args, config, region, logger)
+
+    vpc_subnet_id = get_vpc_subnet_id(
+        args,
+        config,
+        region,
+        setup,
+        logger
+    )
+
+    security_group_ids = get_security_group_ids(
+        args,
+        config,
+        region,
+        access_key,
+        secret_key,
+        setup,
+        vpc_subnet_id,
+        logger
+    )
+
+    ssh_timeout = args.sshTimeout
+    if ssh_timeout is None:
+        ssh_timeout = DEFAULT_SSH_TIMEOUT
+    channel_timeout = args.channelTimeout
+    if channel_timeout is None:
+        channel_timeout = DEFAULT_CHANNEL_TIMEOUT
+
+    return {
+        'inst_user_name': ssh_user,
+        'launch_ami': ami_id,
+        'launch_inst_type': inst_type,
+        'running_id': running_id,
+        'security_group_ids': security_group_ids,
+        'ssh_key_pair_name': key_pair_name,
+        'ssh_key_private_key_file': ssh_private_key_file,
+        'ssh_timeout': ssh_timeout,
+        'channel_timeout': channel_timeout,
+        'use_private_ip': args.usePrivateIP,
+        'vpc_subnet_id': vpc_subnet_id,
+        'use_enclave': args.useEnclave
+    }
+
+
+# ----------------------------------------------------------------------------
 def get_uploader(
         args,
         region,
@@ -921,49 +1067,22 @@ def get_uploader(
     """Function to get the ec2imgutils.EC2ImageUploader instance"""
     try:
         if not aborted:
-            ami_id = args.amiID
-            running_id = args.runningID
-
-            if not ami_id and not running_id:
-                ami_id = get_amiID(args, config, region, logger)
-
             bootkernel = get_bootkernel(args, config, region, logger)
-
-            inst_type = get_inst_type(args, config, region, logger)
-
-            key_pair_name, ssh_private_key_file = \
-                get_key_pair_name_and_ssh_private_key_file(
-                    args,
-                    config,
-                    region,
-                    setup,
-                    logger
-                )
-
-            ssh_user = get_ssh_user(args, config, region, logger)
-
-            vpc_subnet_id = get_vpc_subnet_id(
-                args,
-                config,
-                region,
-                setup,
-                logger
-            )
-
-            security_group_ids = get_security_group_ids(
-                args,
-                config,
-                region,
-                access_key,
-                secret_key,
-                setup,
-                vpc_subnet_id,
-                logger
-            )
-
             sriov_type = get_sriov_type(args)
             virtualization_type = get_virtualization_type(args)
             root_volume_size = get_root_volume_size(args)
+
+            uploader_args = {}
+            if args.rootSwapMethod:
+                uploader_args = get_root_swap_arguments(
+                    args,
+                    config,
+                    region,
+                    access_key,
+                    secret_key,
+                    setup,
+                    logger
+                )
 
             uploader = ec2upimg.EC2ImageUploader(
                 access_key=access_key,
@@ -975,30 +1094,20 @@ def get_uploader(
                 image_description=args.descript,
                 image_name=args.imgName,
                 image_virt_type=virtualization_type,
-                inst_user_name=ssh_user,
-                launch_ami=ami_id,
-                launch_inst_type=inst_type,
                 region=region,
                 root_volume_size=root_volume_size,
-                running_id=running_id,
                 secret_key=secret_key,
-                security_group_ids=security_group_ids,
                 session_token=args.sessionToken,
                 sriov_type=sriov_type,
-                ssh_key_pair_name=key_pair_name,
-                ssh_key_private_key_file=ssh_private_key_file,
-                ssh_timeout=args.sshTimeout,
-                channel_timeout=args.channelTimeout,
                 use_grub2=args.grub2,
-                use_private_ip=args.usePrivateIP,
-                vpc_subnet_id=vpc_subnet_id,
-                use_enclave=args.useEnclave,
                 wait_count=args.waitCount,
                 log_callback=logger,
                 boot_mode=args.bootMode,
                 tpm_support=args.tpm,
                 imds_support=args.imdsVersion,
-                image_tags=args.imageTags
+                image_tags=args.imageTags,
+                upload_workers=args.uploadWorkers,
+                **uploader_args
             )
             return uploader
     except EC2UploadImgException as e:

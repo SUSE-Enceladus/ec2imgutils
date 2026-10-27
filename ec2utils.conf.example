@@ -9,6 +9,8 @@
 [account-servers]
 access_key_id =
 secret_access_key = 
+# The ssh, subnet and security group settings are only used by ec2uploadimg
+# with the --use-root-swap option
 ssh_key_name =
 ssh_private_key =
 subnet_id_us-east-1 = subnet-123456
@@ -16,8 +18,9 @@ security_group_ids_us-east-1 = sg-1234567890
 
 # The aki IDs are published by Amazon on the following page:
 # http://docs.aws.amazon.com/AWSEC2/latest/UserGuide/UserProvidedKernels.html#AmazonKernelImageIDs
-# The ami, instance_type, and user are needed for those utilities that require
-# a running instance in Amazon EC2 to perform their operations.
+# The ami, instance_type, and user are only needed for ec2uploadimg with the
+# --use-root-swap option, the default upload does not use an instance.
+# The aki values are used to register para-virtual images.
 [region-ap-northeast-1]
 ami = ami-017c51aa4445fa7e8
 instance_type = t2.micro
