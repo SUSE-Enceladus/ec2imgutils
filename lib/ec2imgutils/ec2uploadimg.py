@@ -24,6 +24,7 @@ import hashlib
 import logging
 import lzma
 import os
+import random
 import sys
 import tarfile
 import threading
@@ -40,6 +41,21 @@ from ec2imgutils.ec2imgutilsExceptions import EC2UploadImgException
 SNAPSHOT_TIMEOUT_MINUTES = 1440
 # Amount of raw image data between two progress indicator dots (debug mode)
 PROGRESS_STEP_BYTES = 128 * 1024 * 1024
+# Writing a block is retried with an exponential backoff and full jitter,
+# these are the base and the upper limit of the wait in seconds
+RETRY_BACKOFF_BASE = 2
+RETRY_BACKOFF_MAX = 60
+# Timeout in seconds to establish the connection to the EBS direct API
+CONNECT_TIMEOUT = 30
+# Errors that cannot be fixed by sending the same request again. All other
+# errors are retried, in particular a plain HTTP 400 without an error name
+# that is seen on slow or unreliable network paths.
+NON_RETRYABLE_ERROR_CODES = (
+    'AccessDeniedException',
+    'ResourceNotFoundException',
+    'ServiceQuotaExceededException',
+    'ValidationException'
+)
 
 
 def _read_exactly(stream, size):
@@ -84,7 +100,9 @@ class EC2ImageUploader(EC2ImgUtils):
                  tpm_support=None,
                  imds_support=None,
                  image_tags=None,
-                 upload_workers=8
+                 upload_workers=8,
+                 upload_retries=8,
+                 upload_timeout=300
                  ):
         EC2ImgUtils.__init__(
             self,
@@ -123,6 +141,12 @@ class EC2ImageUploader(EC2ImgUtils):
             raise EC2UploadImgException(
                 'upload_workers must be an integer greater than 0'
             )
+        self.upload_retries = self._positive_int(
+            upload_retries, 'upload_retries'
+        )
+        self.upload_timeout = self._positive_int(
+            upload_timeout, 'upload_timeout'
+        )
         if sriov_type and sriov_type != 'simple':
             raise EC2UploadImgException(
                 'sriov_type can only be None or simple'
@@ -137,6 +161,20 @@ class EC2ImageUploader(EC2ImgUtils):
             raise EC2UploadImgException(
                 'imds_support must be one of %s' % str(imds_versions)
             )
+
+    @staticmethod
+    def _positive_int(value, name):
+        """Return the value as integer, it must be greater than 0"""
+        try:
+            number = int(value)
+        except (TypeError, ValueError):
+            number = 0
+        if number < 1:
+            raise EC2UploadImgException(
+                '%s must be an integer greater than 0' % name
+            )
+
+        return number
 
     def abort(self):
         """
@@ -334,7 +372,11 @@ class EC2ImageUploader(EC2ImgUtils):
             service='ebs',
             config=botocore.config.Config(
                 max_pool_connections=self.upload_workers,
-                retries={'max_attempts': 10, 'mode': 'adaptive'}
+                connect_timeout=CONNECT_TIMEOUT,
+                read_timeout=self.upload_timeout,
+                # Failed blocks are retried by _put_snapshot_block, keep the
+                # retries of botocore short to not multiply the attempts
+                retries={'max_attempts': 2, 'mode': 'standard'}
             )
         )
 
@@ -419,19 +461,78 @@ class EC2ImageUploader(EC2ImgUtils):
         raise EC2UploadImgException(msg)
 
     # ---------------------------------------------------------------------
-    def _put_snapshot_block(self, ebs, snapshot_id, index, data):
-        """Write a block to the snapshot, return block index and checksum"""
-        digest = hashlib.sha256(data).digest()
-        ebs.put_snapshot_block(
-            SnapshotId=snapshot_id,
-            BlockIndex=index,
-            BlockData=data,
-            DataLength=len(data),
-            Checksum=base64.b64encode(digest).decode('ascii'),
-            ChecksumAlgorithm='SHA256'
+    def _is_retryable_error(self, error):
+        """Tell if writing the block again may succeed"""
+        if isinstance(error, botocore.exceptions.ClientError):
+            code = error.response.get('Error', {}).get('Code')
+            return code not in NON_RETRYABLE_ERROR_CODES
+        return isinstance(
+            error,
+            (
+                botocore.exceptions.BotoCoreError,
+                ConnectionError,
+                TimeoutError
+            )
         )
 
-        return index, digest
+    # ---------------------------------------------------------------------
+    def _log_block_failure(self, index, attempt, error):
+        """Log the details of a failed attempt to write a block"""
+        details = '%s: %s' % (type(error).__name__, error)
+        if isinstance(error, botocore.exceptions.ClientError):
+            meta = error.response.get('ResponseMetadata', {})
+            details = 'HTTP status %s, request id %s, %s' % (
+                meta.get('HTTPStatusCode'),
+                meta.get('RequestId'),
+                details
+            )
+        self.log.warning(
+            'Writing block %d failed, attempt %d of %d: %s' % (
+                index, attempt, self.upload_retries, details
+            )
+        )
+
+    # ---------------------------------------------------------------------
+    def _wait_before_retry(self, attempt):
+        """Wait with an exponential backoff and full jitter, the wait ends
+           early if the upload gets aborted"""
+        limit = min(RETRY_BACKOFF_MAX, RETRY_BACKOFF_BASE * 2 ** attempt)
+        remaining = random.uniform(0, limit)
+        while remaining > 0 and not self.aborted:
+            step = min(remaining, 1)
+            time.sleep(step)
+            remaining -= step
+
+    # ---------------------------------------------------------------------
+    def _put_snapshot_block(self, ebs, snapshot_id, index, data):
+        """Write a block to the snapshot, return block index and checksum.
+           Writing is retried as the data of a block can be written again."""
+        digest = hashlib.sha256(data).digest()
+        for attempt in range(1, self.upload_retries + 1):
+            try:
+                ebs.put_snapshot_block(
+                    SnapshotId=snapshot_id,
+                    BlockIndex=index,
+                    BlockData=data,
+                    DataLength=len(data),
+                    Checksum=base64.b64encode(digest).decode('ascii'),
+                    ChecksumAlgorithm='SHA256'
+                )
+                return index, digest
+            except Exception as error:
+                self._log_block_failure(index, attempt, error)
+                if (
+                        not self._is_retryable_error(error) or
+                        attempt == self.upload_retries or
+                        self.aborted):
+                    if not self._is_retryable_error(error):
+                        raise
+                    msg = 'Unable to write block %d to snapshot %s after '
+                    msg += '%d attempt(s), last error: %s'
+                    raise EC2UploadImgException(
+                        msg % (index, snapshot_id, attempt, error)
+                    )
+                self._wait_before_retry(attempt)
 
     # ---------------------------------------------------------------------
     def _start_snapshot(self, ebs):

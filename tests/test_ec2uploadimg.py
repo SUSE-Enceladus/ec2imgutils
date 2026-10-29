@@ -991,3 +991,75 @@ def test_main_aborted_upload_logs_nothing(EC2ImageUploader_mock, caplog):
     ])
 
     assert 'Created image' not in caplog.text
+
+
+# --------------------------------------------------------------------
+# Tests for the upload retry and timeout options
+def test_upload_retries_and_timeout_defaults():
+    args = _parse()
+    assert args.uploadWorkers == 8
+    assert args.uploadRetries == 8
+    assert args.uploadTimeout == 300
+
+
+def test_upload_retries_and_timeout_options():
+    args = _parse([
+        '--upload-workers', '2',
+        '--upload-retries', '12',
+        '--upload-timeout', '600'
+    ])
+    assert args.uploadWorkers == 2
+    assert args.uploadRetries == 12
+    assert args.uploadTimeout == 600
+
+
+def test_check_upload_retries_and_timeout_valid():
+    args = _parse(['--upload-retries', '1', '--upload-timeout', '1'])
+    ec2uploadimg.check_upload_retries(args, logger)
+    ec2uploadimg.check_upload_timeout(args, logger)
+
+
+@pytest.mark.parametrize('value', ['0', '-3'])
+def test_check_upload_retries_invalid(value, caplog):
+    with pytest.raises(SystemExit) as excinfo:
+        ec2uploadimg.check_upload_retries(
+            _parse(['--upload-retries', value]), logger
+        )
+    assert excinfo.value.code == 1
+    assert 'upload retries' in caplog.text
+
+
+@pytest.mark.parametrize('value', ['0', '-3'])
+def test_check_upload_timeout_invalid(value, caplog):
+    with pytest.raises(SystemExit) as excinfo:
+        ec2uploadimg.check_upload_timeout(
+            _parse(['--upload-timeout', value]), logger
+        )
+    assert excinfo.value.code == 1
+    assert 'upload timeout' in caplog.text
+
+
+def test_checks_reject_invalid_retries_and_timeout():
+    for option in ('--upload-retries', '--upload-timeout'):
+        args = _parse([option, '0'])
+        args.source = data_path + os.sep + 'complete.cfg'
+        with pytest.raises(SystemExit):
+            ec2uploadimg.check_required_arguments_and_constraints(
+                args, logger
+            )
+
+
+@patch('ec2uploadimg.ec2upimg.EC2ImageUploader')
+def test_get_uploader_passes_retries_and_timeout(EC2ImageUploader_mock):
+    args = _parse([
+        '--upload-workers', '3',
+        '--upload-retries', '5',
+        '--upload-timeout', '120'
+    ])
+
+    ec2uploadimg.get_uploader(args, 'cn-north-1', 'access', 'secret', logger)
+
+    kwargs = EC2ImageUploader_mock.call_args[1]
+    assert kwargs['upload_workers'] == 3
+    assert kwargs['upload_retries'] == 5
+    assert kwargs['upload_timeout'] == 120

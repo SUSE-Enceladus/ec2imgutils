@@ -21,6 +21,7 @@
 
 import base64
 import boto3
+import botocore.exceptions
 import hashlib
 import inspect
 import logging
@@ -823,7 +824,17 @@ def test_connect_ebs_config():
     kwargs = connect_mock.call_args[1]
     assert kwargs['service'] == 'ebs'
     assert kwargs['config'].max_pool_connections == 5
-    assert kwargs['config'].retries['mode'] == 'adaptive'
+    assert kwargs['config'].retries['mode'] == 'standard'
+    assert kwargs['config'].retries['max_attempts'] == 2
+    assert kwargs['config'].connect_timeout == ec2upimg.CONNECT_TIMEOUT
+    assert kwargs['config'].read_timeout == 300
+
+
+def test_connect_ebs_config_upload_timeout():
+    uploader = _make_uploader(region='us-east-1', upload_timeout=900)
+    with patch.object(uploader, '_connect') as connect_mock:
+        uploader._connect_ebs()
+    assert connect_mock.call_args[1]['config'].read_timeout == 900
 
 
 @patch('ec2imgutils.ec2uploadimg.EC2ImageUploader._connect')
@@ -1005,3 +1016,250 @@ def test_removed_constructor_arguments():
     ):
         with pytest.raises(TypeError):
             _make_uploader(**{argument: 'value'})
+
+
+# -----------------------------------------------------------------------------
+# Tests for the retry of writing blocks and the related options
+def test_instantiation_upload_retries_and_timeout():
+    uploader = _make_uploader()
+    assert uploader.upload_retries == 8
+    assert uploader.upload_timeout == 300
+    uploader = _make_uploader(upload_retries='3', upload_timeout='45')
+    assert uploader.upload_retries == 3
+    assert uploader.upload_timeout == 45
+
+
+@pytest.mark.parametrize('option', ['upload_retries', 'upload_timeout'])
+@pytest.mark.parametrize('value', [0, -1, 'many', None])
+def test_instantiation_upload_retries_and_timeout_error(option, value):
+    with pytest.raises(EC2UploadImgException) as exc:
+        _make_uploader(**{option: value})
+    assert option in str(exc.value)
+
+
+def _client_error(code=None, status=400, message='failed'):
+    error = {'Message': message}
+    if code:
+        error['Code'] = code
+    else:
+        error['Code'] = str(status)
+    return botocore.exceptions.ClientError(
+        {
+            'Error': error,
+            'ResponseMetadata': {
+                'HTTPStatusCode': status,
+                'RequestId': 'req-1'
+            }
+        },
+        'PutSnapshotBlock'
+    )
+
+
+class FlakyEBS:
+    """Raises the given errors for the first calls, then succeeds"""
+
+    def __init__(self, errors):
+        self.errors = list(errors)
+        self.calls = 0
+
+    def put_snapshot_block(self, **kwargs):
+        self.calls += 1
+        if self.errors:
+            raise self.errors.pop(0)
+
+
+@pytest.fixture
+def no_sleep():
+    with patch('ec2imgutils.ec2uploadimg.time.sleep') as sleep_mock:
+        yield sleep_mock
+
+
+@pytest.mark.parametrize('error', [
+    _client_error(),
+    _client_error(status=400, message=''),
+    _client_error('RequestThrottledException'),
+    _client_error('ThrottlingException'),
+    _client_error('ConcurrentLimitExceededException'),
+    _client_error('InternalServerException', 500),
+    _client_error('ServiceUnavailable', 503),
+    botocore.exceptions.ReadTimeoutError(endpoint_url='https://ebs'),
+    botocore.exceptions.ConnectTimeoutError(endpoint_url='https://ebs'),
+    botocore.exceptions.ConnectionClosedError(endpoint_url='https://ebs'),
+    botocore.exceptions.EndpointConnectionError(endpoint_url='https://ebs'),
+    ConnectionResetError('reset'),
+    TimeoutError('timed out')
+])
+def test_put_snapshot_block_retries(error, no_sleep, caplog):
+    ebs = FlakyEBS([error, error])
+    uploader = _make_uploader(upload_retries=3)
+
+    result = uploader._put_snapshot_block(ebs, 'snap-1234', 7, b'data')
+
+    assert result == (7, _sha(b'data'))
+    assert ebs.calls == 3
+    assert caplog.text.count('Writing block 7 failed') == 2
+    assert 'attempt 2 of 3' in caplog.text
+
+
+def test_put_snapshot_block_logs_details(no_sleep, caplog):
+    ebs = FlakyEBS([_client_error()])
+    uploader = _make_uploader()
+
+    uploader._put_snapshot_block(ebs, 'snap-1234', 1, b'data')
+
+    assert 'HTTP status 400' in caplog.text
+    assert 'request id req-1' in caplog.text
+
+
+@pytest.mark.parametrize('code,status', [
+    ('ValidationException', 400),
+    ('AccessDeniedException', 403),
+    ('ResourceNotFoundException', 404),
+    ('ServiceQuotaExceededException', 402)
+])
+def test_put_snapshot_block_no_retry(code, status, no_sleep):
+    error = _client_error(code, status)
+    ebs = FlakyEBS([error, error])
+    uploader = _make_uploader()
+
+    with pytest.raises(botocore.exceptions.ClientError):
+        uploader._put_snapshot_block(ebs, 'snap-1234', 1, b'data')
+
+    assert ebs.calls == 1
+    no_sleep.assert_not_called()
+
+
+def test_put_snapshot_block_other_exception_no_retry(no_sleep):
+    ebs = FlakyEBS([RuntimeError('bug')])
+    uploader = _make_uploader()
+
+    with pytest.raises(RuntimeError):
+        uploader._put_snapshot_block(ebs, 'snap-1234', 1, b'data')
+
+    assert ebs.calls == 1
+
+
+def test_put_snapshot_block_attempts_exhausted(no_sleep):
+    ebs = FlakyEBS([_client_error()] * 10)
+    uploader = _make_uploader(upload_retries=4)
+
+    with pytest.raises(EC2UploadImgException) as exc:
+        uploader._put_snapshot_block(ebs, 'snap-1234', 9, b'data')
+
+    assert ebs.calls == 4
+    assert 'block 9' in str(exc.value)
+    assert 'snap-1234' in str(exc.value)
+    assert '4 attempt(s)' in str(exc.value)
+
+
+def test_put_snapshot_block_single_attempt(no_sleep):
+    ebs = FlakyEBS([_client_error()])
+    uploader = _make_uploader(upload_retries=1)
+
+    with pytest.raises(EC2UploadImgException):
+        uploader._put_snapshot_block(ebs, 'snap-1234', 1, b'data')
+
+    assert ebs.calls == 1
+    no_sleep.assert_not_called()
+
+
+def test_put_snapshot_block_aborted_stops_retrying(no_sleep):
+    uploader = _make_uploader(upload_retries=5)
+    ebs = FlakyEBS([_client_error()] * 5)
+    ebs_put = ebs.put_snapshot_block
+
+    def put_and_abort(**kwargs):
+        uploader.abort()
+        return ebs_put(**kwargs)
+
+    ebs.put_snapshot_block = put_and_abort
+
+    with pytest.raises(EC2UploadImgException):
+        uploader._put_snapshot_block(ebs, 'snap-1234', 1, b'data')
+
+    assert ebs.calls == 1
+
+
+@pytest.mark.parametrize('attempt,limit', [
+    (1, 4), (2, 8), (3, 16), (4, 32), (5, 60), (20, 60)
+])
+def test_wait_before_retry_backoff_limit(attempt, limit):
+    uploader = _make_uploader()
+    with patch('ec2imgutils.ec2uploadimg.random.uniform') as uniform_mock:
+        uniform_mock.return_value = 0
+        uploader._wait_before_retry(attempt)
+    uniform_mock.assert_called_once_with(0, limit)
+
+
+def test_wait_before_retry_sleeps_in_steps(no_sleep):
+    uploader = _make_uploader()
+    with patch(
+        'ec2imgutils.ec2uploadimg.random.uniform', return_value=2.5
+    ):
+        uploader._wait_before_retry(1)
+    assert [c[0][0] for c in no_sleep.call_args_list] == [1, 1, 0.5]
+
+
+def test_wait_before_retry_aborted(no_sleep):
+    uploader = _make_uploader()
+    uploader.aborted = True
+    with patch('ec2imgutils.ec2uploadimg.random.uniform', return_value=30):
+        uploader._wait_before_retry(1)
+    no_sleep.assert_not_called()
+
+
+def test_upload_snapshot_blocks_recovers_from_errors(tmp_path, no_sleep):
+    source = tmp_path / 'image.raw'
+    block0, block1, block2, tail = _raw_image_data()
+    _write_raw_image(source)
+    ebs = FakeEBS()
+    original_put = ebs.put_snapshot_block
+    failures = {0: 2, 2: 1}
+
+    def flaky_put(**kwargs):
+        index = kwargs['BlockIndex']
+        if failures.get(index):
+            failures[index] -= 1
+            raise _client_error()
+        return original_put(**kwargs)
+
+    ebs.put_snapshot_block = flaky_put
+    uploader = _make_uploader(upload_workers=3, upload_retries=3)
+
+    digests = uploader._upload_snapshot_blocks(
+        ebs, 'snap-1234', BLOCK_SIZE, str(source)
+    )
+
+    assert sorted(digests) == [0, 2, 3]
+    assert sorted(ebs.blocks) == [0, 2, 3]
+    assert digests[0] == _sha(block0)
+    assert digests[2] == _sha(block2)
+
+
+@patch('ec2imgutils.ec2uploadimg.EC2ImageUploader._check_image_exists')
+@patch('ec2imgutils.ec2uploadimg.EC2ImageUploader._connect')
+def test_create_snapshot_retries_exhausted_deletes_snapshot(
+    connect_mock,
+    check_image_exists_mock,
+    tmp_path,
+    no_sleep
+):
+    source = tmp_path / 'image.raw'
+    _write_raw_image(source)
+    ebs = FakeEBS()
+
+    def always_400(**kwargs):
+        raise _client_error()
+
+    ebs.put_snapshot_block = always_400
+    ec2 = MagicMock()
+    connect_mock.side_effect = (
+        lambda service='ec2', config=None: ebs if service == 'ebs' else ec2
+    )
+
+    uploader = _make_uploader(upload_workers=1, upload_retries=2)
+    with pytest.raises(EC2UploadImgException):
+        uploader.create_snapshot(str(source))
+
+    assert not ebs.completed
+    ec2.delete_snapshot.assert_called_once_with(SnapshotId='snap-1234')

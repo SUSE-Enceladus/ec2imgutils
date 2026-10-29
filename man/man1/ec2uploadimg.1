@@ -210,6 +210,26 @@ Specifies the number of threads that write blocks of the image to the
 snapshot in parallel. The default is 8. A higher number may speed up the
 upload of large images if the network bandwidth and the EBS direct API
 request limits of the account allow it. Each block has a size of 512 KiB.
+.IP "--upload-retries UPLOAD_RETRIES"
+Specifies the number of attempts to write a block of the image to the snapshot
+before the upload fails. The default is 8, 1 means no retry. A failed attempt
+is retried after a wait that grows exponentially with a random jitter, up to
+60 seconds. Errors that cannot succeed on a retry, such as a missing
+permission, fail immediately. All other errors are retried, including a plain
+HTTP 400 response without an error name, which may occur on slow or unreliable
+network connections such as to the China regions. Every failed attempt is
+logged with the HTTP status and the request ID.
+.IP "--upload-timeout UPLOAD_TIMEOUT"
+Specifies the time in seconds to wait for a response from the EBS direct API
+while writing a block. The default is 300. Increase the value for slow
+networks. A timeout counts as a failed attempt and is retried, see
+.I --upload-retries.
+In the worst case a block takes about
+.I upload-retries
+times
+.I upload-timeout
+plus the wait between the attempts before the upload fails, lower the values
+for fast and reliable connections.
 .IP "--use-root-swap"
 Removed. The root swap method is no longer supported and the option causes
 an error. The image is uploaded with the EBS direct APIs.

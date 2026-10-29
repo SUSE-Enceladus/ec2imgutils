@@ -379,6 +379,30 @@ def parse_args(args):
         type=int
     )
 
+    help_msg = 'Number of attempts to write a block of the image to the '
+    help_msg += 'snapshot before giving up, default 8. Failed attempts are '
+    help_msg += 'retried with an increasing delay, useful for slow networks '
+    help_msg += '(Optional)'
+    parser.add_argument(
+        '--upload-retries',
+        default=8,
+        dest='uploadRetries',
+        help=help_msg,
+        metavar='UPLOAD_RETRIES',
+        type=int
+    )
+    help_msg = 'Timeout in seconds to wait for a response when writing a '
+    help_msg += 'block of the image, default 300. Increase for slow '
+    help_msg += 'networks (Optional)'
+    parser.add_argument(
+        '--upload-timeout',
+        default=300,
+        dest='uploadTimeout',
+        help=help_msg,
+        metavar='UPLOAD_TIMEOUT',
+        type=int
+    )
+
     help_msg = 'Wait N-number of times for AWS operation timeout, default 1 '
     help_msg += ' = 600 seconds (Optional)'
     parser.add_argument(
@@ -406,6 +430,8 @@ def check_required_arguments_and_constraints(args, logger):
     check_tpm_support_has_allowed_boot_options(args, logger)
     check_image_tags(args, logger)
     check_upload_workers(args, logger)
+    check_upload_retries(args, logger)
+    check_upload_timeout(args, logger)
     warn_deprecated_arguments(args, logger)
 
 
@@ -414,6 +440,23 @@ def check_upload_workers(args, logger):
     """This function checks that at least one upload worker is requested"""
     if args.uploadWorkers < 1:
         logger.error('The number of upload workers must be at least 1')
+        sys.exit(1)
+
+
+# ----------------------------------------------------------------------------
+def check_upload_retries(args, logger):
+    """This function checks that at least one attempt to write a block is
+    allowed"""
+    if args.uploadRetries < 1:
+        logger.error('The number of upload retries must be at least 1')
+        sys.exit(1)
+
+
+# ----------------------------------------------------------------------------
+def check_upload_timeout(args, logger):
+    """This function checks that the upload timeout is a positive value"""
+    if args.uploadTimeout < 1:
+        logger.error('The upload timeout must be at least 1 second')
         sys.exit(1)
 
 
@@ -671,7 +714,9 @@ def get_uploader(
                 tpm_support=args.tpm,
                 imds_support=args.imdsVersion,
                 image_tags=args.imageTags,
-                upload_workers=args.uploadWorkers
+                upload_workers=args.uploadWorkers,
+                upload_retries=args.uploadRetries,
+                upload_timeout=args.uploadTimeout
             )
             return uploader
     except EC2UploadImgException as e:

@@ -137,6 +137,12 @@ is as follows:
 * Register a new AMI
 * Clean up, an incomplete snapshot is deleted if an error occurs
 
+Writing a block of the image is retried with an increasing delay if it
+fails, which helps on slow or unreliable networks such as to the China
+regions. Use _--upload-retries_ (default 8), _--upload-timeout_ in seconds
+(default 300) and _--upload-workers_ (default 8) to tune this, for example
+fewer workers and a longer timeout for a very slow link.
+
 The credentials need permission for the EBS direct API actions
 `ebs:StartSnapshot`, `ebs:PutSnapshotBlock` and `ebs:CompleteSnapshot` as well
 as for the EC2 actions `ec2:DescribeImages`, `ec2:DescribeSnapshots`,
