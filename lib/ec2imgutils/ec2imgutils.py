@@ -42,35 +42,40 @@ class EC2ImgUtils:
             self.log_level = self.log.logger.level  # LoggerAdapter
 
     # ---------------------------------------------------------------------
-    def _connect(self):
-        """Connect to EC2"""
+    def _connect(self, service='ec2', config=None):
+        """Connect to the given AWS service, EC2 by default"""
 
-        ec2 = None
+        client = None
         if self.region:
+            extra_args = {}
+            if config is not None:
+                extra_args['config'] = config
             if self.session_token:
-                ec2 = boto3.client(
+                client = boto3.client(
                     aws_access_key_id=self.access_key,
                     aws_secret_access_key=self.secret_key,
                     aws_session_token=self.session_token,
                     region_name=self.region,
-                    service_name='ec2'
+                    service_name=service,
+                    **extra_args
                 )
             else:
                 session = boto3.session.Session()
-                ec2 = session.client(
+                client = session.client(
                     aws_access_key_id=self.access_key,
                     aws_secret_access_key=self.secret_key,
                     region_name=self.region,
-                    service_name='ec2'
+                    service_name=service,
+                    **extra_args
                 )
         else:
             self.region = 'UNKNOWN'
 
-        if not ec2:
+        if not client:
             msg = 'Could not connect to region: %s ' % self.region
             raise EC2ConnectionException(msg)
 
-        return ec2
+        return client
 
     # ---------------------------------------------------------------------
     def _get_owned_images(self):
