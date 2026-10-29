@@ -15,23 +15,74 @@
 # You should have received a copy of the GNU General Public License
 # along with ec2uploadimg. If not, see <http://www.gnu.org/licenses/>.
 
+import base64
 import botocore
+import botocore.config
+import concurrent.futures
+import contextlib
+import hashlib
 import json
 import logging
+import lzma
 import os
 import paramiko
+import random
 import socket
 import sys
+import tarfile
 import threading
 import time
+import uuid
 
 
 from ec2imgutils.ec2imgutils import EC2ImgUtils
 from ec2imgutils.ec2imgutilsExceptions import EC2UploadImgException
 
 
+# Time in minutes after which AWS cancels a snapshot started with the EBS
+# direct APIs if it is not completed, valid range is 10 to 4320
+SNAPSHOT_TIMEOUT_MINUTES = 1440
+# Amount of raw image data between two progress indicator dots (debug mode)
+PROGRESS_STEP_BYTES = 128 * 1024 * 1024
+# Writing a block is retried with an exponential backoff and full jitter,
+# these are the base and the upper limit of the wait in seconds
+RETRY_BACKOFF_BASE = 2
+RETRY_BACKOFF_MAX = 60
+# Timeout in seconds to establish the connection to the EBS direct API
+CONNECT_TIMEOUT = 30
+# Errors that cannot be fixed by sending the same request again. All other
+# errors are retried, in particular a plain HTTP 400 without an error name
+# that is seen on slow or unreliable network paths.
+NON_RETRYABLE_ERROR_CODES = (
+    'AccessDeniedException',
+    'ResourceNotFoundException',
+    'ServiceQuotaExceededException',
+    'ValidationException'
+)
+
+
+def _read_exactly(stream, size):
+    """Read size bytes from the stream, a shorter result means the end of the
+       stream was reached"""
+    chunks = []
+    remaining = size
+    while remaining:
+        chunk = stream.read(remaining)
+        if not chunk:
+            break
+        chunks.append(chunk)
+        remaining -= len(chunk)
+
+    return b''.join(chunks)
+
+
 class EC2ImageUploader(EC2ImgUtils):
-    """Upload the given image to Amazon EC2"""
+    """Upload the given image to Amazon EC2
+
+    By default the image is written to a new EBS snapshot with the EBS direct
+    APIs, no EC2 instance is involved. The root swap method (and the helper
+    methods it relies on: SSH connection, volume handling) still uses a
+    temporary helper instance."""
 
     def __init__(self,
                  access_key=None,
@@ -68,7 +119,10 @@ class EC2ImageUploader(EC2ImgUtils):
                  boot_mode=None,
                  tpm_support=None,
                  imds_support=None,
-                 image_tags=None
+                 image_tags=None,
+                 upload_workers=8,
+                 upload_retries=8,
+                 upload_timeout=300
                  ):
         EC2ImgUtils.__init__(
             self,
@@ -79,13 +133,12 @@ class EC2ImageUploader(EC2ImgUtils):
         self.access_key = access_key
         self.backing_store = backing_store
         self.billing_codes = billing_codes
-        self.bootkernel = bootkernel
         self.boot_mode = boot_mode
         self.ena_support = ena_support
         self.image_arch = image_arch
         self.image_description = image_description
         self.image_name = image_name
-        self.image_virt_type = image_virt_type
+        self.image_virt_type = 'hvm'
         self.imds_support = imds_support
         self.inst_user_name = inst_user_name
         self.launch_ami_id = launch_ami
@@ -102,7 +155,6 @@ class EC2ImageUploader(EC2ImgUtils):
         self.ssh_timeout = ssh_timeout
         self.channel_timeout = channel_timeout
         self.tpm = tpm_support
-        self.use_grub2 = use_grub2
         self.use_private_ip = use_private_ip
         self.vpc_subnet_id = vpc_subnet_id
         self.use_enclave = use_enclave
@@ -121,7 +173,32 @@ class EC2ImageUploader(EC2ImgUtils):
         self.storage_volume_size = 2 * self.root_volume_size
         self.aborted = False
         self.image_tags = image_tags
+        self.pending_snapshot_id = None
+        try:
+            self.upload_workers = int(upload_workers)
+        except (TypeError, ValueError):
+            self.upload_workers = 0
 
+        if image_virt_type != 'hvm':
+            raise EC2UploadImgException(
+                'Only hvm images are supported, the virtualization type '
+                '"%s" is no longer supported' % image_virt_type
+            )
+        if bootkernel or use_grub2:
+            self.log.warning(
+                'The bootkernel and use_grub2 arguments are deprecated and '
+                'ignored, para-virtual images are no longer supported'
+            )
+        if self.upload_workers < 1:
+            raise EC2UploadImgException(
+                'upload_workers must be an integer greater than 0'
+            )
+        self.upload_retries = self._positive_int(
+            upload_retries, 'upload_retries'
+        )
+        self.upload_timeout = self._positive_int(
+            upload_timeout, 'upload_timeout'
+        )
         if sriov_type and sriov_type != 'simple':
             raise EC2UploadImgException(
                 'sriov_type can only be None or simple'
@@ -136,6 +213,20 @@ class EC2ImageUploader(EC2ImgUtils):
             raise EC2UploadImgException(
                 'imds_support must be one of %s' % str(imds_versions)
             )
+
+    @staticmethod
+    def _positive_int(value, name):
+        """Return the value as integer, it must be greater than 0"""
+        try:
+            number = int(value)
+        except (TypeError, ValueError):
+            number = 0
+        if number < 1:
+            raise EC2UploadImgException(
+                '%s must be an integer greater than 0' % name
+            )
+
+        return number
 
     def abort(self):
         """
@@ -289,6 +380,7 @@ class EC2ImageUploader(EC2ImgUtils):
     # ---------------------------------------------------------------------
     def _clean_up(self):
         """Clean up the given resources"""
+        self._delete_pending_snapshot()
         if self.ssh_client:
             self.ssh_client.close()
         if self.instance_ids:
@@ -392,46 +484,6 @@ class EC2ImageUploader(EC2ImgUtils):
         self._detach_volume(store_volume)
 
         return target_root_volume
-
-    # ---------------------------------------------------------------------
-    def _create_snapshot(self, volume):
-        """Create a snapshot from a volume"""
-        if self.aborted:
-            return
-        snapshot = self._connect().create_snapshot(
-            VolumeId=volume['VolumeId'],
-            Description=self.image_description
-        )
-        self.log.debug(
-            'Waiting for snapshot creation: {}'.format(snapshot['SnapshotId'])
-        )
-        self.operation_complete = False
-        self._show_progress()
-        waiter = self._connect().get_waiter('snapshot_completed')
-        repeat_count = 1
-        error_msg = 'Unable to create snapshot'
-        while repeat_count <= self.wait_count:
-            try:
-                wait_status = waiter.wait(
-                    SnapshotIds=[snapshot['SnapshotId']],
-                    Filters=[
-                        {
-                            'Name': 'status',
-                            'Values': ['completed']
-                        }
-                    ]
-                )
-            except Exception:
-                wait_status = 1
-            if self.log_level == logging.DEBUG:
-                self.progress_timer.cancel()
-            repeat_count = self._check_wait_status(
-                wait_status,
-                error_msg,
-                repeat_count
-            )
-
-        return snapshot
 
     # ---------------------------------------------------------------------
     def _create_storage_filesystem(self, device_id):
@@ -543,11 +595,7 @@ class EC2ImageUploader(EC2ImgUtils):
     # ---------------------------------------------------------------------
     def _determine_root_device(self):
         """Figure out what the root device should be"""
-        root_device_name = '/dev/sda'
-        if self.image_virt_type == 'hvm':
-            root_device_name = '/dev/sda1'
-
-        return root_device_name
+        return '/dev/sda1'
 
     # ---------------------------------------------------------------------
     def _device_exists(self, device_id):
@@ -895,14 +943,12 @@ class EC2ImageUploader(EC2ImgUtils):
             'EnaSupport': self.ena_support,
             'Name': self.image_name,
             'RootDeviceName': root_device_name,
-            'VirtualizationType': self.image_virt_type
+            'VirtualizationType': 'hvm'
         }
         if self.billing_codes:
             register_args['BillingProducts'] = self.billing_codes.split(',')
         if self.boot_mode:
             register_args['BootMode'] = self.boot_mode
-        if self.image_virt_type == 'paravirtual':
-            register_args['KernelId'] = self.bootkernel
         if self.sriov_type:
             register_args['SriovNetSupport'] = self.sriov_type
         if self.tpm:
@@ -1065,9 +1111,322 @@ class EC2ImageUploader(EC2ImgUtils):
         return raw_image_file
 
     # ---------------------------------------------------------------------
+    # Image upload using the EBS direct APIs
+    # ---------------------------------------------------------------------
+    def _complete_snapshot(self, ebs, snapshot_id, digests):
+        """Seal the snapshot, the checksum is the SHA256 of the concatenated
+           raw block checksums in ascending block index order"""
+        aggregate = hashlib.sha256()
+        for index in sorted(digests):
+            aggregate.update(digests[index])
+        self.log.debug('Completing snapshot: {}'.format(snapshot_id))
+        ebs.complete_snapshot(
+            SnapshotId=snapshot_id,
+            ChangedBlocksCount=len(digests),
+            Checksum=base64.b64encode(aggregate.digest()).decode('ascii'),
+            ChecksumAlgorithm='SHA256',
+            ChecksumAggregationMethod='LINEAR'
+        )
+        # From here on the snapshot is sealed by AWS, nothing to abort
+        self.pending_snapshot_id = None
+
+    # ---------------------------------------------------------------------
+    def _connect_ebs(self):
+        """Connect to the EBS direct API, one connection per upload worker"""
+        return self._connect(
+            service='ebs',
+            config=botocore.config.Config(
+                max_pool_connections=self.upload_workers,
+                connect_timeout=CONNECT_TIMEOUT,
+                read_timeout=self.upload_timeout,
+                # Failed blocks are retried by _put_snapshot_block, keep the
+                # retries of botocore short to not multiply the attempts
+                retries={'max_attempts': 2, 'mode': 'standard'}
+            )
+        )
+
+    # ---------------------------------------------------------------------
+    def _create_snapshot_from_image(self, source):
+        """Write the raw image data of the source file to a new snapshot"""
+        if self.aborted:
+            return
+        self._check_image_exists()
+        try:
+            ebs = self._connect_ebs()
+            snapshot_id, block_size = self._start_snapshot(ebs)
+            digests = self._upload_snapshot_blocks(
+                ebs, snapshot_id, block_size, source
+            )
+            if self.aborted:
+                self._clean_up()
+                return
+            self._complete_snapshot(ebs, snapshot_id, digests)
+        except Exception:
+            self._clean_up()
+            raise
+
+        self._wait_for_snapshot(snapshot_id)
+
+        return {'SnapshotId': snapshot_id}
+
+    # ---------------------------------------------------------------------
+    def _delete_pending_snapshot(self):
+        """Delete the snapshot that was started but never completed"""
+        snapshot_id = self.pending_snapshot_id
+        if not snapshot_id:
+            return
+        self.pending_snapshot_id = None
+        self.log.debug('Deleting incomplete snapshot: {}'.format(snapshot_id))
+        try:
+            self._connect().delete_snapshot(SnapshotId=snapshot_id)
+        except Exception as e:
+            self.log.warning(
+                'Unable to delete incomplete snapshot %s: %s' % (
+                    snapshot_id, e
+                )
+            )
+
+    # ---------------------------------------------------------------------
+    @contextlib.contextmanager
+    def _open_raw_image(self, source):
+        """Provide a stream of the raw image data contained in the source
+           file. The source is either a raw or xz compressed raw file or a
+           tar archive, optionally compressed, containing one. Nothing is
+           unpacked to disk"""
+        filename = os.path.basename(source)
+        if (
+                filename.find('.tar') != -1 or
+                filename.find('.tbz') != -1 or
+                filename.find('.tgz') != -1):
+            with tarfile.open(source, 'r|*') as archive:
+                for member in archive:
+                    if not member.isfile():
+                        continue
+                    name = member.name.strip()
+                    if name[-2:] == 'xz':
+                        self.log.debug('Inflating image: {}'.format(name))
+                        with lzma.LZMAFile(archive.extractfile(member)) as raw:
+                            yield raw
+                        return
+                    if name[-4:] == '.raw':
+                        yield archive.extractfile(member)
+                        return
+        elif filename[-2:] == 'xz':
+            self.log.debug('Inflating image: {}'.format(filename))
+            with lzma.open(source, 'rb') as raw:
+                yield raw
+            return
+        elif filename[-3:] == 'raw':
+            with open(source, 'rb') as raw:
+                yield raw
+            return
+
+        msg = 'Unable to find raw image file with .raw extension'
+        raise EC2UploadImgException(msg)
+
+    # ---------------------------------------------------------------------
+    def _is_retryable_error(self, error):
+        """Tell if writing the block again may succeed"""
+        if isinstance(error, botocore.exceptions.ClientError):
+            code = error.response.get('Error', {}).get('Code')
+            return code not in NON_RETRYABLE_ERROR_CODES
+        return isinstance(
+            error,
+            (
+                botocore.exceptions.BotoCoreError,
+                ConnectionError,
+                TimeoutError
+            )
+        )
+
+    # ---------------------------------------------------------------------
+    def _log_block_failure(self, index, attempt, error):
+        """Log the details of a failed attempt to write a block"""
+        details = '%s: %s' % (type(error).__name__, error)
+        if isinstance(error, botocore.exceptions.ClientError):
+            meta = error.response.get('ResponseMetadata', {})
+            details = 'HTTP status %s, request id %s, %s' % (
+                meta.get('HTTPStatusCode'),
+                meta.get('RequestId'),
+                details
+            )
+        self.log.warning(
+            'Writing block %d failed, attempt %d of %d: %s' % (
+                index, attempt, self.upload_retries, details
+            )
+        )
+
+    # ---------------------------------------------------------------------
+    def _wait_before_retry(self, attempt):
+        """Wait with an exponential backoff and full jitter, the wait ends
+           early if the upload gets aborted"""
+        limit = min(RETRY_BACKOFF_MAX, RETRY_BACKOFF_BASE * 2 ** attempt)
+        remaining = random.uniform(0, limit)
+        while remaining > 0 and not self.aborted:
+            step = min(remaining, 1)
+            time.sleep(step)
+            remaining -= step
+
+    # ---------------------------------------------------------------------
+    def _put_snapshot_block(self, ebs, snapshot_id, index, data):
+        """Write a block to the snapshot, return block index and checksum.
+           Writing is retried as the data of a block can be written again."""
+        digest = hashlib.sha256(data).digest()
+        for attempt in range(1, self.upload_retries + 1):
+            try:
+                ebs.put_snapshot_block(
+                    SnapshotId=snapshot_id,
+                    BlockIndex=index,
+                    BlockData=data,
+                    DataLength=len(data),
+                    Checksum=base64.b64encode(digest).decode('ascii'),
+                    ChecksumAlgorithm='SHA256'
+                )
+                return index, digest
+            except Exception as error:
+                self._log_block_failure(index, attempt, error)
+                if (
+                        not self._is_retryable_error(error) or
+                        attempt == self.upload_retries or
+                        self.aborted):
+                    if not self._is_retryable_error(error):
+                        raise
+                    msg = 'Unable to write block %d to snapshot %s after '
+                    msg += '%d attempt(s), last error: %s'
+                    raise EC2UploadImgException(
+                        msg % (index, snapshot_id, attempt, error)
+                    )
+                self._wait_before_retry(attempt)
+
+    # ---------------------------------------------------------------------
+    def _start_snapshot(self, ebs):
+        """Start a snapshot with the size of the root volume of the image"""
+        snapshot = ebs.start_snapshot(
+            VolumeSize=self.root_volume_size,
+            Description=self.image_description,
+            ClientToken=str(uuid.uuid4()),
+            Timeout=SNAPSHOT_TIMEOUT_MINUTES
+        )
+        self.pending_snapshot_id = snapshot['SnapshotId']
+        self.log.debug(
+            'Started snapshot: {}'.format(snapshot['SnapshotId'])
+        )
+
+        return snapshot['SnapshotId'], snapshot.get('BlockSize', 524288)
+
+    # ---------------------------------------------------------------------
+    def _upload_snapshot_blocks(self, ebs, snapshot_id, block_size, source):
+        """Upload the raw image data to the snapshot using multiple threads.
+           Blocks containing only zeros are not written. Returns the
+           checksums of the written blocks by block index."""
+        max_blocks = (self.root_volume_size * 1024 ** 3) // block_size
+        zero_block = bytes(block_size)
+        max_pending = self.upload_workers * 2
+        digests = {}
+        pending = set()
+        bytes_read = 0
+        next_progress = PROGRESS_STEP_BYTES
+
+        def collect(done):
+            for future in done:
+                index, digest = future.result()
+                digests[index] = digest
+
+        self.log.debug('Uploading image file: {}'.format(source))
+        with concurrent.futures.ThreadPoolExecutor(
+                max_workers=self.upload_workers) as pool:
+            try:
+                with self._open_raw_image(source) as stream:
+                    index = 0
+                    while not self.aborted:
+                        data = _read_exactly(stream, block_size)
+                        if not data:
+                            break
+                        if index >= max_blocks:
+                            msg = 'The raw image is larger than the root '
+                            msg += 'volume size of %dG, use '
+                            msg += '--root-volume-size to increase it'
+                            raise EC2UploadImgException(
+                                msg % self.root_volume_size
+                            )
+                        bytes_read += len(data)
+                        if len(data) < block_size:
+                            data = data.ljust(block_size, b'\0')
+                        if data != zero_block:
+                            pending.add(pool.submit(
+                                self._put_snapshot_block,
+                                ebs,
+                                snapshot_id,
+                                index,
+                                data
+                            ))
+                            if len(pending) >= max_pending:
+                                done, pending = concurrent.futures.wait(
+                                    pending,
+                                    return_when=(
+                                        concurrent.futures.FIRST_COMPLETED
+                                    )
+                                )
+                                collect(done)
+                        index += 1
+                        if (
+                                self.log_level == logging.DEBUG and
+                                bytes_read >= next_progress):
+                            print('.', end=' ')
+                            sys.stdout.flush()
+                            next_progress += PROGRESS_STEP_BYTES
+                done, pending = concurrent.futures.wait(pending)
+                collect(done)
+            except BaseException:
+                for future in pending:
+                    future.cancel()
+                raise
+        if self.log_level == logging.DEBUG:
+            print()
+
+        return digests
+
+    # ---------------------------------------------------------------------
+    def _wait_for_snapshot(self, snapshot_id):
+        """Wait for the given snapshot to reach the completed state"""
+        if self.aborted:
+            return
+        self.log.debug(
+            'Waiting for snapshot creation: {}'.format(snapshot_id)
+        )
+        self.operation_complete = False
+        self._show_progress()
+        waiter = self._connect().get_waiter('snapshot_completed')
+        repeat_count = 1
+        error_msg = 'Unable to create snapshot'
+        while repeat_count <= self.wait_count:
+            try:
+                wait_status = waiter.wait(
+                    SnapshotIds=[snapshot_id],
+                    Filters=[
+                        {
+                            'Name': 'status',
+                            'Values': ['completed']
+                        }
+                    ]
+                )
+            except Exception:
+                wait_status = 1
+            if self.log_level == logging.DEBUG:
+                self.progress_timer.cancel()
+            repeat_count = self._check_wait_status(
+                wait_status,
+                error_msg,
+                repeat_count
+            )
+
+    # ---------------------------------------------------------------------
     def create_image(self, source):
         """Create an AMI (Amazon Machine Image) from the given source"""
         snapshot = self.create_snapshot(source)
+        if not snapshot:
+            # Upload was aborted
+            return
 
         ami = self._register_image(snapshot)
         self._tag_image(ami)
@@ -1210,7 +1569,6 @@ class EC2ImageUploader(EC2ImgUtils):
         """Create a snapshot from the given source"""
         if self.log_level == logging.DEBUG:
             print()
-        root_volume = self._create_image_root_volume(source)
-        snapshot = self._create_snapshot(root_volume)
+        snapshot = self._create_snapshot_from_image(source)
         self._clean_up()
         return snapshot

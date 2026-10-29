@@ -119,24 +119,45 @@ man ec2removeimg
 
 ### ec2uploadimg
 
-A command line utility to upload a compressed raw image file, as created by
-KIWI for example to Amazon EC2 and create a snapshot or register an EBS
-backed AMI. Uploads a compressed raw image to Amazon EC2 using an
-existing EC2 AMI and creates a snapshot or registers a new AMI from the
-image. The apparent size of the raw image is recommended to be 10 GB or
-less. It is expected that the raw image has 1 partition, i.e. the root
-partition is _/dev/sda1._ The process of creating the image is as
-follows:
+A command line utility to upload a raw image file, as created by
+KIWI for example, to Amazon EC2 and create a snapshot or register an EBS
+backed AMI. The image may be xz compressed or contained in a tar archive.
+The image is written directly to a new EBS snapshot using the EBS direct
+APIs. The apparent size of the raw image is recommended to be 10 GB or less
+and must not exceed the root volume size. It is expected that the raw image
+has 1 partition, i.e. the root partition is _/dev/sda1._ Only HVM images
+are supported. The process of creating the image is as follows:
 
-* Start an instance
-* Create a storage volume and attach it to the running instance
-* Create volume that will be the new root and attach it to the running
-  instance
-* Upload the image
-* Unpack the image and dump it to the new root volume
-* Detach the new root volume and create a snapshot
+* Start a snapshot
+* Read the image, decompress it on the fly and write it in blocks to the
+  snapshot using multiple threads (_--upload-workers_), blocks containing only
+  zeros are skipped
+* Complete the snapshot
 * Register a new AMI
-* Clean up
+* Clean up, an incomplete snapshot is deleted if an error occurs
+
+Writing a block of the image is retried with an increasing delay if it
+fails, which helps on slow or unreliable networks. Use _--upload-retries_
+(default 8), _--upload-timeout_ in seconds (default 300) and
+_--upload-workers_ (default 8) to tune this, for example fewer workers
+and a longer timeout for a very slow link.
+
+The credentials need permission for the EBS direct API actions
+`ebs:StartSnapshot`, `ebs:PutSnapshotBlock` and `ebs:CompleteSnapshot` as well
+as for the EC2 actions `ec2:DescribeImages`, `ec2:DescribeSnapshots`,
+`ec2:DeleteSnapshot`, `ec2:RegisterImage` and `ec2:CreateTags`.
+
+With _--use-root-swap_ a helper instance is started and the image is
+uploaded to it with ssh. The options and configuration values that describe
+the helper instance (_--ec2-ami_, _--instance-id_, _--ssh-key-pair_,
+_--private-key-file_, _--user_, _--type_, _--ssh-timeout_,
+_--channel-timeout_, _--security-group-ids_, _--vpc-subnet-id_,
+_--use-private-ip_, _--use-enclave_) are only used with that method. They are
+deprecated otherwise, a warning is issued and they are ignored.
+
+Para-virtual images are no longer supported, only HVM images can be created.
+A _--virt-type_ other than _hvm_ is rejected with an error. _--boot-kernel_
+and _--grub2_ are deprecated, a warning is issued and they are ignored.
 
 #### Usage
 
