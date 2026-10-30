@@ -42,10 +42,13 @@ and
 .PP
 With
 .I --use-root-swap
-the image is uploaded with ssh to a helper instance, as described with
-that option. Options that configure the helper instance are only used with
-that method. They are deprecated otherwise, a warning is issued and the
-options are ignored.
+the image is also uploaded with the EBS direct APIs. The new image is then
+created from a donor instance, that provides the meta data of the image, as
+described with that option. The options that configure the donor instance are
+only used with that method, they are deprecated otherwise, a warning is issued
+and they are ignored. Earlier versions uploaded the image with ssh. The
+options for the ssh connection are deprecated with all methods, a warning is
+issued and they are ignored.
 .PP
 Para-virtual images are no longer supported, only HVM images can be created.
 The
@@ -62,8 +65,6 @@ The account is specified as a section with [account-ACCOUNT_NAME] delimiter.
 The options of the sections are
 .I access_key_id
 .I secret_access_key
-.I ssh_key_name
-.I ssh_private_key
 This allows the program to connect to EC2.
 If the access_key_id and/or secret_access_key are not found in
 .IR ~/.ec2utils.conf,
@@ -129,8 +130,8 @@ the snapshot.
 Only used with
 .I --use-root-swap,
 deprecated and ignored otherwise.
-Specify the AMI ID of the image to launch that will be used to perform
-the upload operation. This value overrides the value given with the
+Specify the AMI ID of the image to launch as donor instance, that provides
+the meta data of the new image. This value overrides the value given with the
 .I ami
 option for a given region in the configuration file.
 .IP "-f --file CONFIG_FILE"
@@ -167,36 +168,22 @@ or
 Only used with
 .I --use-root-swap,
 deprecated and ignored otherwise.
-Specify the ID of a running instance to use as helper instance instead of
-launching one.
+Specify the ID of a running instance to use as donor instance instead of
+launching one. The instance is not changed while the image is uploaded and the
+volume is created, an error until then leaves it running. Afterwards its root
+volume is replaced and the instance is stopped and, when the image has been
+created, terminated.
 .IP "-n --name IMAGE_NAME"
 Specifies the name of the AMI to be registered.
 .IP "-p --private-key-file PRIVATE_KEY"
-Only used with
-.I --use-root-swap,
-deprecated and ignored otherwise.
-Specifies the path to the private ssh key file to use to connect with the
-instance that is being used to upload the raw image. This option overrides
-the value of the
-.I ssh_private_key
-in the configuration file.
+Deprecated and ignored, the image is uploaded without ssh.
 .IP "-r --regions EC2_REGIONS"
 A comma separated list of Amazon EC2 regions, or a single region.
 .IP "--root-volume-size"
 Specify the size in GB of the new root volume for the AMI being created. It
 is recommended to keep the root volume size to 10GB or less.
 .IP "--ssh-key-pair AWS_KEY_PAIR_NAME"
-Only used with
-.I --use-root-swap,
-deprecated and ignored otherwise.
-Specifies the key-pair name to use when launching the instance that is used
-to upload the raw image. The specified private key file must correlate
-to the key pair name given with this argument. This value overrides the
-value given for the
-.I account
-with the
-.I ssh_key_name
-in the configuration file.
+Deprecated and ignored, the image is uploaded without ssh.
 .IP "-s --secret-key AWS_SECRET_KEY"
 Specifies the AWS secret access key and overrides the value given for the
 .I account
@@ -204,11 +191,7 @@ with the
 .I secret_access_key
 in the configuration file.
 .IP "--security-group-ids AWS_SECURITY_GROUP_IDS"
-Only used with
-.I --use-root-swap,
-deprecated and ignored otherwise.
-Specifies a list of security group ids to apply to the helper instance. At
-least one of the groups must have port 22 open to support ssh connections.
+Deprecated and ignored, the image is uploaded without ssh.
 .IP "--session-token AWS_SESSION_TOKEN"
 Specifies the AWS session token. Only necessary when using temporary credentials.
 .IP "--snaponly"
@@ -222,17 +205,9 @@ The snapshotID is specified as the source variable.
 Enable SRIOV support for HVM images. This implies that the appropriate
 driver has to be included in the image.
 .IP "--ssh-timeout SSH_TIME_OUT"
-Only used with
-.I --use-root-swap,
-deprecated and ignored otherwise.
-Specifies the amount of time to wait in seconds to establish an SSH connection
-with the helper instance. The default is 300.
+Deprecated and ignored, the image is uploaded without ssh.
 .IP "--channel-timeout CHANNEL_TIME_OUT"
-Only used with
-.I --use-root-swap,
-deprecated and ignored otherwise.
-Specifies the amount of time to wait in seconds to consider an upload
-unsuccessful per inactivity in the channel used. The default is 900.
+Deprecated and ignored, the image is uploaded without ssh.
 .IP "--tpm-support"
 Optionally specify the version of the TPM implementation the OS in the image
 supports. This option can only be used if
@@ -250,24 +225,14 @@ alternatively prefixed with a
 Only used with
 .I --use-root-swap,
 deprecated and ignored otherwise.
-Specifies the instance type to launch for the instance being used to upload
-the image. This value overrides the value given with the
+Specifies the instance type to launch for the donor instance. This value
+overrides the value given with the
 .I instance_type
 option for a given region in the configuration file.
 .IP "-u --user AWS_INSTANCE_USER"
-Only used with
-.I --use-root-swap,
-deprecated and ignored otherwise.
-Specifies the user to use to connect to the instance being used to upload
-the image. This value overrides the value given with the
-.I user
-option for a given region in the configuration file.
+Deprecated and ignored, the image is uploaded without ssh.
 .IP "--use-private-ip"
-Only used with
-.I --use-root-swap,
-deprecated and ignored otherwise.
-Use the private IP of the helper instance to upload the new image. This is
-helpful when an image is to be created and only a private VPC is available.
+Deprecated and ignored, the image is uploaded without ssh.
 .IP "--upload-workers UPLOAD_WORKERS"
 Specifies the number of threads that write blocks of the image to the
 snapshot in parallel. The default is 8. A higher number may speed up the
@@ -294,17 +259,39 @@ times
 plus the wait between the attempts before the upload fails, lower the values
 for fast and reliable connections.
 .IP "--use-root-swap"
-Create the new image using the root swap method. A helper instance is started,
-the image is uploaded to it with ssh and written to a new volume, instead
-of using the EBS direct APIs. The helper instance used
-to upload the image will be stopped and the created image volume will be
-attached to the helper instance. A new image is registered from the
-helper instance. This method of image creation is useful when meta data
-associated with the image used to launch the helper instance needs to
-be transferred to the new image. The new image creation may time out as
-a copy of the complete image disk needs to be made. The code will then skip
-the clean up and a storage volume, a target root volume and a stopped
-instance will remain in the users account.
+Create the new image using the root swap method. The image is uploaded to a
+temporary snapshot with the EBS direct APIs and a volume is created from it.
+A donor instance is launched, or the instance given with
+.I --instance-id
+is used. The donor instance is not accessed, it provides the meta data of the
+new image. It is stopped, its root volume is replaced by the new volume and
+the new image is created from the donor instance. This method of image
+creation is useful when meta data associated with the image used to launch the
+donor instance, such as billing information, needs to be transferred to the
+new image. The options
+.I --boot-mode,
+.I --tpm-support,
+.I --imds-support,
+.I --ena-support
+and
+.I --billing-codes
+do not apply as the new image inherits these from the donor instance. The
+donor instance and the temporary snapshot are removed when the image is
+created. The new image creation may time out as a copy of the complete image
+disk needs to be made. The code will then skip the clean up and a volume, the
+temporary snapshot and a stopped instance will remain in the users account.
+Creating the volume from the snapshot additionally requires the EC2 actions
+.I ec2:RunInstances,
+.I ec2:StopInstances,
+.I ec2:TerminateInstances,
+.I ec2:CreateVolume,
+.I ec2:AttachVolume,
+.I ec2:DetachVolume,
+.I ec2:DeleteVolume,
+.I ec2:DescribeInstances,
+.I ec2:DescribeVolumes
+and
+.I ec2:CreateImage.
 .IP "-V --virt-type AWS_VIRT_TYPE"
 Only
 .I hvm
@@ -315,15 +302,13 @@ causes an error as para-virtual images are no longer supported.
 Only used with
 .I --use-root-swap,
 deprecated and ignored otherwise.
-Specify the VPC subnet ID into which the helper instance should be
+Specify the VPC subnet ID into which the donor instance should be
 launched. This option is useful if no default VPC is configured or
-it is desired to launch the helper instance into a private subnet of the
-VPC. For the use of a private subnet it may also be necessary to use the
-.I --use-private-ip
-command line option. The ID should start with
+it is desired to launch the donor instance into a private subnet of the
+VPC. The ID should start with
 .I subnet-.
 Instance type and subnets are to a certain degree linked in that it may not
-be possible to launch the configured helper instance type outside a VPC
+be possible to launch the configured donor instance type outside a VPC
 subnet. Therefore, if the
 .I --vpc-subnet-id
 is not specified on the command line and neither
@@ -347,8 +332,8 @@ be set in the configuration file.
 Only used with
 .I --use-root-swap,
 deprecated and ignored otherwise.
-Start the helper instance that is used to upload the image file and to register
-the image to be created as an AWS Enclave.
+Start the donor instance, that provides the meta data of the image, as an AWS
+Enclave.
 .IP "--wait-count AWS_WAIT_COUNT"
 Specifies the number of times to wait for the AWS operation timeout, for
 example while the snapshot is being completed. The

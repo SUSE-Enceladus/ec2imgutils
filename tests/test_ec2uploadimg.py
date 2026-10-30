@@ -639,218 +639,6 @@ def test_get_amiID(get_from_config_mock):
 
 
 # --------------------------------------------------------------------
-# Tests for get_ssh_user functions
-def test_get_ssh_user():
-
-    class Args:
-        accountName = 'testAccountName'
-        sshUser = 'mySshUser'
-
-    myArgs = Args()
-    sshUser = ec2uploadimg.get_ssh_user(myArgs, None, "reg1", logger)
-    assert sshUser == 'mySshUser'
-
-
-@patch('ec2uploadimg.utils.get_from_config')
-def test_get_ssh_user_config(get_from_config_mock):
-    get_from_config_mock.return_value = 'mySshUser'
-
-    class Args:
-        accountName = 'testAccountName'
-        sshUser = None
-
-    myArgs = Args()
-    sshUser = ec2uploadimg.get_ssh_user(myArgs, None, "reg1", logger)
-    assert sshUser == 'mySshUser'
-
-
-@patch('ec2uploadimg.utils.get_from_config')
-def test_get_ssh_user_config_exc(get_from_config_mock, caplog):
-    def my_side_eff(a1, a2, a3, a4, a5):
-        raise Exception('myexception')
-
-    get_from_config_mock.side_effect = my_side_eff
-
-    class Args:
-        accountName = 'testAccountName'
-        sshUser = None
-
-    myArgs = Args()
-    with pytest.raises(SystemExit) as excinfo:
-        ec2uploadimg.get_ssh_user(myArgs, None, "reg1", logger)
-    assert 'myexception' in caplog.text
-    assert excinfo.value.code == 1
-
-
-@patch('ec2uploadimg.utils.get_from_config')
-def test_get_ssh_user_config_exc2(get_from_config_mock, caplog):
-    get_from_config_mock.return_value = None
-
-    class Args:
-        accountName = 'testAccountName'
-        sshUser = None
-
-    myArgs = Args()
-    with pytest.raises(SystemExit) as excinfo:
-        ec2uploadimg.get_ssh_user(myArgs, None, "reg1", logger)
-    assert 'Could not determine ssh user to use' in caplog.text
-    assert excinfo.value.code == 1
-
-
-# --------------------------------------------------------------------
-# Tests for get_key_pair_name_and_ssh_private_key_file function
-def test_get_key_pair_name_and_ssh_private_key_file_file_not_exists(caplog):
-    setup = MagicMock()
-    setup.create_upload_key_pair.return_value = \
-        ('myKeyPairName', 'myPrivateKeyFile')
-
-    class Args:
-        accountName = None
-        sshName = None
-        privateKey = None
-
-    myArgs = Args()
-    with pytest.raises(SystemExit) as excinfo:
-        ec2uploadimg.get_key_pair_name_and_ssh_private_key_file(
-            myArgs,
-            None,
-            "reg1",
-            setup,
-            logger
-        )
-    assert 'SSH private key file' in caplog.text
-    assert 'does not exist' in caplog.text
-    assert excinfo.value.code == 1
-
-
-@patch('ec2uploadimg.utils.get_from_config')
-def test_get_key_pair_name_and_ssh_private_key_file_file_nopairname(
-    get_from_config_mock,
-    caplog
-):
-
-    setup = MagicMock()
-    setup.create_upload_key_pair.return_value = \
-        (None, None)
-
-    get_from_config_mock.return_value = None
-
-    class Args:
-        accountName = None
-        sshName = None
-        privateKey = None
-
-    myArgs = Args()
-    with pytest.raises(SystemExit) as excinfo:
-        ec2uploadimg.get_key_pair_name_and_ssh_private_key_file(
-            myArgs,
-            None,
-            "reg1",
-            setup,
-            logger
-        )
-    assert 'Could not determine key pair name' in caplog.text
-    assert excinfo.value.code == 1
-
-
-@patch('ec2uploadimg.utils.get_from_config')
-def test_get_key_pair_name_and_ssh_private_key_file_file_exc(
-    get_from_config_mock,
-    caplog
-):
-
-    setup = MagicMock()
-    setup.create_upload_key_pair.return_value = \
-        (None, None)
-
-    def my_side_eff(a1, a2, a3, a4, a5):
-        raise Exception('myexception')
-
-    get_from_config_mock.side_effect = my_side_eff
-
-    class Args:
-        accountName = None
-        sshName = None
-        privateKey = None
-
-    myArgs = Args()
-    with pytest.raises(SystemExit) as excinfo:
-        ec2uploadimg.get_key_pair_name_and_ssh_private_key_file(
-            myArgs,
-            None,
-            "reg1",
-            setup,
-            logger
-        )
-    assert 'myexception' in caplog.text
-    assert excinfo.value.code == 1
-
-
-@patch('ec2uploadimg.utils.get_from_config')
-def test_get_key_pair_name_and_ssh_private_key_file_nokeyfile(
-    get_from_config_mock,
-    caplog
-):
-
-    setup = MagicMock()
-    setup.create_upload_key_pair.return_value = \
-        ('keyPairName', None)
-
-    get_from_config_mock.return_value = None
-
-    class Args:
-        accountName = None
-        sshName = None
-        privateKey = None
-
-    myArgs = Args()
-    with pytest.raises(SystemExit) as excinfo:
-        ec2uploadimg.get_key_pair_name_and_ssh_private_key_file(
-            myArgs,
-            None,
-            "reg1",
-            setup,
-            logger
-        )
-    assert 'SSH private key file' in caplog.text
-    assert 'does not exist' in caplog.text
-    assert excinfo.value.code == 1
-
-
-@patch('ec2uploadimg.utils.get_from_config')
-def test_get_key_pair_name_and_ssh_private_key_file_exc(
-    get_from_config_mock,
-    caplog
-):
-
-    setup = MagicMock()
-    setup.create_upload_key_pair.return_value = \
-        ('keyPairName', None)
-
-    def my_side_eff(a1, a2, a3, a4, a5):
-        raise Exception('myexception')
-
-    get_from_config_mock.side_effect = my_side_eff
-
-    class Args:
-        accountName = 'ec2-user'
-        sshName = 'mySshName'
-        privateKey = None
-
-    myArgs = Args()
-    with pytest.raises(SystemExit) as excinfo:
-        ec2uploadimg.get_key_pair_name_and_ssh_private_key_file(
-            myArgs,
-            None,
-            "reg1",
-            setup,
-            logger
-        )
-    assert 'myexception' in caplog.text
-    assert excinfo.value.code == 1
-
-
-# --------------------------------------------------------------------
 # Tests for get_vpc_subnet_id functions
 def test_get_vpc_subnet_id(caplog):
     logger.setLevel(logging.DEBUG)
@@ -962,170 +750,6 @@ def test_get_vpc_subnet_id_create_exc(get_from_config_mock, caplog):
 
     assert error_message in caplog.text
     setup.clean_up.assert_called_with()
-    assert excinfo.value.code == 1
-
-
-# --------------------------------------------------------------------
-# Tests for get_security_group_ids functions
-def test_get_security_group_ids():
-    setup = MagicMock()
-    setup.create_security_group.return_value = 'securityGroupId'
-
-    class Args:
-        accountName = None
-        securityGroupIds = None
-        vpcSubnetId = None
-        amiID = None
-        runningID = None
-
-    myArgs = Args()
-    sec_group_ids = ec2uploadimg.get_security_group_ids(
-        myArgs,
-        None,
-        "reg1",
-        None,
-        None,
-        setup,
-        None,
-        logger
-    )
-    assert 'securityGroupId' == sec_group_ids
-
-
-@patch('ec2uploadimg.utils.get_from_config')
-def test_get_security_group_ids_accName(get_from_config_mock, caplog):
-    setup = MagicMock()
-    setup.create_security_group.return_value = None
-    logger.setLevel(logging.DEBUG)
-    get_from_config_mock.return_value = 'securityGroupId'
-
-    class Args:
-        accountName = "testAccName"
-        securityGroupIds = None
-        vpcSubnetId = None
-        amiID = None
-        runningID = None
-
-    myArgs = Args()
-    sec_group_ids = ec2uploadimg.get_security_group_ids(
-        myArgs,
-        None,
-        "reg1",
-        None,
-        None,
-        setup,
-        None,
-        logger
-    )
-    assert 'Using Security Group IDs: securityGroupId' in caplog.text
-    assert 'securityGroupId' == sec_group_ids
-
-
-@patch('ec2uploadimg.boto3.client')
-@patch('ec2uploadimg.utils.get_from_config')
-def test_get_security_group_ids_accName_exc(
-    get_from_config_mock,
-    boto3_client_mock,
-    caplog
-):
-
-    # setup = MagicMock()
-    # setup.create_security_group.return_value = 'securityGroupId'
-    logger.setLevel(logging.DEBUG)
-
-    def my_side_eff(a1, a2, a3, a4, a5):
-        raise Exception('myexception')
-
-    get_from_config_mock.side_effect = my_side_eff
-
-    ec2 = MagicMock()
-    subnet = {}
-    subnet['VpcId'] = 'myVpcId'
-    subnets = []
-    subnets.append(subnet)
-    mySubnets = {}
-    mySubnets['Subnets'] = subnets
-    ec2.describe_subnets.return_value = mySubnets
-
-    boto3_client_mock.return_value = ec2
-
-    setup = MagicMock()
-    setup.create_security_group.return_value = 'mySecurityGroupId'
-
-    class Args:
-        accountName = "testAccName"
-        securityGroupIds = None
-        vpcSubnetId = None
-        amiID = None
-        runningID = None
-
-    myArgs = Args()
-    sec_group_ids = ec2uploadimg.get_security_group_ids(
-        myArgs,
-        None,
-        "reg1",
-        None,
-        None,
-        setup,
-        'vpdSubnetId',
-        logger
-    )
-    assert 'No security group specified in the config' in caplog.text
-    assert sec_group_ids == 'mySecurityGroupId'
-
-
-@patch('ec2uploadimg.boto3.client')
-@patch('ec2uploadimg.utils.get_from_config')
-def test_get_security_group_ids_accName_exc_noSubnets(
-    get_from_config_mock,
-    boto3_client_mock,
-    caplog
-):
-
-    # setup = MagicMock()
-    # setup.create_security_group.return_value = 'securityGroupId'
-    logger.setLevel(logging.DEBUG)
-
-    def my_side_eff(a1, a2, a3, a4, a5):
-        raise Exception('myexception')
-
-    get_from_config_mock.side_effect = my_side_eff
-
-    ec2 = MagicMock()
-    # subnet = {}
-    #  subnet['VpcId'] = 'myVpcId'
-    subnets = []
-    # subnets.append(subnet)
-    mySubnets = {}
-    mySubnets['Subnets'] = subnets
-    ec2.describe_subnets.return_value = mySubnets
-
-    boto3_client_mock.return_value = ec2
-
-    setup = MagicMock()
-    setup.create_security_group.return_value = 'mySecurityGroupId'
-
-    class Args:
-        accountName = "testAccName"
-        securityGroupIds = None
-        vpcSubnetId = None
-        amiID = None
-        runningID = None
-
-    myArgs = Args()
-    with pytest.raises(SystemExit) as excinfo:
-        ec2uploadimg.get_security_group_ids(
-            myArgs,
-            None,
-            "reg1",
-            None,
-            None,
-            setup,
-            'vpdSubnetId',
-            logger
-        )
-    assert 'No security group specified in the config' in caplog.text
-    assert 'Unable to obtain VPC information for' in caplog.text
     assert excinfo.value.code == 1
 
 
@@ -1633,34 +1257,6 @@ def test_ssh_timeouts_have_no_parser_default():
     assert args.channelTimeout is None
 
 
-def test_warn_root_swap_only_arguments(caplog):
-    args = _parse([
-        '--ec2-ami', 'ami-1',
-        '--instance-id', 'i-1',
-        '--ssh-key-pair', 'key',
-        '--private-key-file', 'file',
-        '--user', 'root',
-        '--ssh-timeout', '10',
-        '--channel-timeout', '10',
-        '--security-group-ids', 'sg-1',
-        '--vpc-subnet-id', 'subnet-1',
-        '--use-private-ip',
-        '--use-enclave',
-        '--type', 't2.micro'
-    ])
-
-    ec2uploadimg.warn_root_swap_only_arguments(args, logger)
-
-    assert 'deprecated and ignored' in caplog.text
-    for option in (
-        '--ec2-ami', '--instance-id', '--ssh-key-pair', '--private-key-file',
-        '--user', '--ssh-timeout', '--channel-timeout',
-        '--security-group-ids', '--vpc-subnet-id', '--use-private-ip',
-        '--use-enclave', '--type'
-    ):
-        assert option in caplog.text
-
-
 def test_warn_root_swap_only_arguments_none_given(caplog):
     ec2uploadimg.warn_root_swap_only_arguments(_parse(), logger)
     assert 'deprecated' not in caplog.text
@@ -1722,44 +1318,6 @@ def test_get_uploader_default_needs_no_helper_instance(
         'security_group_ids'
     ):
         assert helper_arg not in kwargs
-
-
-@patch('ec2uploadimg.ec2upimg.EC2ImageUploader')
-def test_get_uploader_root_swap_passes_helper_arguments(
-    EC2ImageUploader_mock,
-    tmp_path
-):
-    key = tmp_path / 'key'
-    key.write_text('key')
-    args = _parse([
-        '--use-root-swap',
-        '--ec2-ami', 'ami-1',
-        '--ssh-key-pair', 'keypair',
-        '--private-key-file', str(key),
-        '--user', 'ec2-user',
-        '--type', 't3.micro',
-        '--vpc-subnet-id', 'subnet-1',
-        '--security-group-ids', 'sg-1',
-        '--use-private-ip',
-    ])
-
-    ec2uploadimg.get_uploader(
-        args, 'region1', None, 'access', 'secret', MagicMock(), logger
-    )
-
-    kwargs = EC2ImageUploader_mock.call_args[1]
-    assert kwargs['launch_ami'] == 'ami-1'
-    assert kwargs['running_id'] is None
-    assert kwargs['ssh_key_pair_name'] == 'keypair'
-    assert kwargs['ssh_key_private_key_file'] == str(key)
-    assert kwargs['inst_user_name'] == 'ec2-user'
-    assert kwargs['launch_inst_type'] == 't3.micro'
-    assert kwargs['vpc_subnet_id'] == 'subnet-1'
-    assert kwargs['security_group_ids'] == 'sg-1'
-    assert kwargs['use_private_ip'] is True
-    assert kwargs['ssh_timeout'] == 300
-    assert kwargs['channel_timeout'] == 900
-    assert kwargs['upload_workers'] == 8
 
 
 @patch('ec2uploadimg.ec2upimg.EC2ImageUploader')
@@ -1927,3 +1485,152 @@ def test_get_uploader_ignores_boot_kernel(
     kwargs = EC2ImageUploader_mock.call_args[1]
     for removed in ('bootkernel', 'image_virt_type', 'use_grub2'):
         assert removed not in kwargs
+
+
+# --------------------------------------------------------------------
+# Tests for the root swap method with the EBS direct upload
+def test_warn_root_swap_only_arguments(caplog):
+    args = _parse([
+        '--ec2-ami', 'ami-1',
+        '--instance-id', 'i-1',
+        '--vpc-subnet-id', 'subnet-1',
+        '--use-enclave',
+        '--type', 't2.micro'
+    ])
+
+    ec2uploadimg.warn_root_swap_only_arguments(args, logger)
+
+    assert 'deprecated and ignored' in caplog.text
+    for option in (
+        '--ec2-ami', '--instance-id', '--vpc-subnet-id', '--use-enclave',
+        '--type'
+    ):
+        assert option in caplog.text
+
+
+SSH_OPTIONS = [
+    '--ssh-key-pair', 'key',
+    '--private-key-file', 'file',
+    '--user', 'root',
+    '--ssh-timeout', '10',
+    '--channel-timeout', '10',
+    '--security-group-ids', 'sg-1',
+    '--use-private-ip'
+]
+
+
+@pytest.mark.parametrize('extra', [[], ['--use-root-swap']])
+def test_warn_deprecated_ssh_arguments(extra, caplog):
+    ec2uploadimg.warn_deprecated_arguments(_parse(extra + SSH_OPTIONS), logger)
+
+    assert 'deprecated and ignored' in caplog.text
+    for _, option in ec2uploadimg.DEPRECATED_OPTIONS:
+        assert option in caplog.text
+
+
+@pytest.mark.parametrize('extra', [[], ['--use-root-swap']])
+def test_warn_deprecated_ssh_arguments_none_given(extra, caplog):
+    ec2uploadimg.warn_deprecated_arguments(_parse(extra), logger)
+    assert 'deprecated' not in caplog.text
+
+
+def test_ssh_options_are_checked_with_all_constraints(caplog):
+    args = _parse(['--use-root-swap'] + SSH_OPTIONS)
+    args.source = data_path + os.sep + 'complete.cfg'
+    ec2uploadimg.check_required_arguments_and_constraints(args, logger)
+    assert '--ssh-key-pair' in caplog.text
+
+
+def test_removed_ssh_functions_are_gone():
+    for name in (
+        'get_key_pair_name_and_ssh_private_key_file', 'get_ssh_user',
+        'get_security_group_ids'
+    ):
+        assert not hasattr(ec2uploadimg, name)
+
+
+@patch('ec2uploadimg.ec2upimg.EC2ImageUploader')
+def test_get_uploader_root_swap_passes_donor_arguments(
+    EC2ImageUploader_mock
+):
+    args = _parse([
+        '--use-root-swap',
+        '--ec2-ami', 'ami-1',
+        '--type', 't3.micro',
+        '--vpc-subnet-id', 'subnet-1',
+        '--use-enclave'
+    ] + SSH_OPTIONS)
+    setup = MagicMock()
+
+    ec2uploadimg.get_uploader(
+        args, 'region1', None, 'access', 'secret', setup, logger
+    )
+
+    kwargs = EC2ImageUploader_mock.call_args[1]
+    assert kwargs['launch_ami'] == 'ami-1'
+    assert kwargs['running_id'] is None
+    assert kwargs['launch_inst_type'] == 't3.micro'
+    assert kwargs['vpc_subnet_id'] == 'subnet-1'
+    assert kwargs['use_enclave'] is True
+    assert kwargs['upload_workers'] == 8
+    for ignored in (
+        'ssh_key_pair_name', 'ssh_key_private_key_file', 'inst_user_name',
+        'security_group_ids', 'use_private_ip', 'ssh_timeout',
+        'channel_timeout'
+    ):
+        assert ignored not in kwargs
+    # No temporary key pair or security group is created
+    setup.create_upload_key_pair.assert_not_called()
+    setup.create_security_group.assert_not_called()
+
+
+@patch('ec2uploadimg.utils.get_from_config')
+@patch('ec2uploadimg.ec2upimg.EC2ImageUploader')
+def test_get_uploader_root_swap_needs_no_ssh_config(
+    EC2ImageUploader_mock,
+    get_from_config_mock
+):
+    """Only the donor AMI, instance type and subnet are read from the
+       configuration"""
+    get_from_config_mock.side_effect = (
+        lambda account, config, region, entry, arg: {
+            'ami': 'ami-cfg', 'instance_type': 't2.micro',
+            'subnet_id_region1': 'subnet-cfg'
+        }[entry]
+    )
+    args = _parse(['--use-root-swap', '--account', 'acc'])
+
+    ec2uploadimg.get_uploader(
+        args, 'region1', None, 'access', 'secret', MagicMock(), logger
+    )
+
+    entries = [c[0][3] for c in get_from_config_mock.call_args_list]
+    assert sorted(entries) == ['ami', 'instance_type', 'subnet_id_region1']
+    kwargs = EC2ImageUploader_mock.call_args[1]
+    assert kwargs['launch_ami'] == 'ami-cfg'
+    assert kwargs['vpc_subnet_id'] == 'subnet-cfg'
+
+
+@patch('ec2uploadimg.utils.get_from_config')
+def test_get_root_swap_arguments_no_ami(get_from_config_mock, caplog):
+    get_from_config_mock.return_value = None
+    with pytest.raises(SystemExit) as excinfo:
+        ec2uploadimg.get_root_swap_arguments(
+            _parse(['--use-root-swap']), None, 'region1', MagicMock(), logger
+        )
+    assert excinfo.value.code == 1
+    assert 'Could not determine helper AMI-ID' in caplog.text
+
+
+@patch('ec2uploadimg.utils.get_from_config')
+def test_get_root_swap_arguments_no_instance_type(
+    get_from_config_mock, caplog
+):
+    get_from_config_mock.return_value = None
+    with pytest.raises(SystemExit) as excinfo:
+        ec2uploadimg.get_root_swap_arguments(
+            _parse(['--use-root-swap', '--ec2-ami', 'ami-1']),
+            None, 'region1', MagicMock(), logger
+        )
+    assert excinfo.value.code == 1
+    assert 'Could not determine the instance type' in caplog.text

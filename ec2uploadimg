@@ -19,7 +19,6 @@
 # along with ec2uploadimg. If not, see <http://www.gnu.org/licenses/>.
 
 import argparse
-import boto3
 import json
 import os
 import sys
@@ -33,25 +32,27 @@ from ec2imgutils.ec2imgutilsExceptions import (
 )
 from ec2imgutils.ec2setup import EC2Setup
 
-# Options that configure the helper instance of the root swap method. The
-# default upload uses the EBS direct APIs, such an instance is not involved
-# and the options are ignored.
+# Options that configure the donor instance of the root swap method. The
+# default upload does not use such an instance and the options are ignored.
 ROOT_SWAP_ONLY_OPTIONS = (
     ('amiID', '--ec2-ami'),
-    ('channelTimeout', '--channel-timeout'),
     ('instType', '--type'),
-    ('privateKey', '--private-key-file'),
     ('runningID', '--instance-id'),
+    ('useEnclave', '--use-enclave'),
+    ('vpcSubnetId', '--vpc-subnet-id')
+)
+# Options that were used to upload the image to the donor instance with ssh.
+# The image is uploaded with the EBS direct APIs, the donor instance is not
+# accessed. The options have no effect with any method and are ignored.
+DEPRECATED_OPTIONS = (
+    ('channelTimeout', '--channel-timeout'),
+    ('privateKey', '--private-key-file'),
     ('securityGroupIds', '--security-group-ids'),
     ('sshName', '--ssh-key-pair'),
     ('sshTimeout', '--ssh-timeout'),
     ('sshUser', '--user'),
-    ('useEnclave', '--use-enclave'),
-    ('usePrivateIP', '--use-private-ip'),
-    ('vpcSubnetId', '--vpc-subnet-id')
+    ('usePrivateIP', '--use-private-ip')
 )
-DEFAULT_SSH_TIMEOUT = 300
-DEFAULT_CHANNEL_TIMEOUT = 900
 
 # Global variables
 aborted = False
@@ -148,8 +149,9 @@ def parse_args(args):
     parser.add_argument(
         '-e', '--ec2-ami',
         dest='amiID',
-        help='AWS AMI id of the helper instance. Only used with '
-             '--use-root-swap, ignored otherwise (Optional)',
+        help='AWS AMI id of the donor instance that provides the meta '
+             'data of the image. Only used with --use-root-swap, ignored '
+             'otherwise (Optional)',
         metavar='AWS_AMI_ID',
     )
     parser.add_argument(
@@ -197,8 +199,9 @@ def parse_args(args):
     parser.add_argument(
         '-i', '--instance-id',
         dest='runningID',
-        help='ID of running helper instance. Only used with '
-             '--use-root-swap, ignored otherwise (Optional)',
+        help='ID of a running donor instance that provides the meta data '
+             'of the image. Only used with --use-root-swap, ignored '
+             'otherwise (Optional)',
         metavar='AWS_INSTANCE_ID',
     )
     parser.add_argument(
@@ -218,8 +221,8 @@ def parse_args(args):
     parser.add_argument(
         '-p', '--private-key-file',
         dest='privateKey',
-        help='Private SSH key file. Only used with --use-root-swap, '
-             'ignored otherwise (Optional)',
+        help='Deprecated and ignored, the image is uploaded without ssh '
+             '(Optional)',
         metavar='PRIVATE_KEY'
     )
     parser.add_argument(
@@ -238,8 +241,8 @@ def parse_args(args):
     parser.add_argument(
         '--ssh-key-pair',
         dest='sshName',
-        help='AWS SSH key pair name. Only used with --use-root-swap, '
-             'ignored otherwise (Optional)',
+        help='Deprecated and ignored, the image is uploaded without ssh '
+             '(Optional)',
         metavar='AWS_KEY_PAIR_NAME'
     )
     parser.add_argument(
@@ -248,9 +251,8 @@ def parse_args(args):
         help='AWS secret access key (Optional)',
         metavar='AWS_SECRET_KEY'
     )
-    help_msg = 'A comma separated listof security group ids to apply to the '
-    help_msg += 'helper instance. At least port 22 must be open. Only used '
-    help_msg += 'with --use-root-swap, ignored otherwise (Optional)'
+    help_msg = 'Deprecated and ignored, the image is uploaded without ssh '
+    help_msg += '(Optional)'
     parser.add_argument(
         '--security-group-ids',
         default='',
@@ -282,8 +284,7 @@ def parse_args(args):
         'source',
         help='The path to the image source file'
     )
-    help_msg = 'Timeout value to wait for ssh connection, default '
-    help_msg += '300s. Only used with --use-root-swap, ignored otherwise '
+    help_msg = 'Deprecated and ignored, the image is uploaded without ssh '
     help_msg += '(Optional)'
     parser.add_argument(
         '--ssh-timeout',
@@ -293,9 +294,8 @@ def parse_args(args):
         metavar='SSH_TIME_OUT',
         type=int
     )
-    help_msg = 'Timeout value for inactivity in the channel used for the '
-    help_msg += 'image upload, default 900s. Only used with --use-root-swap, '
-    help_msg += 'ignored otherwise (Optional)'
+    help_msg = 'Deprecated and ignored, the image is uploaded without ssh '
+    help_msg += '(Optional)'
     parser.add_argument(
         '--channel-timeout',
         default=None,
@@ -316,15 +316,15 @@ def parse_args(args):
     parser.add_argument(
         '-t', '--type',
         dest='instType',
-        help='Instance type of the helper instance. Only used with '
+        help='Instance type of the donor instance. Only used with '
              '--use-root-swap, ignored otherwise (Optional)',
         metavar='AWS_UPLOAD_INST_TYPE'
     )
     parser.add_argument(
         '-u', '--user',
         dest='sshUser',
-        help='The user for the ssh connection to the helper instance. Only '
-             'used with --use-root-swap, ignored otherwise (Optional)',
+        help='Deprecated and ignored, the image is uploaded without ssh '
+             '(Optional)',
         metavar='AWS_INSTANCE_USER'
     )
     parser.add_argument(
@@ -332,8 +332,8 @@ def parse_args(args):
         action='store_true',
         default=False,
         dest='usePrivateIP',
-        help='Use the helper instance private IP address to connect. Only '
-             'used with --use-root-swap, ignored otherwise (Optional)'
+        help='Deprecated and ignored, the image is uploaded without ssh '
+             '(Optional)'
     )
     parser.add_argument(
         '--use-snapshot',
@@ -348,10 +348,10 @@ def parse_args(args):
         action='store_true',
         default=False,
         dest='rootSwapMethod',
-        help='Use the root swap method to create the new image. This '
-             'method starts a helper instance and uploads the image with '
-             'ssh, by default the image is written to a snapshot with the '
-             'EBS direct APIs (Optional)'
+        help='Use the root swap method to create the new image. The image '
+             'is uploaded with the EBS direct APIs. A donor instance, that '
+             'provides the meta data of the image, gets the new root volume '
+             'and the image is created from it (Optional)'
     )
     help_msg = 'The virtualization type, only hvm is supported, default hvm '
     help_msg += '(Optional)'
@@ -378,7 +378,7 @@ def parse_args(args):
         help='Program version'
     )
     help_msg = 'The ID, starts with "subnet-" of the VPC subnet in which the '
-    help_msg += 'helper instance should run. Only used with --use-root-swap, '
+    help_msg += 'donor instance should run. Only used with --use-root-swap, '
     help_msg += 'ignored otherwise (Optional)'
     parser.add_argument(
         '--vpc-subnet-id',
@@ -387,9 +387,8 @@ def parse_args(args):
         help=help_msg,
         metavar='VPC_SUBNET_ID'
     )
-    help_msg = 'Start the helper instance that is used to'
-    help_msg += ' upload the image file and to register'
-    help_msg += ' the image to be created as an AWS Enclave. Only used with'
+    help_msg = 'Start the donor instance that provides the meta data'
+    help_msg += ' of the image as an AWS Enclave. Only used with'
     help_msg += ' --use-root-swap, ignored otherwise (Optional)'
     parser.add_argument(
         '--use-enclave',
@@ -467,6 +466,7 @@ def check_required_arguments_and_constraints(args, logger):
     check_upload_workers(args, logger)
     check_upload_retries(args, logger)
     check_upload_timeout(args, logger)
+    warn_deprecated_arguments(args, logger)
     warn_root_swap_only_arguments(args, logger)
     warn_para_virtual_arguments(args, logger)
 
@@ -527,9 +527,25 @@ def warn_para_virtual_arguments(args, logger):
 
 
 # ----------------------------------------------------------------------------
+def warn_deprecated_arguments(args, logger):
+    """This function warns about the arguments that were used to upload the
+    image with ssh, they have no effect anymore"""
+    ignored = [
+        option for attr, option in DEPRECATED_OPTIONS
+        if getattr(args, attr, None)
+    ]
+    if ignored:
+        logger.warning(
+            'The following options are deprecated and ignored, the image is '
+            'uploaded with the EBS direct APIs and no ssh connection is '
+            'needed: %s' % ', '.join(ignored)
+        )
+
+
+# ----------------------------------------------------------------------------
 def warn_root_swap_only_arguments(args, logger):
     """This function warns about arguments that only have an effect with the
-    root swap method, the default method does not use a helper instance
+    root swap method, the default method does not use a donor instance
     """
     if args.rootSwapMethod:
         return
@@ -540,7 +556,7 @@ def warn_root_swap_only_arguments(args, logger):
     if ignored:
         logger.warning(
             'The following options are deprecated and ignored, the image is '
-            'uploaded with the EBS direct APIs without a helper instance. '
+            'uploaded with the EBS direct APIs without a donor instance. '
             'They are only used with --use-root-swap: %s' % ', '.join(ignored)
         )
 
@@ -687,8 +703,7 @@ def check_tpm_support_has_allowed_boot_options(args, logger):
 def check_regions_parameter(args, logger):
     """This function checks that the provided regions parameter is allowed"""
     regions = args.regions.split(',')
-    # The boot kernel is used to register the image, the other options
-    # are only meaningful with a helper instance
+    # The options are only meaningful with a donor instance
     region_specific = []
     if args.rootSwapMethod:
         region_specific += [args.amiID, args.runningID, args.vpcSubnetId]
@@ -786,94 +801,6 @@ def get_amiID(args, config, region, logger):
 
 
 # ----------------------------------------------------------------------------
-def get_key_pair_name_and_ssh_private_key_file(
-        args,
-        config,
-        region,
-        setup,
-        logger
-):
-    """Function to get the key_pair_name and ssh_private_key_file params
-    to be used
-    """
-    key_pair_name = args.sshName
-    ssh_private_key_file = args.privateKey
-    if (
-        not key_pair_name and
-        not ssh_private_key_file and
-        not args.accountName
-    ):
-        key_pair_name, ssh_private_key_file = setup.create_upload_key_pair()
-
-    if not key_pair_name:
-        try:
-            key_pair_name = utils.get_from_config(
-                args.accountName,
-                config,
-                region,
-                'ssh_key_name',
-                '--ssh-key-pair'
-            )
-        except Exception as e:
-            logger.error(e)
-            sys.exit(1)
-
-    if not key_pair_name:
-        logger.error('Could not determine key pair name')
-        sys.exit(1)
-
-    if not ssh_private_key_file:
-        try:
-            ssh_private_key_file = utils.get_from_config(
-                args.accountName,
-                config,
-                region,
-                'ssh_private_key',
-                '--private-key-file'
-            )
-        except Exception as e:
-            logger.error(e)
-            sys.exit(1)
-
-    if not ssh_private_key_file:
-        logger.error('Could not determine the private ssh key file')
-
-    ssh_private_key_file = os.path.expanduser(str(ssh_private_key_file))
-
-    if not os.path.exists(ssh_private_key_file):
-        logger.error(
-            'SSH private key file "%s" does not exist'
-            % ssh_private_key_file
-        )
-        sys.exit(1)
-
-    return key_pair_name, ssh_private_key_file
-
-
-# ----------------------------------------------------------------------------
-def get_ssh_user(args, config, region, logger):
-    """Function to get the ssh_user param"""
-    ssh_user = args.sshUser
-    if not ssh_user:
-        try:
-            ssh_user = utils.get_from_config(
-                args.accountName,
-                config,
-                region,
-                'user',
-                '--user'
-            )
-        except Exception as e:
-            logger.error(e)
-            sys.exit(1)
-
-    if not ssh_user:
-        logger.error('Could not determine ssh user to use')
-        sys.exit(1)
-    return ssh_user
-
-
-# ----------------------------------------------------------------------------
 def get_vpc_subnet_id(args, config, region, setup,  logger):
     """Function to get the vpn_subnet parameter"""
     vpc_subnet_id = args.vpcSubnetId
@@ -913,65 +840,6 @@ def get_vpc_subnet_id(args, config, region, setup,  logger):
             logger.error(msg % region)
             setup.clean_up()
             sys.exit(1)
-
-
-# ----------------------------------------------------------------------------
-def get_security_group_ids(
-        args,
-        config,
-        region,
-        access_key,
-        secret_key,
-        setup,
-        vpc_subnet_id,
-        logger
-):
-    """Function to get the security_group_ids parameter"""
-    security_group_ids = args.securityGroupIds
-
-    if not security_group_ids and not args.runningID:
-        if args.accountName:
-            try:
-                security_group_ids = utils.get_from_config(
-                    args.accountName,
-                    config,
-                    region,
-                    'security_group_ids_%s' % region,
-                    '--security-group-ids'
-                )
-
-                if security_group_ids:
-                    msg = 'Using Security Group IDs: %s'
-                    logger.debug(msg % security_group_ids)
-            except Exception:
-                msg = 'No security group specified in the '
-                msg += 'configuration, "security_group_ids_%s" or '
-                msg += 'given on the command line.'
-                logger.error(msg)
-
-            if not security_group_ids and vpc_subnet_id:
-                ec2 = boto3.client(
-                    aws_access_key_id=access_key,
-                    aws_secret_access_key=secret_key,
-                    region_name=region,
-                    service_name='ec2'
-                )
-
-                subnet_data = ec2.describe_subnets(SubnetIds=[vpc_subnet_id])
-
-                subnets = subnet_data.get('Subnets')
-                if not subnets:
-                    msg = 'Unable to obtain VPC information for '
-                    msg += 'provided subnet "%s". ' % vpc_subnet_id
-                    msg += 'Subnet ID is invalid.'
-                    logger.error(msg)
-                    sys.exit(1)
-                vpc_id = subnets[0]['VpcId']
-                security_group_ids = setup.create_security_group(
-                    vpc_id
-                )
-    security_group_ids = security_group_ids or setup.create_security_group()
-    return security_group_ids
 
 
 # ----------------------------------------------------------------------------
@@ -1016,32 +884,26 @@ def get_root_swap_arguments(
         args,
         config,
         region,
-        access_key,
-        secret_key,
         setup,
         logger
 ):
     """Function to get the arguments of the EC2ImageUploader that describe the
-    helper instance, only the root swap method needs one
+    donor instance, only the root swap method needs one. The donor instance
+    provides the meta data of the new image, it is not accessed
     """
     ami_id = args.amiID
     running_id = args.runningID
 
     if not ami_id and not running_id:
         ami_id = get_amiID(args, config, region, logger)
+        if not ami_id:
+            logger.error('Could not determine helper AMI-ID')
+            sys.exit(1)
 
     inst_type = get_inst_type(args, config, region, logger)
-
-    key_pair_name, ssh_private_key_file = \
-        get_key_pair_name_and_ssh_private_key_file(
-            args,
-            config,
-            region,
-            setup,
-            logger
-        )
-
-    ssh_user = get_ssh_user(args, config, region, logger)
+    if not inst_type:
+        logger.error('Could not determine the instance type')
+        sys.exit(1)
 
     vpc_subnet_id = get_vpc_subnet_id(
         args,
@@ -1051,35 +913,10 @@ def get_root_swap_arguments(
         logger
     )
 
-    security_group_ids = get_security_group_ids(
-        args,
-        config,
-        region,
-        access_key,
-        secret_key,
-        setup,
-        vpc_subnet_id,
-        logger
-    )
-
-    ssh_timeout = args.sshTimeout
-    if ssh_timeout is None:
-        ssh_timeout = DEFAULT_SSH_TIMEOUT
-    channel_timeout = args.channelTimeout
-    if channel_timeout is None:
-        channel_timeout = DEFAULT_CHANNEL_TIMEOUT
-
     return {
-        'inst_user_name': ssh_user,
         'launch_ami': ami_id,
         'launch_inst_type': inst_type,
         'running_id': running_id,
-        'security_group_ids': security_group_ids,
-        'ssh_key_pair_name': key_pair_name,
-        'ssh_key_private_key_file': ssh_private_key_file,
-        'ssh_timeout': ssh_timeout,
-        'channel_timeout': channel_timeout,
-        'use_private_ip': args.usePrivateIP,
         'vpc_subnet_id': vpc_subnet_id,
         'use_enclave': args.useEnclave
     }
@@ -1107,8 +944,6 @@ def get_uploader(
                     args,
                     config,
                     region,
-                    access_key,
-                    secret_key,
                     setup,
                     logger
                 )

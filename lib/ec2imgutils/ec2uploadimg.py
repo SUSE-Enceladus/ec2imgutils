@@ -21,13 +21,10 @@ import botocore.config
 import concurrent.futures
 import contextlib
 import hashlib
-import json
 import logging
 import lzma
 import os
-import paramiko
 import random
-import socket
 import sys
 import tarfile
 import threading
@@ -80,9 +77,10 @@ class EC2ImageUploader(EC2ImgUtils):
     """Upload the given image to Amazon EC2
 
     By default the image is written to a new EBS snapshot with the EBS direct
-    APIs, no EC2 instance is involved. The root swap method (and the helper
-    methods it relies on: SSH connection, volume handling) still uses a
-    temporary helper instance."""
+    APIs, no EC2 instance is needed for the upload. The root swap method
+    additionally uses a donor instance (called helper instance in the code),
+    it provides the meta data of the new image and gets a root volume that is
+    created from the uploaded image. The donor instance is not accessed."""
 
     def __init__(self,
                  access_key=None,
@@ -140,37 +138,28 @@ class EC2ImageUploader(EC2ImgUtils):
         self.image_name = image_name
         self.image_virt_type = 'hvm'
         self.imds_support = imds_support
-        self.inst_user_name = inst_user_name
         self.launch_ami_id = launch_ami
         self.launch_ins_type = launch_inst_type
         self.region = region
         self.root_volume_size = int(root_volume_size)
         self.running_id = running_id
         self.secret_key = secret_key
-        self.security_group_ids = security_group_ids
         self.session_token = session_token
         self.sriov_type = sriov_type
-        self.ssh_key_pair_name = ssh_key_pair_name
-        self.ssh_key_private_key_file = ssh_key_private_key_file
-        self.ssh_timeout = ssh_timeout
-        self.channel_timeout = channel_timeout
         self.tpm = tpm_support
-        self.use_private_ip = use_private_ip
         self.vpc_subnet_id = vpc_subnet_id
         self.use_enclave = use_enclave
         self.wait_count = wait_count
 
         self.created_volumes = []
         self.default_sleep = 10
-        self.device_ids = ['f', 'g', 'h', 'i', 'j']
+        # Instances that are terminated by the clean up. An instance given
+        # with running_id is only added when the swap of its root volume
+        # starts, a failure before that must leave it untouched.
         self.instance_ids = []
-        if self.running_id:
-            self.instance_ids.append(self.running_id)
-        self.next_device_id = 0
         self.operation_complete = False
-        self.percent_transferred = 0
-        self.ssh_client = None
-        self.storage_volume_size = 2 * self.root_volume_size
+        self.temporary_snapshot_ids = []
+        self.helper_instance = None
         self.aborted = False
         self.image_tags = image_tags
         self.pending_snapshot_id = None
@@ -189,6 +178,15 @@ class EC2ImageUploader(EC2ImgUtils):
                 'The bootkernel and use_grub2 arguments are deprecated and '
                 'ignored, para-virtual images are no longer supported'
             )
+        self._warn_deprecated_arguments(
+            inst_user_name=inst_user_name,
+            security_group_ids=security_group_ids,
+            ssh_key_pair_name=ssh_key_pair_name,
+            ssh_key_private_key_file=ssh_key_private_key_file,
+            ssh_timeout=ssh_timeout != 300,
+            channel_timeout=channel_timeout != 900,
+            use_private_ip=use_private_ip
+        )
         if self.upload_workers < 1:
             raise EC2UploadImgException(
                 'upload_workers must be an integer greater than 0'
@@ -214,6 +212,18 @@ class EC2ImageUploader(EC2ImgUtils):
                 'imds_support must be one of %s' % str(imds_versions)
             )
 
+    def _warn_deprecated_arguments(self, **arguments):
+        """Warn about the arguments that were only used for the upload with
+           ssh, the image is uploaded with the EBS direct APIs"""
+        ignored = sorted(name for name, value in arguments.items() if value)
+        if ignored:
+            self.log.warning(
+                'The following arguments are deprecated and ignored, the '
+                'image is uploaded with the EBS direct APIs and no ssh '
+                'connection is needed: %s' % ', '.join(ignored)
+            )
+
+    # ---------------------------------------------------------------------
     @staticmethod
     def _positive_int(value, name):
         """Return the value as integer, it must be greater than 0"""
@@ -239,12 +249,10 @@ class EC2ImageUploader(EC2ImgUtils):
         self.aborted = True
 
     # ---------------------------------------------------------------------
-    def _attach_volume(self, volume, device=None):
-        """Attach the given volume to the given instance"""
+    def _attach_volume(self, volume, device):
+        """Attach the given volume to the donor instance"""
         if self.aborted:
             return
-        if not device:
-            device = self._get_next_disk_id()
         self._connect().attach_volume(
                 VolumeId=volume['VolumeId'],
                 InstanceId=self.helper_instance['InstanceId'],
@@ -277,14 +285,6 @@ class EC2ImageUploader(EC2ImgUtils):
             )
 
     # ---------------------------------------------------------------------
-    def _change_mount_point_permissions(self, target, permissions):
-        """Change the permissions of the given target to the given value"""
-        command = 'chmod %s %s' % (permissions, target)
-        result = self._execute_ssh_command(command)
-
-        return result
-
-    # ---------------------------------------------------------------------
     def _check_image_exists(self):
         """Check if an image with the given name already exists"""
         my_images = self._get_owned_images()
@@ -292,18 +292,6 @@ class EC2ImageUploader(EC2ImgUtils):
             if image['Name'] == self.image_name:
                 msg = 'Image with name "%s" already exists' % self.image_name
                 raise EC2UploadImgException(msg)
-
-    # ---------------------------------------------------------------------
-    def _check_security_groups_exist(self):
-        """Check that the specified security groups exist"""
-        try:
-            self._connect().describe_security_groups(
-                GroupIds=self.security_group_ids.split(',')
-            )
-        except Exception:
-            error_msg = 'One or more of the specified security groups '
-            error_msg += 'could not be found: %s' % self.security_group_ids
-            raise EC2UploadImgException(error_msg)
 
     # ---------------------------------------------------------------------
     def _check_subnet_exists(self):
@@ -381,17 +369,19 @@ class EC2ImageUploader(EC2ImgUtils):
     def _clean_up(self):
         """Clean up the given resources"""
         self._delete_pending_snapshot()
-        if self.ssh_client:
-            self.ssh_client.close()
         if self.instance_ids:
             self._connect().terminate_instances(InstanceIds=self.instance_ids)
             waiter = self._connect().get_waiter('instance_terminated')
+            if self.helper_instance:
+                instance_ids = [self.helper_instance['InstanceId']]
+            else:
+                instance_ids = list(self.instance_ids)
             repeat_count = 1
             error_msg = 'Instance did not stop within allotted time'
             while repeat_count <= self.wait_count:
                 try:
                     wait_status = waiter.wait(
-                        InstanceIds=[self.helper_instance['InstanceId']],
+                        InstanceIds=instance_ids,
                         Filters=[
                             {
                                 'Name': 'instance-state-name',
@@ -416,6 +406,7 @@ class EC2ImageUploader(EC2ImgUtils):
 
         self.created_volumes = []
         self.instance_ids = []
+        self._delete_temporary_snapshots()
 
     # ---------------------------------------------------------------------
     def _create_block_device_map(self, snapshot):
@@ -446,77 +437,48 @@ class EC2ImageUploader(EC2ImgUtils):
 
     # ---------------------------------------------------------------------
     def _create_image_root_volume(self, source):
+        """Create a volume with the content of the image in the availability
+           zone of the donor instance. The donor instance provides the meta
+           data for the new image. The image is written to a temporary
+           snapshot with the EBS direct APIs, the volume is created from it"""
         if self.aborted:
             return
-        """Create a root volume from the image"""
-        self._check_image_exists()
         if self.vpc_subnet_id:
             self._check_subnet_exists()
-        if self.security_group_ids:
-            self._check_security_groups_exist()
         if self.running_id:
             # When using an already running instance, simply look up this one
-            helper_instance = self._get_helper_instance()
-        else:
-            helper_instance = self._launch_helper_instance()
-        self.helper_instance = helper_instance
-        store_volume = self._create_storage_volume()
-        self._attach_volume(store_volume)
-        self._establish_ssh_connection()
-        store_device_id = self._find_device_name(self.storage_volume_size)
-        target_root_volume = self._create_target_root_volume()
-        self._attach_volume(target_root_volume)
-        target_root_device_id = self._find_device_name(self.root_volume_size)
-        self._format_storage_volume(store_device_id)
-        self._create_storage_filesystem(store_device_id)
-        mount_point = self._mount_storage_volume(store_device_id)
-        self._change_mount_point_permissions(mount_point, '777')
-        image_filename = self._upload_image(mount_point, source)
-        raw_image_filename = self._unpack_image(mount_point, image_filename)
-        self._dump_root_fs(
-            mount_point,
-            raw_image_filename,
-            target_root_device_id
+            self.helper_instance = self._get_helper_instance()
+        snapshot = self._create_snapshot_from_image(source, temporary=True)
+        if not snapshot or self.aborted:
+            self._clean_up()
+            return
+        if not self.running_id:
+            self.helper_instance = self._launch_helper_instance()
+        if not self.helper_instance or self.aborted:
+            self._clean_up()
+            return
+        target_root_volume = self._create_volume(
+            self.root_volume_size, snapshot['SnapshotId']
         )
-        self._execute_ssh_command('umount %s' % mount_point)
-        self._end_ssh_session()
-        self._detach_volume(target_root_volume)
-        self._detach_volume(store_volume)
+        if not target_root_volume or self.aborted:
+            self._clean_up()
+            return
 
         return target_root_volume
 
     # ---------------------------------------------------------------------
-    def _create_storage_filesystem(self, device_id):
-        """Create an ext3 filesystem on the storage volume"""
-        self.log.debug('Creating ext3 filesystem on storage volume')
-        filesystem_partition = '%s1' % device_id
-        command = 'mkfs -t ext3 %s' % filesystem_partition
-        result = self._execute_ssh_command(command)
-
-        return result
-
-    # ---------------------------------------------------------------------
-    def _create_storage_volume(self):
-        """Create the volume that will be used to store the image before
-           dumping it to the new root volume"""
-        return self._create_volume('%s' % self.storage_volume_size)
-
-    # ---------------------------------------------------------------------
-    def _create_target_root_volume(self):
-        """Create the volume that will be used as the root volume for
-           the image we are creating."""
-        return self._create_volume('%s' % self.root_volume_size)
-
-    # ---------------------------------------------------------------------
-    def _create_volume(self, size):
-        """Create a volume"""
+    def _create_volume(self, size, snapshot_id=None):
+        """Create a volume, optionally from a snapshot"""
         if self.aborted:
             return
-        volume = self._connect().create_volume(
-            Size=int(size),
-            AvailabilityZone=self.zone,
-            VolumeType='gp2'
-        )
+        volume_args = {
+            'Size': int(size),
+            'AvailabilityZone': self.zone,
+            'VolumeType': 'gp2'
+        }
+        if snapshot_id:
+            volume_args['SnapshotId'] = snapshot_id
+        volume = self._connect().create_volume(**volume_args)
         self.log.debug(
             'Waiting for volume creation: {}'.format(volume['VolumeId'])
         )
@@ -598,206 +560,6 @@ class EC2ImageUploader(EC2ImgUtils):
         return '/dev/sda1'
 
     # ---------------------------------------------------------------------
-    def _device_exists(self, device_id):
-        """Verify that the device node can be found on the remote system"""
-        command = 'ls %s' % device_id
-        result = self._execute_ssh_command(command)
-
-        return device_id == result
-
-    # ---------------------------------------------------------------------
-    def _dump_root_fs(self, image_dir, raw_image_name, target_root_device):
-        """Dump the raw image to the target device"""
-        if self.aborted:
-            return
-        self.log.debug('Dumping raw image to new target root volume')
-        command = 'dd if=%s/%s of=%s bs=32k' % (image_dir,
-                                                raw_image_name,
-                                                target_root_device)
-        result = self._execute_ssh_command(command)
-
-        return result
-
-    # ---------------------------------------------------------------------
-    def _end_ssh_session(self):
-        """End the SSH session"""
-        if not self.ssh_client:
-            return
-
-        self.ssh_client.close()
-        del self.ssh_client
-        self.ssh_client = None
-
-        return 1
-
-    # ---------------------------------------------------------------------
-    def _establish_ssh_connection(self):
-        """Connect to the running instance with ssh"""
-        if self.aborted:
-            return
-        self.log.debug('Waiting to obtain instance IP address')
-        instance_ip = self.helper_instance.get('PublicIpAddress')
-        if self.use_private_ip:
-            instance_ip = self.helper_instance.get('PrivateIpAddress')
-        timeout_counter = 1
-        while not instance_ip:
-            instance = self._connect().describe_instances(
-                InstanceIds=[self.helper_instance['InstanceId']]
-            )['Reservations'][0]['Instances'][0]
-            instance_ip = instance.get('PublicIpAddress')
-            if self.use_private_ip:
-                instance_ip = instance.get('PrivateIpAddress')
-            if self.log_level == logging.DEBUG:
-                print('. ', end=' ')
-                sys.stdout.flush()
-            if timeout_counter * self.default_sleep >= self.ssh_timeout:
-                msg = 'Unable to obtain the instance IP address'
-                raise EC2UploadImgException(msg)
-            timeout_counter += 1
-        if self.log_level == logging.DEBUG:
-            print()
-        client = paramiko.client.SSHClient()
-        client.set_missing_host_key_policy(paramiko.WarningPolicy())
-        self.log.debug('Attempt ssh connection to %s' % instance_ip)
-        ssh_connection = None
-        timeout_counter = 1
-        while not ssh_connection:
-            try:
-                ssh_connection = client.connect(
-                    key_filename=self.ssh_key_private_key_file,
-                    username=self.inst_user_name,
-                    hostname=instance_ip,
-                    timeout=self.ssh_timeout,
-                    banner_timeout=self.ssh_timeout,
-                    auth_timeout=self.ssh_timeout
-                )
-            except (Exception, ConnectionResetError):
-                if self.log_level == logging.DEBUG:
-                    print('. ', end=' ')
-                    sys.stdout.flush()
-                time.sleep(self.default_sleep)
-                if (
-                        timeout_counter * self.default_sleep >=
-                        self.ssh_timeout):
-                    self._clean_up()
-                    msg = 'Time out for ssh connection reached, '
-                    msg += 'could not connect'
-                    raise EC2UploadImgException(msg)
-                timeout_counter += 1
-            else:
-                ssh_connection = True
-                print()
-
-        self.ssh_client = client
-
-    # ---------------------------------------------------------------------
-    def _execute_ssh_command(self, command):
-        """Execute a command on the remote machine, on error raise an exception
-           return the result of stdout"""
-        if self.aborted:
-            return
-        if self.inst_user_name != 'root':
-            command = 'sudo %s' % command
-
-        if not self.ssh_client:
-            msg = 'No ssh connection established, cannot execute command'
-            raise EC2UploadImgException(msg)
-        stdin, stdout, stderr = self.ssh_client.exec_command(command,
-                                                             get_pty=True)
-        cmd_error = stderr.read()
-        if cmd_error:
-            self._clean_up()
-            msg = 'Execution of "%s" failed with the following error' % command
-            msg += '\n%s' % cmd_error
-            raise EC2UploadImgException(msg)
-
-        return stdout.read().strip().decode('utf-8')
-
-    # ---------------------------------------------------------------------
-    def _find_device_name(self, device_size):
-        """Match an attached volume by size"""
-        try:
-            lsblk_out = json.loads(self._execute_ssh_command('lsblk -a -J'))
-        except Exception:
-            self.log.error(
-                '"lsblk -a -J" command failed on helper instance. Ensure the '
-                'helper instance has lsblk >= 2.27 which has the json option.'
-            )
-            lsblk_out = {'blockdevices': tuple()}
-
-        for device in lsblk_out['blockdevices']:
-            if device.get('children'):
-                continue
-            this_device_size = device['size']
-            unit = this_device_size[-1]
-            try:
-                size = int(this_device_size[:-1])
-            except ValueError:
-                self.log.info('Skipping non integer sized disk')
-                continue
-
-            size_multiplier = 1
-            if unit == 'T':
-                size_multiplier = 1024
-            disk_size = size * size_multiplier
-            if disk_size == device_size:
-                # We do not need to worry about finding the same device twice
-                # Only 2 disks get attached and they are known to have
-                # different sizes
-                return '/dev/%s' % device['name']
-
-        self._clean_up()
-        msg = 'Could not find attached disk device with size %sG' % device_size
-        raise EC2UploadImgException(msg)
-
-    # ---------------------------------------------------------------------
-    def _format_storage_volume(self, device_id):
-        """Format the storage volume"""
-        if self.aborted:
-            return
-        self.log.debug('Formating storage volume')
-        parted = self._get_command_from_instance('parted')
-        sfdisk = None
-        if not parted:
-            sfdisk = self._get_command_from_instance('sfdisk')
-
-        if not parted and not sfdisk:
-            self._clean_up()
-            msg = 'Neither parted nor sfdisk found on target image. '
-            msg += 'Need to partition storage device but cannot, exiting.'
-            raise EC2UploadImgException(msg)
-
-        if parted:
-            command = '%s -s %s mklabel gpt' % (parted, device_id)
-            result = self._execute_ssh_command(command)
-            blockdev = self._get_command_from_instance('blockdev')
-            command = '%s --getsize %s' % (blockdev, device_id)
-            size = self._execute_ssh_command(command)
-            command = ('%s -s %s unit s mkpart primary 2048 %d' %
-                       (parted, device_id, int(size)-100))
-            result = self._execute_ssh_command(command)
-        else:
-            command = 'echo ",,L" > /tmp/partition.txt'
-            result = self._execute_ssh_command(command)
-            command = '%s %s < /tmp/partition.txt' % (sfdisk, device_id)
-            result = self._execute_ssh_command(command)
-
-        return result
-
-    # ---------------------------------------------------------------------
-    def _get_command_from_instance(self, command):
-        """Get the location of the given command from the instance"""
-        if self.aborted:
-            return
-        loc_cmd = 'which %s' % command
-        location = self._execute_ssh_command(loc_cmd)
-
-        if location.find('which: no') != -1:
-            location = ''
-
-        return location
-
-    # ---------------------------------------------------------------------
     def _get_helper_instance(self):
         """Returns handle to running instance"""
         helper_instance = self._connect().describe_instances(
@@ -812,76 +574,35 @@ class EC2ImageUploader(EC2ImgUtils):
         return helper_instance
 
     # ---------------------------------------------------------------------
-    def _get_next_disk_id(self):
-        """Return the next device name for a storage volume"""
-        device = '/dev/sd' + self.device_ids[self.next_device_id]
-        self.next_device_id += 1
-
-        return device
-
-    # ---------------------------------------------------------------------
     def _launch_helper_instance(self):
-        """Launch the helper instance that is used to create the new image"""
+        """Launch the donor instance that provides the meta data for the new
+           image, it is not accessed, it is stopped and gets the new root
+           volume"""
         if self.aborted:
             return
         self._set_zone_to_use()
-        if self.security_group_ids:
-            instance = self._connect().run_instances(
-                ImageId=self.launch_ami_id,
-                MinCount=1,
-                MaxCount=1,
-                KeyName=self.ssh_key_pair_name,
-                InstanceType=self.launch_ins_type,
-                Placement={'AvailabilityZone': self.zone},
-                EnclaveOptions={'Enabled': self.use_enclave},
-                NetworkInterfaces=[
-                    {
-                        'DeviceIndex': 0,
-                        'AssociatePublicIpAddress': not self.use_private_ip,
-                        'SubnetId': self.vpc_subnet_id,
-                        'Groups': self.security_group_ids.split(',')
-                    }
-                ],
-                TagSpecifications=[
-                    {
-                        'ResourceType': 'instance',
-                        'Tags': [
-                            {
-                                'Key': 'Name',
-                                'Value': 'ec2uploadimg-helper-instance'
-                            }
-                        ]
-                    }
-                ]
-            )['Instances'][0]
-        else:
-            instance = self._connect().run_instances(
-                ImageId=self.launch_ami_id,
-                MinCount=1,
-                MaxCount=1,
-                KeyName=self.ssh_key_pair_name,
-                InstanceType=self.launch_ins_type,
-                Placement={'AvailabilityZone': self.zone},
-                EnclaveOptions={'Enabled': self.use_enclave},
-                NetworkInterfaces=[
-                    {
-                        'DeviceIndex': 0,
-                        'AssociatePublicIpAddress': not self.use_private_ip,
-                        'SubnetId': self.vpc_subnet_id
-                    }
-                ],
-                TagSpecifications=[
-                    {
-                        'ResourceType': 'instance',
-                        'Tags': [
-                            {
-                                'Key': 'Name',
-                                'Value': 'ec2uploadimg-helper-instance'
-                            }
-                        ]
-                    }
-                ]
-            )['Instances'][0]
+        launch_args = {
+            'ImageId': self.launch_ami_id,
+            'MinCount': 1,
+            'MaxCount': 1,
+            'InstanceType': self.launch_ins_type,
+            'Placement': {'AvailabilityZone': self.zone},
+            'EnclaveOptions': {'Enabled': self.use_enclave},
+            'TagSpecifications': [
+                {
+                    'ResourceType': 'instance',
+                    'Tags': [
+                        {
+                            'Key': 'Name',
+                            'Value': 'ec2uploadimg-helper-instance'
+                        }
+                    ]
+                }
+            ]
+        }
+        if self.vpc_subnet_id:
+            launch_args['SubnetId'] = self.vpc_subnet_id
+        instance = self._connect().run_instances(**launch_args)['Instances'][0]
 
         self.instance_ids.append(instance['InstanceId'])
 
@@ -916,16 +637,6 @@ class EC2ImageUploader(EC2ImgUtils):
             )
 
         return instance
-
-    # ---------------------------------------------------------------------
-    def _mount_storage_volume(self, device_id):
-        """Mount the storage volume"""
-        mount_point = '/mnt'
-        mount_device = '%s1' % device_id
-        command = 'mount %s %s' % (mount_device, mount_point)
-        self._execute_ssh_command(command)
-
-        return mount_point
 
     # ---------------------------------------------------------------------
     def _register_image(self, snapshot):
@@ -1032,85 +743,6 @@ class EC2ImageUploader(EC2ImgUtils):
                 self.log.debug(msg)
 
     # ---------------------------------------------------------------------
-    def _upload_image(self, target_dir, source):
-        """Upload the source file to the instance"""
-
-        if self.aborted:
-            return
-        filename = source.split(os.sep)[-1]
-        sftp = self.ssh_client.open_sftp()
-        try:
-            sftp.get_channel().settimeout(self.channel_timeout)
-            self.log.debug('Uploading image file: {}'.format(source))
-            sftp.put(source,
-                     '%s/%s' % (target_dir, filename),
-                     self._upload_progress)
-            if self.log_level == logging.DEBUG:
-                print()
-        except socket.timeout:
-            self._clean_up()
-            error_msg = 'Channel timeout reached during upload process.'
-            raise EC2UploadImgException(error_msg)
-        except Exception as e:
-            self._clean_up()
-            raise e
-        finally:
-            sftp.close()
-
-        return filename
-
-    # ---------------------------------------------------------------------
-    def _upload_progress(self, transferred_bytes, total_bytes):
-        """In verbose mode give an upload progress indicator"""
-        if self.log_level == logging.DEBUG:
-            percent_complete = (float(transferred_bytes) / total_bytes) * 100
-            if percent_complete - self.percent_transferred >= 10:
-                print('.', end=' ')
-                sys.stdout.flush()
-                self.percent_transferred = percent_complete
-
-        return 1
-
-    # ---------------------------------------------------------------------
-    def _unpack_image(self, image_dir, image_filename):
-        """Unpack the uploaded image file"""
-        if self.aborted:
-            return
-        raw_image_file = None
-        files = ''
-        if (
-                image_filename.find('.tar') != -1 or
-                image_filename.find('.tbz') != -1 or
-                image_filename.find('.tgz') != -1):
-            command = 'tar -C %s -xvf %s/%s' % (image_dir,
-                                                image_dir,
-                                                image_filename)
-            files = self._execute_ssh_command(command).split('\r\n')
-        elif image_filename[-2:] == 'xz':
-            files = [image_filename]
-        elif image_filename[-3:] == 'raw':
-            raw_image_file = image_filename
-
-        if files:
-            # Find the disk image
-            for fl in files:
-                if fl.strip()[-2:] == 'xz':
-                    self.log.debug('Inflating image: {}'.format(fl))
-                    command = 'xz -d %s/%s' % (image_dir, fl)
-                    self._execute_ssh_command(command)
-                    raw_image_file = fl.strip()[:-3]
-                    break
-                if fl.strip()[-4:] == '.raw':
-                    raw_image_file = fl.strip()
-                    break
-        if not raw_image_file:
-            self._clean_up()
-            msg = 'Unable to find raw image file with .raw extension'
-            raise EC2UploadImgException(msg)
-
-        return raw_image_file
-
-    # ---------------------------------------------------------------------
     # Image upload using the EBS direct APIs
     # ---------------------------------------------------------------------
     def _complete_snapshot(self, ebs, snapshot_id, digests):
@@ -1146,8 +778,10 @@ class EC2ImageUploader(EC2ImgUtils):
         )
 
     # ---------------------------------------------------------------------
-    def _create_snapshot_from_image(self, source):
-        """Write the raw image data of the source file to a new snapshot"""
+    def _create_snapshot_from_image(self, source, temporary=False):
+        """Write the raw image data of the source file to a new snapshot.
+           A temporary snapshot is deleted when the resources are cleaned up,
+           it is the source of a volume and not the result of the upload"""
         if self.aborted:
             return
         self._check_image_exists()
@@ -1165,9 +799,37 @@ class EC2ImageUploader(EC2ImgUtils):
             self._clean_up()
             raise
 
+        if temporary:
+            self.temporary_snapshot_ids.append(snapshot_id)
         self._wait_for_snapshot(snapshot_id)
 
         return {'SnapshotId': snapshot_id}
+
+    # ---------------------------------------------------------------------
+    def _claim_running_instance(self):
+        """The root volume of the donor instance is about to be replaced.
+           From here on an instance that was given with running_id is cleaned
+           up with the resources created by the upload"""
+        if self.running_id and self.running_id not in self.instance_ids:
+            self.instance_ids.append(self.running_id)
+
+    # ---------------------------------------------------------------------
+    def _delete_temporary_snapshots(self):
+        """Delete the snapshots that were only needed to create volumes"""
+        snapshot_ids = self.temporary_snapshot_ids
+        self.temporary_snapshot_ids = []
+        for snapshot_id in snapshot_ids:
+            self.log.debug(
+                'Deleting temporary snapshot: {}'.format(snapshot_id)
+            )
+            try:
+                self._connect().delete_snapshot(SnapshotId=snapshot_id)
+            except Exception as e:
+                self.log.warning(
+                    'Unable to delete temporary snapshot %s: %s' % (
+                        snapshot_id, e
+                    )
+                )
 
     # ---------------------------------------------------------------------
     def _delete_pending_snapshot(self):
@@ -1462,7 +1124,20 @@ class EC2ImageUploader(EC2ImgUtils):
            the root swap method"""
 
         self._check_virt_type_consistent()
-        target_root_volume = self._create_image_root_volume(source)
+        try:
+            target_root_volume = self._create_image_root_volume(source)
+        except Exception:
+            # Remove what was created, an instance given with running_id is
+            # not touched before the swap of the root volume
+            try:
+                self._clean_up()
+            except Exception as error:
+                self.log.warning('Clean up failed: %s' % error)
+            raise
+        if not target_root_volume:
+            # The upload was aborted
+            return
+        self._claim_running_instance()
         self._connect().stop_instances(InstanceIds=self.instance_ids)
         self.log.debug('Waiting for helper instance to stop')
         self.operation_complete = False
