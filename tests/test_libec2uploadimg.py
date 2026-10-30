@@ -21,6 +21,7 @@
 
 import base64
 import boto3
+import botocore.config
 import botocore.exceptions
 import hashlib
 import inspect
@@ -1236,7 +1237,7 @@ def test_wait_for_snapshot_aborted():
 @patch('ec2imgutils.ec2imgutils.boto3')
 def test_connect_ebs_service(boto3_mock):
     uploader = _make_uploader(region='us-east-1')
-    config = object()
+    config = botocore.config.Config(read_timeout=5)
 
     client = uploader._connect(service='ebs', config=config)
 
@@ -2770,3 +2771,70 @@ def test_running_instance_terminated_after_swap_started(connect_mock):
     ec2.terminate_instances.assert_called_once_with(
         InstanceIds=['i-running']
     )
+
+
+# -----------------------------------------------------------------------------
+# Tests for the type check of the config of the client
+@pytest.mark.parametrize('config,type_name', [
+    ({'read_timeout': 5}, 'dict'),
+    ('config', 'str'),
+    (5, 'int')
+])
+@patch('ec2imgutils.ec2imgutils.boto3')
+def test_connect_config_wrong_type(boto3_mock, config, type_name):
+    uploader = _make_uploader(region='us-east-1')
+
+    with pytest.raises(TypeError) as exc:
+        uploader._connect(service='ebs', config=config)
+
+    assert 'config must be a botocore.config.Config' in str(exc.value)
+    assert type_name in str(exc.value)
+    # Nothing is created before the check
+    boto3_mock.client.assert_not_called()
+    boto3_mock.session.Session.assert_not_called()
+
+
+@patch('ec2imgutils.ec2imgutils.boto3')
+def test_connect_config_wrong_type_without_region(boto3_mock):
+    uploader = _make_uploader()
+
+    with pytest.raises(TypeError):
+        uploader._connect(config={})
+
+    assert uploader.region is None
+
+
+@patch('ec2imgutils.ec2imgutils.boto3')
+def test_connect_config_accepted(boto3_mock):
+    uploader = _make_uploader(region='us-east-1')
+    config = botocore.config.Config(read_timeout=5)
+
+    uploader._connect(service='ebs', config=config)
+
+    session = boto3_mock.session.Session.return_value
+    assert session.client.call_args[1]['config'] is config
+
+
+@patch('ec2imgutils.ec2imgutils.boto3')
+def test_connect_config_accepted_session_token(boto3_mock):
+    uploader = _make_uploader(region='us-east-1', session_token='token')
+    config = botocore.config.Config(read_timeout=5)
+
+    uploader._connect(service='ebs', config=config)
+
+    assert boto3_mock.client.call_args[1]['config'] is config
+
+
+@patch('ec2imgutils.ec2imgutils.boto3')
+def test_connect_config_subclass_accepted(boto3_mock):
+
+    class MyConfig(botocore.config.Config):
+        pass
+
+    uploader = _make_uploader(region='us-east-1')
+    config = MyConfig()
+
+    uploader._connect(config=config)
+
+    session = boto3_mock.session.Session.return_value
+    assert session.client.call_args[1]['config'] is config

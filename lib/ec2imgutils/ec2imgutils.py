@@ -16,6 +16,7 @@
 # along with ec2imgutils.ase.  If not, see <http://www.gnu.org/licenses/>.
 
 import boto3
+import botocore.config
 import logging
 
 from ec2imgutils.ec2imgutilsExceptions import EC2ConnectionException
@@ -44,6 +45,13 @@ class EC2ImgUtils:
     # ---------------------------------------------------------------------
     def _connect(self, service='ec2', config=None):
         """Connect to the given AWS service, EC2 by default"""
+
+        if config is not None and not isinstance(
+                config, botocore.config.Config):
+            raise TypeError(
+                'config must be a botocore.config.Config, got %s'
+                % type(config).__name__
+            )
 
         client = None
         if self.region:

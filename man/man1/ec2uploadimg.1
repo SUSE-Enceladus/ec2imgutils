@@ -17,7 +17,7 @@ not exceed the size given with
 It is expected that the raw image has 1 partition, i.e. the root partition is
 .I /dev/sda1.
 The image data is written directly to a new EBS snapshot using the EBS direct
-APIs, no EC2 instance is needed. The process of creating the image is as
+APIs. The process of creating the image is as
 follows:
 - start a snapshot
 - read the image, decompressing it on the fly, and write it to the snapshot
@@ -43,7 +43,7 @@ and
 With
 .I --use-root-swap
 the image is also uploaded with the EBS direct APIs. The new image is then
-created from a donor instance, that provides the meta data of the image, as
+created from a donor instance, that provides the metadata of the image, as
 described with that option. The options that configure the donor instance are
 only used with that method and are ignored otherwise, a warning is issued.
 Earlier versions uploaded the image with ssh. The options for the ssh
