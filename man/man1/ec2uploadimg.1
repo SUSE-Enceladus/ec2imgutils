@@ -45,10 +45,10 @@ With
 the image is also uploaded with the EBS direct APIs. The new image is then
 created from a donor instance, that provides the meta data of the image, as
 described with that option. The options that configure the donor instance are
-only used with that method, they are deprecated otherwise, a warning is issued
-and they are ignored. Earlier versions uploaded the image with ssh. The
-options for the ssh connection are deprecated with all methods, a warning is
-issued and they are ignored.
+only used with that method and are ignored otherwise, a warning is issued.
+Earlier versions uploaded the image with ssh. The options for the ssh
+connection are deprecated with all methods, a warning is issued and they are
+ignored.
 .PP
 Para-virtual images are no longer supported, only HVM images can be created.
 The
@@ -129,7 +129,7 @@ the snapshot.
 .IP "-e --ec2-ami AWS_AMI_ID"
 Only used with
 .I --use-root-swap,
-deprecated and ignored otherwise.
+ignored otherwise.
 Specify the AMI ID of the image to launch as donor instance, that provides
 the meta data of the new image. This value overrides the value given with the
 .I ami
@@ -167,7 +167,7 @@ or
 .IP "-i --instance-id AWS_INSTANCE_ID"
 Only used with
 .I --use-root-swap,
-deprecated and ignored otherwise.
+ignored otherwise.
 Specify the ID of a running instance to use as donor instance instead of
 launching one. The instance is not changed while the image is uploaded and the
 volume is created, an error until then leaves it running. Afterwards its root
@@ -224,7 +224,7 @@ alternatively prefixed with a
 .IP "-t --type AWS_UPLOAD_INST_TYPE"
 Only used with
 .I --use-root-swap,
-deprecated and ignored otherwise.
+ignored otherwise.
 Specifies the instance type to launch for the donor instance. This value
 overrides the value given with the
 .I instance_type
@@ -301,7 +301,7 @@ causes an error as para-virtual images are no longer supported.
 .IP "--vpc-subnet-id VPC_SUBNET_ID"
 Only used with
 .I --use-root-swap,
-deprecated and ignored otherwise.
+ignored otherwise.
 Specify the VPC subnet ID into which the donor instance should be
 launched. This option is useful if no default VPC is configured or
 it is desired to launch the donor instance into a private subnet of the
@@ -331,7 +331,7 @@ be set in the configuration file.
 .IP "--use-enclave"
 Only used with
 .I --use-root-swap,
-deprecated and ignored otherwise.
+ignored otherwise.
 Start the donor instance, that provides the meta data of the image, as an AWS
 Enclave.
 .IP "--wait-count AWS_WAIT_COUNT"

@@ -154,10 +154,10 @@ from the uploaded image. The new image is created from the donor instance.
 The donor instance is not accessed. An instance given with _--instance-id_ is
 left untouched if the upload or the creation of the volume fails, it is only
 stopped and terminated once its root volume is replaced. The donor instance
-and the temporary snapshot are removed afterwards. _--ec2-ami_, _--instance-id_, _--type_,
-_--vpc-subnet-id_ and _--use-enclave_ configure the donor instance, they are
-deprecated without _--use-root-swap_, a warning is issued and they are
-ignored. Earlier versions uploaded the image to the instance with ssh.
+and the temporary snapshot are removed afterwards. _--ec2-ami_,
+_--instance-id_, _--type_, _--vpc-subnet-id_ and _--use-enclave_ configure the
+donor instance. They are only used with _--use-root-swap_ and are ignored
+otherwise, a warning is issued. Earlier versions uploaded the image to the instance with ssh.
 _--ssh-key-pair_, _--private-key-file_, _--user_, _--ssh-timeout_,
 _--channel-timeout_, _--security-group-ids_ and _--use-private-ip_ are
 deprecated with all methods, a warning is issued and they are ignored. The
