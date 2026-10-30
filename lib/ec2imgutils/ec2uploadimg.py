@@ -1195,9 +1195,10 @@ class EC2ImageUploader(EC2ImgUtils):
            unpacked to disk"""
         filename = os.path.basename(source)
         if (
-                filename.find('.tar') != -1 or
-                filename.find('.tbz') != -1 or
-                filename.find('.tgz') != -1):
+            filename.find('.tar') != -1 or
+            filename.find('.tbz') != -1 or
+            filename.find('.tgz') != -1
+        ):
             with tarfile.open(source, 'r|*') as archive:
                 for member in archive:
                     if not member.isfile():
@@ -1286,9 +1287,10 @@ class EC2ImageUploader(EC2ImgUtils):
             except Exception as error:
                 self._log_block_failure(index, attempt, error)
                 if (
-                        not self._is_retryable_error(error) or
-                        attempt == self.upload_retries or
-                        self.aborted):
+                    not self._is_retryable_error(error) or
+                    attempt == self.upload_retries or
+                    self.aborted
+                ):
                     if not self._is_retryable_error(error):
                         raise
                     msg = 'Unable to write block %d to snapshot %s after '
@@ -1334,7 +1336,8 @@ class EC2ImageUploader(EC2ImgUtils):
 
         self.log.debug('Uploading image file: {}'.format(source))
         with concurrent.futures.ThreadPoolExecutor(
-                max_workers=self.upload_workers) as pool:
+            max_workers=self.upload_workers
+        ) as pool:
             try:
                 with self._open_raw_image(source) as stream:
                     index = 0
@@ -1370,8 +1373,9 @@ class EC2ImageUploader(EC2ImgUtils):
                                 collect(done)
                         index += 1
                         if (
-                                self.log_level == logging.DEBUG and
-                                bytes_read >= next_progress):
+                            self.log_level == logging.DEBUG and
+                            bytes_read >= next_progress
+                        ):
                             print('.', end=' ')
                             sys.stdout.flush()
                             next_progress += PROGRESS_STEP_BYTES

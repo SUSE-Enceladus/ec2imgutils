@@ -280,7 +280,7 @@ is retried after a wait that grows exponentially with a random jitter, up to
 60 seconds. Errors that cannot succeed on a retry, such as a missing
 permission, fail immediately. All other errors are retried, including a plain
 HTTP 400 response without an error name, which may occur on slow or unreliable
-network connections such as to the China regions. Every failed attempt is
+network connections. Every failed attempt is
 logged with the HTTP status and the request ID.
 .IP "--upload-timeout UPLOAD_TIMEOUT"
 Specifies the time in seconds to wait for a response from the EBS direct API
