@@ -673,7 +673,8 @@ def check_tpm_support_has_allowed_boot_options(args, logger):
     """This function checks that in case tpm is enabled, boot options are
     correct
     """
-    tpm_boot_options = ['uefi', 'uefi-preferred']
+    # AWS rejects uefi-preferred with TPM support when registering the image
+    tpm_boot_options = ['uefi']
     if args.tpm and args.bootMode not in tpm_boot_options:
         logger.error(
             'TPM can only be set with --boot-mode set to %s' % str(

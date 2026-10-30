@@ -386,6 +386,35 @@ def test_check_tpm_support_has_allowed_boot_options():
     assert excinfo.value.code == 1
 
 
+def test_check_tpm_support_rejects_uefi_preferred(caplog):
+
+    class Args:
+        tpm = 'v2.0'
+        bootMode = 'uefi-preferred'
+    with pytest.raises(SystemExit) as excinfo:
+        ec2uploadimg.check_tpm_support_has_allowed_boot_options(
+            Args(), logger
+        )
+    assert excinfo.value.code == 1
+    assert "['uefi']" in caplog.text
+
+
+def test_check_tpm_support_uefi_accepted():
+
+    class Args:
+        tpm = '2.0'
+        bootMode = 'uefi'
+    ec2uploadimg.check_tpm_support_has_allowed_boot_options(Args(), logger)
+
+
+def test_uefi_preferred_without_tpm_accepted():
+
+    class Args:
+        tpm = None
+        bootMode = 'uefi-preferred'
+    ec2uploadimg.check_tpm_support_has_allowed_boot_options(Args(), logger)
+
+
 # --------------------------------------------------------------------
 # Tests for check_regions_parameter function
 def test_check_regions_parameter():
