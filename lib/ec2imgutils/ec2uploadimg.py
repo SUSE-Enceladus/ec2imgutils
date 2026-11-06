@@ -47,6 +47,10 @@ RETRY_BACKOFF_BASE = 2
 RETRY_BACKOFF_MAX = 60
 # Timeout in seconds to establish the connection to the EBS direct API
 CONNECT_TIMEOUT = 30
+# Maximum number of block indexes named in a verification error message
+MAX_REPORTED_BLOCKS = 20
+# Page size to list the blocks of a snapshot, valid range is 100 to 10000
+LIST_BLOCKS_PAGE_SIZE = 10000
 # Errors that cannot be fixed by sending the same request again. All other
 # errors are retried, in particular a plain HTTP 400 without an error name
 # that is seen on slow or unreliable network paths.
@@ -56,6 +60,12 @@ NON_RETRYABLE_ERROR_CODES = (
     'ServiceQuotaExceededException',
     'ValidationException'
 )
+
+
+class _TransientBlockError(Exception):
+    """The service answered, but the answer does not match the block that
+       was sent or is expected. Sending or reading the block again may fix
+       this."""
 
 
 def _read_exactly(stream, size):
@@ -120,7 +130,10 @@ class EC2ImageUploader(EC2ImgUtils):
                  image_tags=None,
                  upload_workers=8,
                  upload_retries=8,
-                 upload_timeout=300
+                 upload_timeout=300,
+                 write_zero_blocks=False,
+                 verify_snapshot=False,
+                 keep_snapshot_on_verify_failure=False
                  ):
         EC2ImgUtils.__init__(
             self,
@@ -163,6 +176,11 @@ class EC2ImageUploader(EC2ImgUtils):
         self.aborted = False
         self.image_tags = image_tags
         self.pending_snapshot_id = None
+        self.write_zero_blocks = bool(write_zero_blocks)
+        self.verify_snapshot = bool(verify_snapshot)
+        self.keep_snapshot_on_verify_failure = bool(
+            keep_snapshot_on_verify_failure
+        )
         try:
             self.upload_workers = int(upload_workers)
         except (TypeError, ValueError):
@@ -825,8 +843,46 @@ class EC2ImageUploader(EC2ImgUtils):
         if temporary:
             self.temporary_snapshot_ids.append(snapshot_id)
         self._wait_for_snapshot(snapshot_id)
+        if self.verify_snapshot and not self.aborted:
+            self._check_snapshot(snapshot_id, digests)
 
         return {'SnapshotId': snapshot_id}
+
+    # ---------------------------------------------------------------------
+    def _check_snapshot(self, snapshot_id, digests):
+        """Verify the snapshot by reading it back. A snapshot that does not
+           match the uploaded data is deleted, unless it is requested to keep
+           it, and the upload fails"""
+        problems = self._verify_snapshot(
+            self._connect_ebs(), snapshot_id, digests
+        )
+        if not problems:
+            return
+        # The snapshot is handled here, the clean up must not delete it again
+        if snapshot_id in self.temporary_snapshot_ids:
+            self.temporary_snapshot_ids.remove(snapshot_id)
+        if self.keep_snapshot_on_verify_failure:
+            outcome = 'The snapshot was kept'
+        else:
+            outcome = 'The snapshot was deleted'
+            self._delete_snapshot(snapshot_id)
+        self._clean_up()
+        raise EC2UploadImgException(
+            'Verification of snapshot %s failed: %s. %s' % (
+                snapshot_id, '; '.join(problems), outcome
+            )
+        )
+
+    # ---------------------------------------------------------------------
+    def _delete_snapshot(self, snapshot_id):
+        """Delete the given snapshot"""
+        self.log.debug('Deleting snapshot: {}'.format(snapshot_id))
+        try:
+            self._connect().delete_snapshot(SnapshotId=snapshot_id)
+        except Exception as e:
+            self.log.warning(
+                'Unable to delete snapshot %s: %s' % (snapshot_id, e)
+            )
 
     # ---------------------------------------------------------------------
     def _claim_running_instance(self):
@@ -920,14 +976,15 @@ class EC2ImageUploader(EC2ImgUtils):
             error,
             (
                 botocore.exceptions.BotoCoreError,
+                _TransientBlockError,
                 ConnectionError,
                 TimeoutError
             )
         )
 
     # ---------------------------------------------------------------------
-    def _log_block_failure(self, index, attempt, error):
-        """Log the details of a failed attempt to write a block"""
+    def _log_block_failure(self, index, attempt, error, action='Writing'):
+        """Log the details of a failed attempt to write or read a block"""
         details = '%s: %s' % (type(error).__name__, error)
         if isinstance(error, botocore.exceptions.ClientError):
             meta = error.response.get('ResponseMetadata', {})
@@ -936,9 +993,10 @@ class EC2ImageUploader(EC2ImgUtils):
                 meta.get('RequestId'),
                 details
             )
+        subject = 'block %d' % index if index is not None else 'the blocks'
         self.log.warning(
-            'Writing block %d failed, attempt %d of %d: %s' % (
-                index, attempt, self.upload_retries, details
+            '%s %s failed, attempt %d of %d: %s' % (
+                action, subject, attempt, self.upload_retries, details
             )
         )
 
@@ -960,14 +1018,25 @@ class EC2ImageUploader(EC2ImgUtils):
         digest = hashlib.sha256(data).digest()
         for attempt in range(1, self.upload_retries + 1):
             try:
-                ebs.put_snapshot_block(
+                checksum = base64.b64encode(digest).decode('ascii')
+                response = ebs.put_snapshot_block(
                     SnapshotId=snapshot_id,
                     BlockIndex=index,
                     BlockData=data,
                     DataLength=len(data),
-                    Checksum=base64.b64encode(digest).decode('ascii'),
+                    Checksum=checksum,
                     ChecksumAlgorithm='SHA256'
                 )
+                # The service returns the checksum of the data it received
+                returned = (
+                    response.get('Checksum')
+                    if isinstance(response, dict) else None
+                )
+                if isinstance(returned, str) and returned != checksum:
+                    raise _TransientBlockError(
+                        'checksum returned by the service (%s) differs '
+                        'from the checksum sent (%s)' % (returned, checksum)
+                    )
                 return index, digest
             except Exception as error:
                 self._log_block_failure(index, attempt, error)
@@ -1012,6 +1081,8 @@ class EC2ImageUploader(EC2ImgUtils):
         digests = {}
         pending = set()
         bytes_read = 0
+        blocks_read = 0
+        zero_blocks_skipped = 0
         next_progress = PROGRESS_STEP_BYTES
 
         def collect(done):
@@ -1040,7 +1111,8 @@ class EC2ImageUploader(EC2ImgUtils):
                         bytes_read += len(data)
                         if len(data) < block_size:
                             data = data.ljust(block_size, b'\0')
-                        if data != zero_block:
+                        blocks_read += 1
+                        if self.write_zero_blocks or data != zero_block:
                             pending.add(pool.submit(
                                 self._put_snapshot_block,
                                 ebs,
@@ -1056,6 +1128,8 @@ class EC2ImageUploader(EC2ImgUtils):
                                     )
                                 )
                                 collect(done)
+                        else:
+                            zero_blocks_skipped += 1
                         index += 1
                         if (
                             self.log_level == logging.DEBUG and
@@ -1072,8 +1146,178 @@ class EC2ImageUploader(EC2ImgUtils):
                 raise
         if self.log_level == logging.DEBUG:
             print()
+        self.log.info(
+            'Blocks of %d bytes: %d read, %d written, %d zero blocks '
+            'skipped' % (
+                block_size, blocks_read, len(digests), zero_blocks_skipped
+            )
+        )
 
         return digests
+
+    # ---------------------------------------------------------------------
+    @staticmethod
+    def _format_indexes(indexes):
+        """Format a list of block indexes for a message"""
+        shown = ', '.join(str(i) for i in indexes[:MAX_REPORTED_BLOCKS])
+        if len(indexes) > MAX_REPORTED_BLOCKS:
+            shown += ', ...'
+        return '%d (%s)' % (len(indexes), shown)
+
+    # ---------------------------------------------------------------------
+    def _retry_block_request(self, index, action, request):
+        """Run the request for a block, retried like writing a block"""
+        for attempt in range(1, self.upload_retries + 1):
+            try:
+                return request()
+            except Exception as error:
+                self._log_block_failure(index, attempt, error, action)
+                if not self._is_retryable_error(error):
+                    raise
+                if attempt == self.upload_retries or self.aborted:
+                    subject = (
+                        'block %d' % index if index is not None
+                        else 'the blocks'
+                    )
+                    raise EC2UploadImgException(
+                        'Unable to read %s of the snapshot after %d '
+                        'attempt(s), last error: %s' % (
+                            subject, attempt, error
+                        )
+                    )
+                self._wait_before_retry(attempt)
+
+    # ---------------------------------------------------------------------
+    def _list_snapshot_blocks(self, ebs, snapshot_id):
+        """Return the block tokens of the written blocks by block index"""
+        tokens = {}
+        arguments = {
+            'SnapshotId': snapshot_id,
+            'MaxResults': LIST_BLOCKS_PAGE_SIZE
+        }
+        while True:
+            response = self._retry_block_request(
+                None,
+                'Listing',
+                lambda: ebs.list_snapshot_blocks(**arguments)
+            )
+            for block in response.get('Blocks', []):
+                tokens[block['BlockIndex']] = block['BlockToken']
+            next_token = response.get('NextToken')
+            if not next_token:
+                return tokens
+            arguments['NextToken'] = next_token
+
+    # ---------------------------------------------------------------------
+    def _read_snapshot_block(self, ebs, snapshot_id, index, token):
+        """Read a block of the snapshot, return the block index, the checksum
+           calculated from the data and the checksum given by the service"""
+        def request():
+            response = ebs.get_snapshot_block(
+                SnapshotId=snapshot_id,
+                BlockIndex=index,
+                BlockToken=token
+            )
+            data = response['BlockData'].read()
+            length = response.get('DataLength')
+            if isinstance(length, int) and length != len(data):
+                raise _TransientBlockError(
+                    'received %d bytes, expected %d' % (len(data), length)
+                )
+            return data, response.get('Checksum')
+
+        data, returned = self._retry_block_request(index, 'Reading', request)
+
+        return (
+            index,
+            hashlib.sha256(data).digest(),
+            returned
+        )
+
+    # ---------------------------------------------------------------------
+    def _verify_snapshot(self, ebs, snapshot_id, digests):
+        """Read the blocks of the snapshot back and compare them with the
+           uploaded data. Returns a list of the problems found, it is empty
+           if the snapshot matches. Reading the snapshot may fail with an
+           exception, this is not a verification result"""
+        self.log.debug('Verifying snapshot: {}'.format(snapshot_id))
+        tokens = self._list_snapshot_blocks(ebs, snapshot_id)
+        missing = sorted(set(digests) - set(tokens))
+        extra = sorted(set(tokens) - set(digests))
+        corrupt = []
+        checksum_mismatch = []
+        pending = set()
+        max_pending = self.upload_workers * 2
+
+        def collect(done):
+            for future in done:
+                index, digest, returned = future.result()
+                if digest != digests[index]:
+                    corrupt.append(index)
+                elif (
+                    isinstance(returned, str) and
+                    returned != base64.b64encode(digest).decode('ascii')
+                ):
+                    checksum_mismatch.append(index)
+
+        with concurrent.futures.ThreadPoolExecutor(
+            max_workers=self.upload_workers
+        ) as pool:
+            try:
+                for index in sorted(set(tokens) & set(digests)):
+                    if self.aborted:
+                        break
+                    pending.add(pool.submit(
+                        self._read_snapshot_block,
+                        ebs,
+                        snapshot_id,
+                        index,
+                        tokens[index]
+                    ))
+                    if len(pending) >= max_pending:
+                        done, pending = concurrent.futures.wait(
+                            pending,
+                            return_when=concurrent.futures.FIRST_COMPLETED
+                        )
+                        collect(done)
+                done, pending = concurrent.futures.wait(pending)
+                collect(done)
+            except BaseException:
+                for future in pending:
+                    future.cancel()
+                raise
+
+        problems = []
+        if missing:
+            problems.append(
+                'blocks missing in the snapshot: %s' %
+                self._format_indexes(missing)
+            )
+        if extra:
+            problems.append(
+                'unexpected blocks in the snapshot: %s' %
+                self._format_indexes(extra)
+            )
+        if corrupt:
+            problems.append(
+                'blocks with different content: %s' %
+                self._format_indexes(sorted(corrupt))
+            )
+        if checksum_mismatch:
+            problems.append(
+                'blocks with a checksum from the service that differs from '
+                'the data: %s' % self._format_indexes(
+                    sorted(checksum_mismatch)
+                )
+            )
+        if not problems:
+            self.log.info(
+                'Verified %d blocks of snapshot %s' % (
+                    len(digests), snapshot_id
+                )
+            )
+
+        return problems
 
     # ---------------------------------------------------------------------
     def _wait_for_snapshot(self, snapshot_id):

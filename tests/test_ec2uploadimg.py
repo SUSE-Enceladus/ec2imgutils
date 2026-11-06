@@ -1421,6 +1421,56 @@ def test_get_uploader_passes_retries_and_timeout(EC2ImageUploader_mock):
     assert kwargs['upload_timeout'] == 120
 
 
+def test_new_upload_options_defaults():
+    args = _parse([])
+    assert args.writeZeroBlocks is False
+    assert args.verifySnapshot is False
+    assert args.keepSnapshotOnVerifyFailure is False
+
+
+@patch('ec2uploadimg.ec2upimg.EC2ImageUploader')
+def test_get_uploader_passes_verify_options(EC2ImageUploader_mock):
+    args = _parse([
+        '--write-zero-blocks',
+        '--verify-snapshot',
+        '--keep-snapshot-on-verify-failure'
+    ])
+
+    ec2uploadimg.get_uploader(
+        args, 'eusc-de-east-1', None, 'access', 'secret', MagicMock(), logger
+    )
+
+    kwargs = EC2ImageUploader_mock.call_args[1]
+    assert kwargs['write_zero_blocks'] is True
+    assert kwargs['verify_snapshot'] is True
+    assert kwargs['keep_snapshot_on_verify_failure'] is True
+
+
+@patch('ec2uploadimg.ec2upimg.EC2ImageUploader')
+def test_get_uploader_verify_options_default(EC2ImageUploader_mock):
+    ec2uploadimg.get_uploader(
+        _parse([]), 'cn-north-1', None, 'access', 'secret', MagicMock(),
+        logger
+    )
+
+    kwargs = EC2ImageUploader_mock.call_args[1]
+    assert kwargs['write_zero_blocks'] is False
+    assert kwargs['verify_snapshot'] is False
+    assert kwargs['keep_snapshot_on_verify_failure'] is False
+
+
+def test_keep_snapshot_without_verify_warns(caplog):
+    args = _parse(['--keep-snapshot-on-verify-failure'])
+    ec2uploadimg.check_keep_snapshot_option(args, logger)
+    assert 'has no effect without --verify-snapshot' in caplog.text
+
+
+def test_keep_snapshot_with_verify_no_warning(caplog):
+    args = _parse(['--keep-snapshot-on-verify-failure', '--verify-snapshot'])
+    ec2uploadimg.check_keep_snapshot_option(args, logger)
+    assert caplog.text == ''
+
+
 # --------------------------------------------------------------------
 # Tests for the dropped para-virtual support
 def test_virt_type_hvm_accepted(caplog):

@@ -32,6 +32,12 @@ The credentials need permission for the EBS direct API actions
 .I ebs:PutSnapshotBlock
 and
 .I ebs:CompleteSnapshot,
+with
+.I --verify-snapshot
+also
+.I ebs:ListSnapshotBlocks
+and
+.I ebs:GetSnapshotBlock,
 and for the EC2 actions
 .I ec2:DescribeImages,
 .I ec2:DescribeSnapshots,
@@ -258,6 +264,21 @@ times
 .I upload-timeout
 plus the wait between the attempts before the upload fails, lower the values
 for fast and reliable connections.
+.IP "--write-zero-blocks"
+Write blocks that contain only zeros to the snapshot. By default these blocks
+are skipped and the snapshot returns zeros for them.
+.IP "--verify-snapshot"
+After the snapshot is completed read it back and compare every written block
+with the uploaded data. The list of blocks of the snapshot must match the
+written blocks. If the snapshot does not match it is deleted and the upload
+fails. Requires the permissions
+.I ebs:ListSnapshotBlocks
+and
+.I ebs:GetSnapshotBlock.
+.IP "--keep-snapshot-on-verify-failure"
+Do not delete a snapshot that failed the verification, so it can be inspected.
+The snapshot ID is part of the error message. Only useful together with
+.I --verify-snapshot.
 .IP "--use-root-swap"
 Create the new image using the root swap method. The image is uploaded to a
 temporary snapshot with the EBS direct APIs and a volume is created from it.

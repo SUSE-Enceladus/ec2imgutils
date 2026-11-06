@@ -433,6 +433,38 @@ def parse_args(args):
         type=int
     )
 
+    help_msg = 'Write blocks containing only zeros to the snapshot, by '
+    help_msg += 'default they are skipped (Optional)'
+    parser.add_argument(
+        '--write-zero-blocks',
+        action='store_true',
+        default=False,
+        dest='writeZeroBlocks',
+        help=help_msg,
+    )
+
+    help_msg = 'Read the snapshot back after the upload and compare it with '
+    help_msg += 'the uploaded data. A snapshot that does not match is '
+    help_msg += 'deleted and the upload fails. Needs the permissions '
+    help_msg += 'ebs:ListSnapshotBlocks and ebs:GetSnapshotBlock (Optional)'
+    parser.add_argument(
+        '--verify-snapshot',
+        action='store_true',
+        default=False,
+        dest='verifySnapshot',
+        help=help_msg,
+    )
+
+    help_msg = 'Do not delete a snapshot that failed the verification, use '
+    help_msg += 'with --verify-snapshot (Optional)'
+    parser.add_argument(
+        '--keep-snapshot-on-verify-failure',
+        action='store_true',
+        default=False,
+        dest='keepSnapshotOnVerifyFailure',
+        help=help_msg,
+    )
+
     help_msg = 'Wait N-number of times for AWS operation timeout, default 1 '
     help_msg += ' = 600 seconds (Optional)'
     parser.add_argument(
@@ -466,6 +498,7 @@ def check_required_arguments_and_constraints(args, logger):
     check_upload_workers(args, logger)
     check_upload_retries(args, logger)
     check_upload_timeout(args, logger)
+    check_keep_snapshot_option(args, logger)
     warn_deprecated_arguments(args, logger)
     warn_root_swap_only_arguments(args, logger)
     warn_para_virtual_arguments(args, logger)
@@ -494,6 +527,17 @@ def check_upload_timeout(args, logger):
     if args.uploadTimeout < 1:
         logger.error('The upload timeout must be at least 1 second')
         sys.exit(1)
+
+
+# ----------------------------------------------------------------------------
+def check_keep_snapshot_option(args, logger):
+    """This function warns if the snapshot is requested to be kept on a
+    failed verification without verifying the snapshot"""
+    if args.keepSnapshotOnVerifyFailure and not args.verifySnapshot:
+        logger.warning(
+            '--keep-snapshot-on-verify-failure has no effect without '
+            '--verify-snapshot'
+        )
 
 
 # ----------------------------------------------------------------------------
@@ -970,6 +1014,11 @@ def get_uploader(
                 upload_workers=args.uploadWorkers,
                 upload_retries=args.uploadRetries,
                 upload_timeout=args.uploadTimeout,
+                write_zero_blocks=args.writeZeroBlocks,
+                verify_snapshot=args.verifySnapshot,
+                keep_snapshot_on_verify_failure=(
+                    args.keepSnapshotOnVerifyFailure
+                ),
                 **uploader_args
             )
             return uploader
