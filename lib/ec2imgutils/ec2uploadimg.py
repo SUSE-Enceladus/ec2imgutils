@@ -60,6 +60,17 @@ NON_RETRYABLE_ERROR_CODES = (
     'ServiceQuotaExceededException',
     'ValidationException'
 )
+# File name suffixes of the tar archives that may contain the raw image
+TAR_SUFFIXES = (
+    '.tar',
+    '.tar.gz',
+    '.tar.bz2',
+    '.tar.xz',
+    '.tgz',
+    '.tbz',
+    '.tbz2',
+    '.txz'
+)
 
 
 class _TransientBlockError(Exception):
@@ -935,30 +946,26 @@ class EC2ImageUploader(EC2ImgUtils):
            tar archive, optionally compressed, containing one. Nothing is
            unpacked to disk"""
         filename = os.path.basename(source)
-        if (
-            filename.find('.tar') != -1 or
-            filename.find('.tbz') != -1 or
-            filename.find('.tgz') != -1
-        ):
+        if filename.endswith(TAR_SUFFIXES):
             with tarfile.open(source, 'r|*') as archive:
                 for member in archive:
                     if not member.isfile():
                         continue
                     name = member.name.strip()
-                    if name[-2:] == 'xz':
+                    if name.endswith('.raw.xz'):
                         self.log.debug('Inflating image: {}'.format(name))
                         with lzma.LZMAFile(archive.extractfile(member)) as raw:
                             yield raw
                         return
-                    if name[-4:] == '.raw':
+                    if name.endswith('.raw'):
                         yield archive.extractfile(member)
                         return
-        elif filename[-2:] == 'xz':
+        elif filename.endswith('.raw.xz'):
             self.log.debug('Inflating image: {}'.format(filename))
             with lzma.open(source, 'rb') as raw:
                 yield raw
             return
-        elif filename[-3:] == 'raw':
+        elif filename.endswith('.raw'):
             with open(source, 'rb') as raw:
                 yield raw
             return

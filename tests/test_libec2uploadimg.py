@@ -860,13 +860,30 @@ def _tar_with(path, members, mode='w'):
 
 
 @pytest.mark.parametrize('kind', [
-    'raw', 'xz', 'tar_raw', 'tgz_raw', 'tar_xz', 'tar_xz_compressed'
+    'raw', 'raw_tar_in_name', 'xz', 'tar_raw', 'tgz_raw', 'tar_xz',
+    'tar_xz_compressed', 'txz_raw', 'tar_decoy_xz'
 ])
 def test_open_raw_image(tmp_path, kind):
     data = b'raw image data' * 100
     if kind == 'raw':
         source = tmp_path / 'image.raw'
         source.write_bytes(data)
+    elif kind == 'raw_tar_in_name':
+        source = tmp_path / 'foo.tarball.raw'
+        source.write_bytes(data)
+    elif kind == 'txz_raw':
+        source = tmp_path / 'image.txz'
+        _tar_with(source, [('image.raw', data)], 'w:xz')
+    elif kind == 'tar_decoy_xz':
+        source = tmp_path / 'image.tar'
+        _tar_with(
+            source,
+            [
+                ('checksums.txt.xz', lzma.compress(b'not the image')),
+                ('build.xz', lzma.compress(b'not the image')),
+                ('image.raw', data)
+            ]
+        )
     elif kind == 'xz':
         source = tmp_path / 'image.raw.xz'
         source.write_bytes(lzma.compress(data))
@@ -890,7 +907,10 @@ def test_open_raw_image(tmp_path, kind):
 
 @pytest.mark.parametrize('name,is_tar', [
     ('image.qcow2', False),
-    ('image.tar', True)
+    ('image.xz', False),
+    ('test_raw', False),
+    ('image.tar', True),
+    ('image.txz', True)
 ])
 def test_open_raw_image_no_raw_file(tmp_path, name, is_tar):
     source = tmp_path / name
