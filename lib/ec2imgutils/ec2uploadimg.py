@@ -21,6 +21,7 @@ import logging
 import os
 import paramiko
 import socket
+import string
 import sys
 import threading
 import time
@@ -382,6 +383,11 @@ class EC2ImageUploader(EC2ImgUtils):
         image_filename = self._upload_image(mount_point, source)
         raw_image_filename = self._unpack_image(mount_point, image_filename)
         self._dump_root_fs(
+            mount_point,
+            raw_image_filename,
+            target_root_device_id
+        )
+        self._verify_root_fs(
             mount_point,
             raw_image_filename,
             target_root_device_id
@@ -1087,6 +1093,66 @@ class EC2ImageUploader(EC2ImgUtils):
             raise EC2UploadImgException(msg)
 
         return raw_image_file
+
+    # ---------------------------------------------------------------------
+    def _verify_root_fs(self, image_dir, raw_image_name, target_root_device):
+        """Compare the data on the target device with the raw image, raise
+           an exception if they differ"""
+        if self.aborted:
+            return
+        self.log.debug('Verifying the new target root volume')
+        raw_image = '%s/%s' % (image_dir, raw_image_name)
+        raw_image_size = self._execute_ssh_command(
+            'stat -c %%s %s' % raw_image
+        )
+        try:
+            raw_image_size = int(raw_image_size)
+        except (TypeError, ValueError):
+            self._clean_up()
+            msg = 'Unable to get the size of the raw image %s: %s' % (
+                raw_image, raw_image_size
+            )
+            raise EC2UploadImgException(msg)
+        # Write cached data to the device and drop the cache, the checksum
+        # must read the data from the device
+        self._execute_ssh_command(
+            'blockdev --flushbufs %s' % target_root_device
+        )
+        raw_image_sum = self._get_sha256(
+            self._execute_ssh_command('sha256sum %s' % raw_image)
+        )
+        target_sum = self._get_sha256(
+            self._execute_ssh_command(
+                'head -c %d %s | sha256sum' % (
+                    raw_image_size, target_root_device
+                )
+            )
+        )
+        if not raw_image_sum or raw_image_sum != target_sum:
+            self._clean_up()
+            msg = 'The data on %s does not match the raw image %s, ' % (
+                target_root_device, raw_image
+            )
+            msg += 'SHA-256 of the image: %s, of the device: %s' % (
+                raw_image_sum, target_sum
+            )
+            raise EC2UploadImgException(msg)
+
+        return 1
+
+    # ---------------------------------------------------------------------
+    def _get_sha256(self, sha256sum_output):
+        """Return the checksum from the output of sha256sum, or None if the
+           output holds no checksum"""
+        fields = (sha256sum_output or '').split()
+        if not fields:
+            return None
+        checksum = fields[0].lower()
+        if len(checksum) != 64 or not all(
+                char in string.hexdigits for char in checksum):
+            return None
+
+        return checksum
 
     # ---------------------------------------------------------------------
     def create_image(self, source):

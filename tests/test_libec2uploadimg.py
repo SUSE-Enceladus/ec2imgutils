@@ -1004,6 +1004,7 @@ def test_create_block_device_map_aborted(
 @patch('ec2imgutils.ec2uploadimg.EC2ImageUploader._detach_volume')
 @patch('ec2imgutils.ec2uploadimg.EC2ImageUploader._end_ssh_session')
 @patch('ec2imgutils.ec2uploadimg.EC2ImageUploader._execute_ssh_command')
+@patch('ec2imgutils.ec2uploadimg.EC2ImageUploader._verify_root_fs')
 @patch('ec2imgutils.ec2uploadimg.EC2ImageUploader._dump_root_fs')
 @patch('ec2imgutils.ec2uploadimg.EC2ImageUploader._unpack_image')
 @patch('ec2imgutils.ec2uploadimg.EC2ImageUploader._upload_image')
@@ -1039,6 +1040,7 @@ def test_create_image_root_volume(
     upload_image_mock,
     unpack_image_mock,
     dump_root_fs_mock,
+    verify_root_fs_mock,
     execute_ssh_command_mock,
     end_ssh_session_mock,
     detach_volume_mock,
@@ -1109,6 +1111,11 @@ def test_create_image_root_volume(
         'myImageFilename'
     )
     dump_root_fs_mock.assert_called_once_with(
+        'myMountPoint',
+        'rawImageFilename',
+        'myRootDeviceId'
+    )
+    verify_root_fs_mock.assert_called_once_with(
         'myMountPoint',
         'rawImageFilename',
         'myRootDeviceId'
@@ -1451,6 +1458,169 @@ def test_device_exists(
     execute_ssh_command_mock.assert_has_calls([
         call('ls myDeviceId', expect_success=False)
     ])
+
+
+RAW_SUM = 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa'
+OTHER_SUM = 'bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb'
+
+
+def _verify_root_fs_responses(raw_sum_output, target_sum_output):
+    """The outputs of the commands of _verify_root_fs, in their order"""
+    return [
+        '10737418240',
+        '',
+        raw_sum_output,
+        target_sum_output
+    ]
+
+
+@patch('ec2imgutils.ec2uploadimg.EC2ImageUploader._clean_up')
+@patch('ec2imgutils.ec2uploadimg.EC2ImageUploader._execute_ssh_command')
+def test_verify_root_fs(
+    execute_ssh_command_mock,
+    clean_up_mock,
+    caplog
+):
+    # Mocks
+    execute_ssh_command_mock.side_effect = _verify_root_fs_responses(
+        '%s  /mnt/image.raw' % RAW_SUM,
+        '%s  -' % RAW_SUM.upper()
+    )
+
+    # Instance creation
+    uploader = ec2upimg.EC2ImageUploader(
+        access_key='',
+        wait_count=1,
+        log_callback=logger
+    )
+    result = uploader._verify_root_fs('/mnt', 'image.raw', '/dev/nvme2n1')
+
+    # assertions
+    assert result == 1
+    execute_ssh_command_mock.assert_has_calls([
+        call('stat -c %s /mnt/image.raw'),
+        call('blockdev --flushbufs /dev/nvme2n1'),
+        call('sha256sum /mnt/image.raw'),
+        call('head -c 10737418240 /dev/nvme2n1 | sha256sum')
+    ])
+    clean_up_mock.assert_not_called()
+
+
+@pytest.mark.parametrize('raw_sum_output, target_sum_output', [
+    pytest.param(
+        '%s  /mnt/image.raw' % RAW_SUM, '%s  -' % OTHER_SUM,
+        id='target-holds-other-data'
+    ),
+    pytest.param(
+        'sha256sum: /mnt/image.raw: No such file or directory',
+        '%s  -' % RAW_SUM,
+        id='raw-image-missing'
+    ),
+    pytest.param(
+        '%s  /mnt/image.raw' % RAW_SUM,
+        'head: cannot open /dev/nvme2n1 for reading: No such device',
+        id='target-unreadable'
+    ),
+    pytest.param('', '', id='no-output'),
+])
+@patch('ec2imgutils.ec2uploadimg.EC2ImageUploader._clean_up')
+@patch('ec2imgutils.ec2uploadimg.EC2ImageUploader._execute_ssh_command')
+def test_verify_root_fs_mismatch(
+    execute_ssh_command_mock,
+    clean_up_mock,
+    raw_sum_output,
+    target_sum_output,
+    caplog
+):
+    # Mocks
+    execute_ssh_command_mock.side_effect = _verify_root_fs_responses(
+        raw_sum_output,
+        target_sum_output
+    )
+
+    # Instance creation
+    uploader = ec2upimg.EC2ImageUploader(
+        access_key='',
+        wait_count=1,
+        log_callback=logger
+    )
+    with pytest.raises(EC2UploadImgException) as e:
+        uploader._verify_root_fs('/mnt', 'image.raw', '/dev/nvme2n1')
+
+    # assertions
+    assert 'does not match the raw image' in str(e.value)
+    clean_up_mock.assert_called_once_with()
+
+
+@patch('ec2imgutils.ec2uploadimg.EC2ImageUploader._clean_up')
+@patch('ec2imgutils.ec2uploadimg.EC2ImageUploader._execute_ssh_command')
+def test_verify_root_fs_no_size(
+    execute_ssh_command_mock,
+    clean_up_mock,
+    caplog
+):
+    # Mocks, the raw image is missing, stat prints an error
+    execute_ssh_command_mock.side_effect = [
+        "stat: cannot statx '/mnt/image.raw': No such file or directory"
+    ]
+
+    # Instance creation
+    uploader = ec2upimg.EC2ImageUploader(
+        access_key='',
+        wait_count=1,
+        log_callback=logger
+    )
+    with pytest.raises(EC2UploadImgException) as e:
+        uploader._verify_root_fs('/mnt', 'image.raw', '/dev/nvme2n1')
+
+    # assertions
+    assert 'Unable to get the size' in str(e.value)
+    clean_up_mock.assert_called_once_with()
+
+
+def test_verify_root_fs_aborted(
+    caplog
+):
+    # Instance creation
+    uploader = ec2upimg.EC2ImageUploader(
+        access_key='',
+        wait_count=1,
+        log_callback=logger
+    )
+    uploader.aborted = True
+
+    # assertions
+    assert uploader._verify_root_fs('/mnt', 'image.raw', '/dev/sdb') is None
+
+
+@pytest.mark.parametrize('sha256sum_output, checksum', [
+    pytest.param('%s  /mnt/image.raw' % RAW_SUM, RAW_SUM,
+                 id='checksum followed by the file name'),
+    pytest.param('%s  -' % RAW_SUM, RAW_SUM,
+                 id='checksum followed by - for stdin'),
+    pytest.param(RAW_SUM.upper(), RAW_SUM,
+                 id='upper case checksum becomes lower case'),
+    pytest.param(None, None, id='no output of an aborted command'),
+    pytest.param('', None, id='empty output'),
+    pytest.param('  ', None, id='output of only spaces'),
+    pytest.param('%s  -' % RAW_SUM[:63], None,
+                 id='checksum one character too short'),
+    pytest.param('%s  -' % ('g' * 64), None,
+                 id='checksum with characters that are not hex'),
+    pytest.param(
+        'sha256sum: /mnt/image.raw: No such file or directory', None,
+        id='error message of sha256sum'
+    ),
+])
+def test_get_sha256(sha256sum_output, checksum):
+    uploader = ec2upimg.EC2ImageUploader(
+        access_key='',
+        wait_count=1,
+        log_callback=logger
+    )
+
+    # assertions
+    assert uploader._get_sha256(sha256sum_output) == checksum
 
 
 @patch('ec2imgutils.ec2uploadimg.EC2ImageUploader._execute_ssh_command')
