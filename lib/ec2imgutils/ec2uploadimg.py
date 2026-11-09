@@ -444,6 +444,17 @@ class EC2ImageUploader(EC2ImgUtils):
         self._delete_temporary_snapshots()
 
     # ---------------------------------------------------------------------
+    def _get_volume_type(self):
+        """Return the EBS volume type of the root volume of the image. The
+           generic backing store ssd is mapped to gp3 and mag to standard,
+           any other value is a volume type and used as given"""
+        if self.backing_store == 'mag':
+            return 'standard'
+        if self.backing_store == 'ssd':
+            return 'gp3'
+        return self.backing_store
+
+    # ---------------------------------------------------------------------
     def _create_block_device_map(self, snapshot):
         """Create a block device map with the given snapshot"""
         if self.aborted:
@@ -451,12 +462,7 @@ class EC2ImageUploader(EC2ImgUtils):
         # The partition layout of the image is not checked, see the man page
         root_device_name = self._determine_root_device()
 
-        if self.backing_store == 'mag':
-            backing_store = 'standard'
-        elif self.backing_store == 'ssd':
-            backing_store = 'gp3'
-        else:
-            backing_store = self.backing_store
+        backing_store = self._get_volume_type()
 
         block_device_map = {
             'DeviceName': root_device_name,
@@ -1507,10 +1513,7 @@ class EC2ImageUploader(EC2ImgUtils):
         self._attach_volume(target_root_volume, device_id)
         self.log.debug('Creating new image')
         helper_dev_map = self._get_root_device_mapping()
-        if self.backing_store == 'mag':
-            backing_store = 'standard'
-        else:
-            backing_store = 'gp2'
+        backing_store = self._get_volume_type()
         block_device_map = {
             'DeviceName': helper_dev_map['DeviceName'],
             'Ebs': {

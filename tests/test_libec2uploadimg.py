@@ -1978,6 +1978,49 @@ def test_create_image_use_root_swap(
     connect_mock().describe_volumes.assert_not_called()
 
 
+@pytest.mark.parametrize('backing_store,volume_type', [
+    ('ssd', 'gp3'),
+    ('mag', 'standard'),
+    ('io2', 'io2')
+])
+@patch('ec2imgutils.ec2uploadimg.EC2ImageUploader._attach_volume')
+@patch('ec2imgutils.ec2uploadimg.EC2ImageUploader._detach_volume')
+@patch('ec2imgutils.ec2uploadimg.EC2ImageUploader._show_progress')
+@patch('ec2imgutils.ec2uploadimg.EC2ImageUploader._create_image_root_volume')
+@patch('ec2imgutils.ec2uploadimg.EC2ImageUploader._connect')
+@patch('ec2imgutils.ec2uploadimg.EC2ImageUploader._check_virt_type_consistent')
+def test_create_image_use_root_swap_volume_type(
+    check_virt_type_mock,
+    connect_mock,
+    create_root_volume_mock,
+    show_progress_mock,
+    detach_volume_mock,
+    attach_volume_mock,
+    backing_store,
+    volume_type
+):
+    create_root_volume_mock.return_value = 'targetRootVol'
+    ec2 = connect_mock.return_value
+    ec2.describe_instances.return_value = {
+        'Reservations': [{'Instances': [{
+            'RootDeviceName': '/dev/sda1',
+            'BlockDeviceMappings': [{
+                'DeviceName': '/dev/sda1',
+                'Ebs': {'VolumeId': 'vol-root', 'DeleteOnTermination': True}
+            }]
+        }]}]
+    }
+    ec2.create_image.return_value = {'ImageId': 'ami-1'}
+
+    uploader = _make_uploader(backing_store=backing_store)
+    uploader.wait_count = 0
+    uploader.helper_instance = {'InstanceId': 'i-donor'}
+    uploader.create_image_use_root_swap('source')
+
+    block_device_map = ec2.create_image.call_args[1]['BlockDeviceMappings']
+    assert block_device_map[0]['Ebs']['VolumeType'] == volume_type
+
+
 def test_invalid_tpm_value():
     with pytest.raises(EC2UploadImgException) as e:
         # Instance creation
