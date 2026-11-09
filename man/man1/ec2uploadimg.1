@@ -29,7 +29,7 @@ in blocks using several threads in parallel. Blocks containing only zeros are
 not written
 - complete the snapshot and wait for it to become available
 - register a new AMI
-- clean up, an incomplete snapshot is deleted when an error occurs
+- clean up, an incomplete snapshot is deleted if an error occurs
 .PP
 The credentials need permission for the EBS direct API actions
 .I ebs:StartSnapshot,
