@@ -553,7 +553,7 @@ class EC2ImageUploader(EC2ImgUtils):
     def _device_exists(self, device_id):
         """Verify that the device node can be found on the remote system"""
         command = 'ls %s' % device_id
-        result = self._execute_ssh_command(command)
+        result = self._execute_ssh_command(command, expect_success=False)
 
         return device_id == result
 
@@ -643,9 +643,11 @@ class EC2ImageUploader(EC2ImgUtils):
         self.ssh_client = client
 
     # ---------------------------------------------------------------------
-    def _execute_ssh_command(self, command):
-        """Execute a command on the remote machine, on error raise an exception
-           return the result of stdout"""
+    def _execute_ssh_command(self, command, expect_success=True):
+        """Execute a command on the remote machine, return the result of
+           stdout. Raise an exception if the command writes to stderr. With
+           expect_success set, also raise if it exits with a status other
+           than 0"""
         if self.aborted:
             return
         if self.inst_user_name != 'root':
@@ -656,14 +658,23 @@ class EC2ImageUploader(EC2ImgUtils):
             raise EC2UploadImgException(msg)
         stdin, stdout, stderr = self.ssh_client.exec_command(command,
                                                              get_pty=True)
+        # Read the output before the exit status, a command with a large
+        # output blocks until its output is read
+        cmd_output = stdout.read()
         cmd_error = stderr.read()
-        if cmd_error:
+        exit_status = stdout.channel.recv_exit_status()
+        if cmd_error or (expect_success and exit_status != 0):
             self._clean_up()
-            msg = 'Execution of "%s" failed with the following error' % command
-            msg += '\n%s' % cmd_error
+            # With a pty the error message of the command arrives on stdout
+            msg = 'Execution of "%s" failed with exit status %s' % (
+                command, exit_status
+            )
+            msg += '\n%s' % (cmd_error or cmd_output).strip().decode(
+                'utf-8', errors='replace'
+            )
             raise EC2UploadImgException(msg)
 
-        return stdout.read().strip().decode('utf-8')
+        return cmd_output.strip().decode('utf-8')
 
     # ---------------------------------------------------------------------
     def _find_device_name(self, device_size):
@@ -742,7 +753,7 @@ class EC2ImageUploader(EC2ImgUtils):
         if self.aborted:
             return
         loc_cmd = 'which %s' % command
-        location = self._execute_ssh_command(loc_cmd)
+        location = self._execute_ssh_command(loc_cmd, expect_success=False)
 
         if location.find('which: no') != -1:
             location = ''

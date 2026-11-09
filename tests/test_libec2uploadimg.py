@@ -291,6 +291,7 @@ def test_execute_ssh_command(
     stdin_mock.read.response_value = ''
     stdout_mock = MagicMock()
     stdout_mock.read.return_value = bytearray('stdout', 'utf-8')
+    stdout_mock.channel.recv_exit_status.return_value = 0
     stderr_mock = MagicMock()
     stderr_mock.read.return_value = ''
     ssh_client_mock.exec_command.return_value = (
@@ -317,6 +318,86 @@ def test_execute_ssh_command(
         call.__bool__(),
         call.exec_command('sudo example command', get_pty=True)
     ])
+
+
+def _ssh_client_mock(stdout, stderr, exit_status):
+    """An ssh client whose exec_command returns the given output"""
+    ssh_client_mock = MagicMock()
+    stdout_mock = MagicMock()
+    stdout_mock.read.return_value = stdout
+    stdout_mock.channel.recv_exit_status.return_value = exit_status
+    stderr_mock = MagicMock()
+    stderr_mock.read.return_value = stderr
+    ssh_client_mock.exec_command.return_value = (
+        MagicMock(),
+        stdout_mock,
+        stderr_mock
+    )
+    return ssh_client_mock
+
+
+@pytest.mark.parametrize('stderr, exit_status, expect_success, raises', [
+    pytest.param(b'', 0, True, False, id='success'),
+    pytest.param(b'', 0, False, False, id='success-failure-expected'),
+    pytest.param(b'', 32, True, True, id='failure'),
+    pytest.param(b'', 32, False, False, id='failure-expected'),
+    pytest.param(b'error text', 0, True, True, id='stderr'),
+    pytest.param(b'error text', 0, False, True, id='stderr-failure-expected'),
+])
+@patch('ec2imgutils.ec2uploadimg.EC2ImageUploader._clean_up')
+def test_execute_ssh_command_result(
+    clean_up_mock,
+    stderr,
+    exit_status,
+    expect_success,
+    raises,
+    caplog
+):
+    # With a pty the error message of a command arrives on stdout
+    uploader = ec2upimg.EC2ImageUploader(
+        access_key='',
+        wait_count=1,
+        log_callback=logger
+    )
+    uploader.ssh_client = _ssh_client_mock(
+        b'command output\r\n', stderr, exit_status
+    )
+
+    if raises:
+        with pytest.raises(EC2UploadImgException) as e:
+            uploader._execute_ssh_command(
+                'some command', expect_success=expect_success
+            )
+        # assertions
+        assert 'failed with exit status %d' % exit_status in str(e.value)
+        assert (stderr or b'command output').decode() in str(e.value)
+        clean_up_mock.assert_called_once_with()
+    else:
+        response = uploader._execute_ssh_command(
+            'some command', expect_success=expect_success
+        )
+        # assertions
+        assert response == 'command output'
+        clean_up_mock.assert_not_called()
+
+
+@patch('ec2imgutils.ec2uploadimg.EC2ImageUploader._clean_up')
+def test_execute_ssh_command_undecodable_output(
+    clean_up_mock,
+    caplog
+):
+    uploader = ec2upimg.EC2ImageUploader(
+        access_key='',
+        wait_count=1,
+        log_callback=logger
+    )
+    uploader.ssh_client = _ssh_client_mock(b'\xff error text\r\n', b'', 1)
+    with pytest.raises(EC2UploadImgException) as e:
+        uploader._execute_ssh_command('some command')
+
+    # assertions
+    assert 'error text' in str(e.value)
+    clean_up_mock.assert_called_once_with()
 
 
 def test_execute_ssh_command_aborted(
@@ -366,6 +447,7 @@ def test_change_mount_point_permissions(
     stdin_mock.read.response_value = ''
     stdout_mock = MagicMock()
     stdout_mock.read.return_value = bytearray('stdout', 'utf-8')
+    stdout_mock.channel.recv_exit_status.return_value = 0
     stderr_mock = MagicMock()
     stderr_mock.read.return_value = ''
     ssh_client_mock.exec_command.return_value = (
@@ -1366,7 +1448,9 @@ def test_device_exists(
 
     # assertions
     assert result is True
-    execute_ssh_command_mock.assert_has_calls([call('ls myDeviceId')])
+    execute_ssh_command_mock.assert_has_calls([
+        call('ls myDeviceId', expect_success=False)
+    ])
 
 
 @patch('ec2imgutils.ec2uploadimg.EC2ImageUploader._execute_ssh_command')
@@ -1624,7 +1708,9 @@ def test_get_command_from_instance(
 
     # assertions
     assert resp == '/usr/bin/gparted'
-    execute_ssh_command_mock.assert_has_calls([call('which gparted')])
+    execute_ssh_command_mock.assert_has_calls([
+        call('which gparted', expect_success=False)
+    ])
 
 
 def test_get_command_from_instance_aborted(
