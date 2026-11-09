@@ -886,6 +886,40 @@ def test_main_happy_path_snapOnly(
     assert "mySnapshotId" in caplog.text
 
 
+@pytest.mark.parametrize('extra,method', [
+    (['--snaponly'], 'create_snapshot'),
+    (['--use-root-swap'], 'create_image_use_root_swap'),
+    (['--use-snapshot'], 'create_image_from_snapshot'),
+    ([], 'create_image')
+])
+@patch('ec2uploadimg.ec2upimg.EC2ImageUploader')
+def test_main_aborted_upload(EC2ImageUploader_mock, extra, method, caplog):
+    ec2I = MagicMock()
+    getattr(ec2I, method).return_value = None
+    EC2ImageUploader_mock.return_value = ec2I
+
+    cli_args = [
+        "--access-id", "testAccId",
+        "--account", "testAccName",
+        "--description", "This is a test description for the image",
+        "--ec2-ami", "testAWSAmiId",
+        "--file", data_path + os.sep + 'complete.cfg',
+        "--machine", "x86_64",
+        "--name", "testImageName",
+        "--regions", "region1",
+        "--secret-key", "testAwsSecretKey",
+        "--type", "testType",
+        "--virt-type", "hvm"
+    ] + extra + [data_path + os.sep + 'complete.cfg']
+    # Aborting is not an error, the exit code stays 0
+    ec2uploadimg.main(cli_args)
+
+    getattr(ec2I, method).assert_called_once()
+    assert 'The upload was aborted' in caplog.text
+    assert 'Created' not in caplog.text
+    assert 'TypeError' not in caplog.text
+
+
 @patch('ec2uploadimg.ec2upimg.EC2ImageUploader')
 def test_main_happy_path_rootSwapMethod(
     EC2ImageUploader_mock,

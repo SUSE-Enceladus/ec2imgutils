@@ -872,6 +872,14 @@ class EC2ImageUploader(EC2ImgUtils):
         self._wait_for_snapshot(snapshot_id)
         if self.verify_snapshot and not self.aborted:
             self._check_snapshot(snapshot_id, digests)
+        if self.aborted:
+            # The snapshot is completed and no longer pending, the upload
+            # was aborted while waiting for it or verifying it. A temporary
+            # snapshot is deleted by the clean up.
+            if not temporary:
+                self._delete_snapshot(snapshot_id)
+            self._clean_up()
+            return
 
         return {'SnapshotId': snapshot_id}
 
@@ -1427,6 +1435,11 @@ class EC2ImageUploader(EC2ImgUtils):
             return
 
         ami = self._register_image(snapshot)
+        if not ami:
+            # Aborted before the image was registered, the snapshot was
+            # created by this upload and is of no use
+            self._delete_snapshot(snapshot['SnapshotId'])
+            return
         self._tag_image(ami)
 
         return ami
@@ -1445,6 +1458,10 @@ class EC2ImageUploader(EC2ImgUtils):
 
         snapshot = response['Snapshots'][0]
         ami = self._register_image(snapshot)
+        if not ami:
+            # Aborted before the image was registered, the snapshot is not
+            # ours and is left alone
+            return
         self._tag_image(ami)
 
         return ami

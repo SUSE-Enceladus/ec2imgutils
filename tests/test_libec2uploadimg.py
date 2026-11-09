@@ -2589,6 +2589,132 @@ def test_create_snapshot_keeps_snapshot_by_default(
     ec2.delete_snapshot.assert_not_called()
 
 
+def _abort_snapshot_setup(connect_mock, tmp_path, **kwargs):
+    source = tmp_path / 'image.raw'
+    _write_raw_image(source)
+    ebs = FakeEBS()
+    ec2 = MagicMock()
+    connect_mock.side_effect = (
+        lambda service='ec2', config=None: ebs if service == 'ebs' else ec2
+    )
+    return str(source), ec2, _make_uploader(**kwargs)
+
+
+@patch('ec2imgutils.ec2uploadimg.EC2ImageUploader._wait_for_snapshot')
+@patch('ec2imgutils.ec2uploadimg.EC2ImageUploader._check_image_exists')
+@patch('ec2imgutils.ec2uploadimg.EC2ImageUploader._connect')
+def test_create_snapshot_abort_while_waiting_deletes_snapshot(
+    connect_mock, check_image_exists_mock, wait_mock, tmp_path
+):
+    source, ec2, uploader = _abort_snapshot_setup(connect_mock, tmp_path)
+
+    def abort(snapshot_id):
+        uploader.aborted = True
+
+    wait_mock.side_effect = abort
+
+    assert uploader.create_snapshot(source) is None
+    # The completed snapshot is deleted once
+    ec2.delete_snapshot.assert_called_once_with(SnapshotId='snap-1234')
+
+
+@patch('ec2imgutils.ec2uploadimg.EC2ImageUploader._wait_for_snapshot')
+@patch('ec2imgutils.ec2uploadimg.EC2ImageUploader._check_image_exists')
+@patch('ec2imgutils.ec2uploadimg.EC2ImageUploader._connect')
+def test_create_snapshot_abort_while_verifying_deletes_snapshot(
+    connect_mock, check_image_exists_mock, wait_mock, tmp_path
+):
+    source, ec2, uploader = _abort_snapshot_setup(
+        connect_mock, tmp_path, verify_snapshot=True
+    )
+
+    def abort(*args):
+        uploader.aborted = True
+        return []
+
+    with patch.object(uploader, '_verify_snapshot', side_effect=abort):
+        assert uploader.create_snapshot(source) is None
+
+    ec2.delete_snapshot.assert_called_once_with(SnapshotId='snap-1234')
+
+
+@patch('ec2imgutils.ec2uploadimg.EC2ImageUploader._wait_for_snapshot')
+@patch('ec2imgutils.ec2uploadimg.EC2ImageUploader._check_image_exists')
+@patch('ec2imgutils.ec2uploadimg.EC2ImageUploader._connect')
+def test_create_snapshot_abort_temporary_snapshot_deleted_once(
+    connect_mock, check_image_exists_mock, wait_mock, tmp_path
+):
+    source, ec2, uploader = _abort_snapshot_setup(connect_mock, tmp_path)
+
+    def abort(snapshot_id):
+        uploader.aborted = True
+
+    wait_mock.side_effect = abort
+
+    result = uploader._create_snapshot_from_image(source, temporary=True)
+
+    assert result is None
+    ec2.delete_snapshot.assert_called_once_with(SnapshotId='snap-1234')
+    assert uploader.temporary_snapshot_ids == []
+
+
+@patch('ec2imgutils.ec2uploadimg.EC2ImageUploader._wait_for_snapshot')
+@patch('ec2imgutils.ec2uploadimg.EC2ImageUploader._check_image_exists')
+@patch('ec2imgutils.ec2uploadimg.EC2ImageUploader._connect')
+def test_create_image_abort_while_waiting_registers_nothing(
+    connect_mock, check_image_exists_mock, wait_mock, tmp_path
+):
+    source, ec2, uploader = _abort_snapshot_setup(connect_mock, tmp_path)
+
+    def abort(snapshot_id):
+        uploader.aborted = True
+
+    wait_mock.side_effect = abort
+
+    assert uploader.create_image(source) is None
+    ec2.register_image.assert_not_called()
+    ec2.create_tags.assert_not_called()
+    ec2.delete_snapshot.assert_called_once_with(SnapshotId='snap-1234')
+
+
+@patch('ec2imgutils.ec2uploadimg.EC2ImageUploader._delete_snapshot')
+@patch('ec2imgutils.ec2uploadimg.EC2ImageUploader._tag_image')
+@patch('ec2imgutils.ec2uploadimg.EC2ImageUploader._register_image')
+@patch('ec2imgutils.ec2uploadimg.EC2ImageUploader.create_snapshot')
+def test_create_image_abort_before_registration(
+    create_snapshot_mock,
+    register_image_mock,
+    tag_image_mock,
+    delete_snapshot_mock
+):
+    create_snapshot_mock.return_value = {'SnapshotId': 'snap-1'}
+    register_image_mock.return_value = None
+
+    assert _make_uploader().create_image('source') is None
+
+    tag_image_mock.assert_not_called()
+    delete_snapshot_mock.assert_called_once_with('snap-1')
+
+
+@patch('ec2imgutils.ec2uploadimg.EC2ImageUploader._delete_snapshot')
+@patch('ec2imgutils.ec2uploadimg.EC2ImageUploader._tag_image')
+@patch('ec2imgutils.ec2uploadimg.EC2ImageUploader._register_image')
+@patch('ec2imgutils.ec2uploadimg.EC2ImageUploader._connect')
+def test_create_image_from_snapshot_aborted(
+    connect_mock, register_image_mock, tag_image_mock, delete_snapshot_mock
+):
+    connect_mock.return_value.describe_snapshots.return_value = {
+        'Snapshots': [{'SnapshotId': 'snap-1'}]
+    }
+    register_image_mock.return_value = None
+
+    assert _make_uploader().create_image_from_snapshot('snap-1') is None
+
+    tag_image_mock.assert_not_called()
+    # The snapshot was given by the user, it must stay
+    delete_snapshot_mock.assert_not_called()
+
+
 @patch('ec2imgutils.ec2uploadimg.EC2ImageUploader._connect')
 def test_clean_up_deletes_temporary_snapshots(connect_mock, caplog):
     ec2 = MagicMock()
