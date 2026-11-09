@@ -1244,7 +1244,9 @@ class EC2ImageUploader(EC2ImgUtils):
 
     # ---------------------------------------------------------------------
     def _list_snapshot_blocks(self, ebs, snapshot_id):
-        """Return the block tokens of the written blocks by block index"""
+        """Return the block tokens of the written blocks by block index. The
+           listing stops if the upload gets aborted, the result is incomplete
+           then"""
         tokens = {}
         arguments = {
             'SnapshotId': snapshot_id,
@@ -1259,7 +1261,7 @@ class EC2ImageUploader(EC2ImgUtils):
             for block in response.get('Blocks', []):
                 tokens[block['BlockIndex']] = block['BlockToken']
             next_token = response.get('NextToken')
-            if not next_token:
+            if not next_token or self.aborted:
                 return tokens
             arguments['NextToken'] = next_token
 
@@ -1273,7 +1275,12 @@ class EC2ImageUploader(EC2ImgUtils):
                 BlockIndex=index,
                 BlockToken=token
             )
-            data = response['BlockData'].read()
+            body = response['BlockData']
+            try:
+                data = body.read()
+            finally:
+                # Release the connection also if reading fails
+                body.close()
             length = response.get('DataLength')
             if isinstance(length, int) and length != len(data):
                 raise _TransientBlockError(
@@ -1297,6 +1304,9 @@ class EC2ImageUploader(EC2ImgUtils):
            exception, this is not a verification result"""
         self.log.debug('Verifying snapshot: {}'.format(snapshot_id))
         tokens = self._list_snapshot_blocks(ebs, snapshot_id)
+        if self.aborted:
+            # The list is incomplete, blocks would be reported as missing
+            return []
         missing = sorted(set(digests) - set(tokens))
         extra = sorted(set(tokens) - set(digests))
         corrupt = []

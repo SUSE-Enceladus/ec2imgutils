@@ -3446,6 +3446,115 @@ def test_verify_snapshot_short_read_is_retried(tmp_path, no_sleep):
     assert uploader._verify_snapshot(ebs, 'snap-1234', digests) == []
 
 
+def test_list_snapshot_blocks_stops_on_abort():
+    ebs = FakeEBS(block_size=1024, page_size=2)
+    for index in range(6):
+        ebs.blocks[index] = {}
+    uploader = _make_uploader()
+    requests = []
+    original = ebs.list_snapshot_blocks
+
+    def list_blocks(**kwargs):
+        requests.append(kwargs)
+        # The abort arrives while the first page is read
+        uploader.aborted = True
+        return original(**kwargs)
+
+    ebs.list_snapshot_blocks = list_blocks
+
+    tokens = uploader._list_snapshot_blocks(ebs, 'snap-1234')
+
+    assert len(requests) == 1
+    assert sorted(tokens) == [0, 1]
+
+
+def test_list_snapshot_blocks_pages_without_abort():
+    ebs = FakeEBS(block_size=1024, page_size=2)
+    for index in range(5):
+        ebs.blocks[index] = {}
+
+    tokens = _make_uploader()._list_snapshot_blocks(ebs, 'snap-1234')
+
+    assert sorted(tokens) == [0, 1, 2, 3, 4]
+
+
+def test_verify_snapshot_abort_reports_no_problems(tmp_path):
+    source = tmp_path / 'image.raw'
+    source.write_bytes(b''.join(bytes([i + 1]) * 1024 for i in range(6)))
+    ebs = FakeEBS(block_size=1024, page_size=2)
+    uploader = _make_uploader()
+    digests = uploader._upload_snapshot_blocks(
+        ebs, 'snap-1234', 1024, str(source)
+    )
+    original = ebs.list_snapshot_blocks
+
+    def list_blocks(**kwargs):
+        uploader.aborted = True
+        return original(**kwargs)
+
+    ebs.list_snapshot_blocks = list_blocks
+
+    # The incomplete list must not be reported as missing blocks
+    assert uploader._verify_snapshot(ebs, 'snap-1234', digests) == []
+    assert ebs.get_calls == 0
+
+
+def test_read_snapshot_block_closes_stream(tmp_path):
+    uploader, ebs, digests = _uploaded(tmp_path)
+    streams = []
+    original = ebs.get_snapshot_block
+
+    def get_block(**kwargs):
+        response = original(**kwargs)
+        streams.append(response['BlockData'])
+        return response
+
+    ebs.get_snapshot_block = get_block
+
+    index, digest, _ = uploader._read_snapshot_block(
+        ebs, 'snap-1234', 0, 'token-0'
+    )
+
+    assert digest == digests[0]
+    assert len(streams) == 1
+    assert streams[0].closed
+
+
+def test_read_snapshot_block_closes_stream_on_short_read(
+    tmp_path, no_sleep
+):
+    uploader, ebs, digests = _uploaded(tmp_path)
+    streams = []
+    original = ebs.get_snapshot_block
+
+    def get_block(**kwargs):
+        response = original(**kwargs)
+        if not streams:
+            response['BlockData'] = io.BytesIO(b'short')
+        streams.append(response['BlockData'])
+        return response
+
+    ebs.get_snapshot_block = get_block
+
+    uploader._read_snapshot_block(ebs, 'snap-1234', 0, 'token-0')
+
+    # The stream of the failed attempt and of the retry are both closed
+    assert len(streams) == 2
+    assert all(stream.closed for stream in streams)
+
+
+def test_read_snapshot_block_closes_stream_on_read_error(tmp_path):
+    uploader, ebs, digests = _uploaded(tmp_path)
+    body = MagicMock()
+    body.read.side_effect = RuntimeError('broken connection')
+    ebs.get_snapshot_block = MagicMock(return_value={'BlockData': body})
+
+    with pytest.raises(RuntimeError):
+        uploader._read_snapshot_block(ebs, 'snap-1234', 0, 'token-0')
+
+    body.close.assert_called_once_with()
+
+
 def _check_snapshot_setup(tmp_path, **kwargs):
     uploader, ebs, digests = _uploaded(tmp_path)
     uploader.keep_snapshot_on_verify_failure = kwargs.get('keep', False)
