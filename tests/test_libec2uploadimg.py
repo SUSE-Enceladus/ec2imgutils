@@ -1228,14 +1228,42 @@ def test_complete_snapshot_no_blocks():
     assert ebs.completed[0]['Checksum'] == _b64(_sha(b''))
 
 
+def test_ebs_block_size_is_fixed():
+    assert ec2upimg.EBS_BLOCK_SIZE == 524288 == BLOCK_SIZE
+
+
+@patch('ec2imgutils.ec2uploadimg.EC2ImageUploader._wait_for_snapshot')
+@patch('ec2imgutils.ec2uploadimg.EC2ImageUploader._check_image_exists')
+@patch('ec2imgutils.ec2uploadimg.EC2ImageUploader._connect')
+def test_create_snapshot_ignores_block_size_of_response(
+    connect_mock, check_image_exists_mock, wait_mock, tmp_path
+):
+    # The BlockSize in the StartSnapshot response must not be used
+    source = tmp_path / 'image.raw'
+    _write_raw_image(source)
+    ebs = FakeEBS(block_size=1024)
+    connect_mock.side_effect = (
+        lambda service='ec2', config=None: ebs if service == 'ebs' else
+        MagicMock()
+    )
+
+    uploader = _make_uploader()
+    snapshot = uploader.create_snapshot(str(source))
+
+    assert snapshot == {'SnapshotId': 'snap-1234'}
+    assert sorted(ebs.blocks) == [0, 2, 3]
+    for put in ebs.blocks.values():
+        assert put['DataLength'] == BLOCK_SIZE
+        assert len(put['BlockData']) == BLOCK_SIZE
+
+
 def test_start_snapshot():
     ebs = FakeEBS()
     uploader = _make_uploader(root_volume_size=12, image_description='desc')
 
-    snapshot_id, block_size = uploader._start_snapshot(ebs)
+    snapshot_id = uploader._start_snapshot(ebs)
 
     assert snapshot_id == 'snap-1234'
-    assert block_size == BLOCK_SIZE
     assert uploader.pending_snapshot_id == 'snap-1234'
     start = ebs.started[0]
     assert start['VolumeSize'] == 12
@@ -1312,15 +1340,16 @@ def test_create_snapshot_ebs_direct_too_large(
     tmp_path
 ):
     source = tmp_path / 'image.raw'
-    source.write_bytes(b'\x01' * 3000)
-    ebs = FakeEBS(block_size=1024)
+    # Three blocks of data for a root volume of two blocks
+    source.write_bytes(b'\x01' * (3 * BLOCK_SIZE))
+    ebs = FakeEBS()
     ec2 = MagicMock()
     connect_mock.side_effect = (
         lambda service='ec2', config=None: ebs if service == 'ebs' else ec2
     )
 
     uploader = _make_uploader()
-    uploader.root_volume_size = 2048 / 1024 ** 3
+    uploader.root_volume_size = 2 * BLOCK_SIZE / 1024 ** 3
     with pytest.raises(EC2UploadImgException):
         uploader.create_snapshot(str(source))
 

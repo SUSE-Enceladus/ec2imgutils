@@ -41,6 +41,12 @@ from ec2imgutils.ec2imgutilsExceptions import EC2UploadImgException
 SNAPSHOT_TIMEOUT_MINUTES = 1440
 # Amount of raw image data between two progress indicator dots (debug mode)
 PROGRESS_STEP_BYTES = 128 * 1024 * 1024
+# The EBS direct APIs use a fixed block size of 512 KiB, the value is in
+# bytes. It is not read from the StartSnapshot response on purpose. A
+# different unit or value there would silently break the block math of the
+# upload. If the service ever changes the block size, PutSnapshotBlock
+# rejects the blocks with a ValidationException and the upload fails.
+EBS_BLOCK_SIZE = 524288
 # Writing a block is retried with an exponential backoff and full jitter,
 # these are the base and the upper limit of the wait in seconds
 RETRY_BACKOFF_BASE = 2
@@ -843,9 +849,9 @@ class EC2ImageUploader(EC2ImgUtils):
         self._check_image_exists()
         try:
             ebs = self._connect_ebs()
-            snapshot_id, block_size = self._start_snapshot(ebs)
+            snapshot_id = self._start_snapshot(ebs)
             digests = self._upload_snapshot_blocks(
-                ebs, snapshot_id, block_size, source, member_name
+                ebs, snapshot_id, EBS_BLOCK_SIZE, source, member_name
             )
             if self.aborted:
                 self._clean_up()
@@ -1111,7 +1117,8 @@ class EC2ImageUploader(EC2ImgUtils):
 
     # ---------------------------------------------------------------------
     def _start_snapshot(self, ebs):
-        """Start a snapshot with the size of the root volume of the image"""
+        """Start a snapshot with the size of the root volume of the image and
+           return its ID. The block size is fixed, see EBS_BLOCK_SIZE"""
         snapshot = ebs.start_snapshot(
             VolumeSize=self.root_volume_size,
             Description=self.image_description,
@@ -1123,7 +1130,7 @@ class EC2ImageUploader(EC2ImgUtils):
             'Started snapshot: {}'.format(snapshot['SnapshotId'])
         )
 
-        return snapshot['SnapshotId'], snapshot.get('BlockSize', 524288)
+        return snapshot['SnapshotId']
 
     # ---------------------------------------------------------------------
     def _upload_snapshot_blocks(
