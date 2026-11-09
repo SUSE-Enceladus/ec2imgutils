@@ -33,6 +33,7 @@ import pytest
 import sys
 import tarfile
 import threading
+import time
 
 
 from botocore.stub import Stubber
@@ -1120,6 +1121,121 @@ def test_upload_snapshot_blocks_exact_fit(tmp_path):
         ebs, 'snap-1234', 1024, str(source)
     )
     assert sorted(digests) == [0, 1]
+
+
+class _RetryingEBS(FakeEBS):
+    """Block 0 fails for good after block 2 started to retry for ever"""
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.retrying = threading.Event()
+
+    def put_snapshot_block(self, **kwargs):
+        if kwargs['BlockIndex'] == 0:
+            assert self.retrying.wait(10)
+            raise RuntimeError('permanent failure')
+        self.retrying.set()
+        raise botocore.exceptions.EndpointConnectionError(endpoint_url='x')
+
+
+def _counting_sleep():
+    sleeps = []
+    real_sleep = time.sleep
+
+    def sleep(seconds):
+        sleeps.append(seconds)
+        real_sleep(0.001)
+
+    return sleeps, sleep
+
+
+def test_upload_snapshot_blocks_failure_stops_retrying_workers(tmp_path):
+    source = tmp_path / 'image.raw'
+    _write_raw_image(source)
+    sleeps, sleep = _counting_sleep()
+    uploader = _make_uploader(upload_workers=2)
+
+    # A retry wait of 30 seconds, without the stop it takes 30 steps and
+    # there are 8 attempts
+    with patch('ec2imgutils.ec2uploadimg.random.uniform', return_value=30):
+        with patch('ec2imgutils.ec2uploadimg.time.sleep', sleep):
+            with pytest.raises(RuntimeError):
+                uploader._upload_snapshot_blocks(
+                    _RetryingEBS(), 'snap-1234', BLOCK_SIZE, str(source)
+                )
+
+    # The worker gave up when the failure was seen, the full backoff of all
+    # attempts would be more than 200 steps
+    assert len(sleeps) < 60
+    assert uploader._workers_stopped.is_set()
+    assert not uploader.aborted
+
+
+def test_upload_snapshot_blocks_stop_flag_is_reset(tmp_path):
+    source = tmp_path / 'image.raw'
+    _write_raw_image(source)
+    uploader = _make_uploader(upload_workers=2)
+    uploader._workers_stopped.set()
+
+    digests = uploader._upload_snapshot_blocks(
+        FakeEBS(), 'snap-1234', BLOCK_SIZE, str(source)
+    )
+
+    assert sorted(digests) == [0, 2, 3]
+    assert not uploader._workers_stopped.is_set()
+
+
+def test_wait_before_retry_ends_if_workers_stopped():
+    uploader = _make_uploader()
+    uploader._workers_stopped.set()
+    with patch('ec2imgutils.ec2uploadimg.random.uniform', return_value=30):
+        with patch('ec2imgutils.ec2uploadimg.time.sleep') as sleep_mock:
+            uploader._wait_before_retry(3)
+    sleep_mock.assert_not_called()
+
+
+def test_retry_block_request_gives_up_if_workers_stopped(no_sleep):
+    uploader = _make_uploader()
+    uploader._workers_stopped.set()
+    request = MagicMock(
+        side_effect=botocore.exceptions.EndpointConnectionError(
+            endpoint_url='x'
+        )
+    )
+
+    with pytest.raises(EC2UploadImgException):
+        uploader._retry_block_request(0, 'Reading', request)
+
+    assert request.call_count == 1
+
+
+def test_verify_snapshot_failure_stops_retrying_workers(tmp_path):
+    source = tmp_path / 'image.raw'
+    _write_raw_image(source)
+    ebs = FakeEBS()
+    uploader = _make_uploader(upload_workers=2)
+    digests = uploader._upload_snapshot_blocks(
+        ebs, 'snap-1234', BLOCK_SIZE, str(source)
+    )
+    retrying = threading.Event()
+
+    def get_block(**kwargs):
+        if kwargs['BlockIndex'] == 0:
+            assert retrying.wait(10)
+            raise RuntimeError('permanent failure')
+        retrying.set()
+        raise botocore.exceptions.EndpointConnectionError(endpoint_url='x')
+
+    ebs.get_snapshot_block = get_block
+    sleeps, sleep = _counting_sleep()
+
+    with patch('ec2imgutils.ec2uploadimg.random.uniform', return_value=30):
+        with patch('ec2imgutils.ec2uploadimg.time.sleep', sleep):
+            with pytest.raises(RuntimeError):
+                uploader._verify_snapshot(ebs, 'snap-1234', digests)
+
+    assert len(sleeps) < 60
+    assert uploader._workers_stopped.is_set()
 
 
 def test_upload_snapshot_blocks_put_failure(tmp_path):
