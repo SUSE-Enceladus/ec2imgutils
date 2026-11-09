@@ -448,7 +448,7 @@ class EC2ImageUploader(EC2ImgUtils):
         """Create a block device map with the given snapshot"""
         if self.aborted:
             return
-        # We assume the root image has 1 partition (either case)
+        # The partition layout of the image is not checked, see the man page
         root_device_name = self._determine_root_device()
 
         if self.backing_store == 'mag':

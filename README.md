@@ -126,9 +126,12 @@ A tar archive must contain exactly one .raw or .raw.xz file, other files
 are ignored.
 The image is written directly to a new EBS snapshot using the EBS direct
 APIs. The apparent size of the raw image is recommended to be 10 GB or less
-and must not exceed the root volume size. It is expected that the raw image
-has 1 partition, i.e. the root partition is _/dev/sda1._ Only HVM images
-are supported. The process of creating the image is as follows:
+and must not exceed the root volume size. The partition layout of the raw
+image is not checked, it must match the boot mode of the image. An image that
+only supports BIOS boot is expected to have one partition, the root
+partition. An image that supports UEFI boot is expected to have the EFI
+system partition as the first partition, formatted as FAT32. The root
+partition follows it. Only HVM images are supported. The process of creating the image is as follows:
 
 * Start a snapshot
 * Read the image, decompress it on the fly and write it in blocks to the
