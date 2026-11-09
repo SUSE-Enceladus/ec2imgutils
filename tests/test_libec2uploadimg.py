@@ -1224,8 +1224,11 @@ def test_complete_snapshot_no_blocks():
     ebs = FakeEBS()
     uploader = _make_uploader()
     uploader._complete_snapshot(ebs, 'snap-1234', {})
-    assert ebs.completed[0]['ChangedBlocksCount'] == 0
-    assert ebs.completed[0]['Checksum'] == _b64(_sha(b''))
+    # No blocks, no checksum to send
+    assert ebs.completed == [
+        {'SnapshotId': 'snap-1234', 'ChangedBlocksCount': 0}
+    ]
+    assert uploader.pending_snapshot_id is None
 
 
 def test_ebs_block_size_is_fixed():
@@ -3409,6 +3412,40 @@ def test_write_zero_blocks_complete_snapshot_count(tmp_path):
         )
         uploader._complete_snapshot(ebs, 'snap-1234', digests)
         assert ebs.completed[0]['ChangedBlocksCount'] == count
+
+
+def test_all_zero_image_completes_without_checksum(tmp_path):
+    source = tmp_path / 'image.raw'
+    source.write_bytes(bytes(2 * BLOCK_SIZE))
+    ebs = FakeEBS()
+    uploader = _make_uploader()
+
+    digests = uploader._upload_snapshot_blocks(
+        ebs, 'snap-1234', BLOCK_SIZE, str(source)
+    )
+    uploader._complete_snapshot(ebs, 'snap-1234', digests)
+
+    assert not ebs.blocks
+    assert ebs.completed == [
+        {'SnapshotId': 'snap-1234', 'ChangedBlocksCount': 0}
+    ]
+
+
+def test_all_zero_image_with_zero_blocks_sends_checksum(tmp_path):
+    source = tmp_path / 'image.raw'
+    source.write_bytes(bytes(2 * BLOCK_SIZE))
+    ebs = FakeEBS()
+    uploader = _make_uploader(write_zero_blocks=True)
+
+    digests = uploader._upload_snapshot_blocks(
+        ebs, 'snap-1234', BLOCK_SIZE, str(source)
+    )
+    uploader._complete_snapshot(ebs, 'snap-1234', digests)
+
+    complete = ebs.completed[0]
+    assert complete['ChangedBlocksCount'] == 2
+    assert complete['ChecksumAlgorithm'] == 'SHA256'
+    assert complete['ChecksumAggregationMethod'] == 'LINEAR'
 
 
 def test_new_upload_options_default():

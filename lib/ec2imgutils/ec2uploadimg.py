@@ -811,18 +811,26 @@ class EC2ImageUploader(EC2ImgUtils):
     # ---------------------------------------------------------------------
     def _complete_snapshot(self, ebs, snapshot_id, digests):
         """Seal the snapshot, the checksum is the SHA256 of the concatenated
-           raw block checksums in ascending block index order"""
-        aggregate = hashlib.sha256()
-        for index in sorted(digests):
-            aggregate.update(digests[index])
+           raw block checksums in ascending block index order. Without
+           written blocks there is nothing to aggregate and the checksum
+           arguments are left out"""
+        complete_args = {
+            'SnapshotId': snapshot_id,
+            'ChangedBlocksCount': len(digests)
+        }
+        if digests:
+            aggregate = hashlib.sha256()
+            for index in sorted(digests):
+                aggregate.update(digests[index])
+            complete_args.update({
+                'Checksum': base64.b64encode(aggregate.digest()).decode(
+                    'ascii'
+                ),
+                'ChecksumAlgorithm': 'SHA256',
+                'ChecksumAggregationMethod': 'LINEAR'
+            })
         self.log.debug('Completing snapshot: {}'.format(snapshot_id))
-        ebs.complete_snapshot(
-            SnapshotId=snapshot_id,
-            ChangedBlocksCount=len(digests),
-            Checksum=base64.b64encode(aggregate.digest()).decode('ascii'),
-            ChecksumAlgorithm='SHA256',
-            ChecksumAggregationMethod='LINEAR'
-        )
+        ebs.complete_snapshot(**complete_args)
         # From here on the snapshot is sealed by AWS, nothing to abort
         self.pending_snapshot_id = None
 
