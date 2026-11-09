@@ -3521,6 +3521,24 @@ def test_check_snapshot_failure_temporary_snapshot(tmp_path, keep):
     assert 'snap-other' in deleted
 
 
+@pytest.mark.parametrize('kind,text', [
+    ('', 'snapshot snap-1'),
+    ('temporary', 'temporary snapshot snap-1'),
+    ('incomplete', 'incomplete snapshot snap-1')
+])
+@patch('ec2imgutils.ec2uploadimg.EC2ImageUploader._connect')
+def test_delete_snapshot_kind(connect_mock, kind, text, caplog):
+    ec2 = MagicMock()
+    ec2.delete_snapshot.side_effect = RuntimeError('nope')
+    connect_mock.return_value = ec2
+
+    uploader = _make_uploader()
+    uploader._delete_snapshot('snap-1', kind)
+
+    ec2.delete_snapshot.assert_called_once_with(SnapshotId='snap-1')
+    assert 'Unable to delete ' + text in caplog.text
+
+
 def test_check_snapshot_delete_failure_is_logged(tmp_path, caplog):
     uploader, ebs, digests, ec2, patchers = _check_snapshot_setup(tmp_path)
     ec2.delete_snapshot.side_effect = RuntimeError('nope')

@@ -901,14 +901,16 @@ class EC2ImageUploader(EC2ImgUtils):
         )
 
     # ---------------------------------------------------------------------
-    def _delete_snapshot(self, snapshot_id):
-        """Delete the given snapshot"""
-        self.log.debug('Deleting snapshot: {}'.format(snapshot_id))
+    def _delete_snapshot(self, snapshot_id, kind=''):
+        """Delete the given snapshot. The kind, for example temporary or
+           incomplete, is part of the log messages"""
+        prefix = kind + ' ' if kind else ''
+        self.log.debug('Deleting {}snapshot: {}'.format(prefix, snapshot_id))
         try:
             self._connect().delete_snapshot(SnapshotId=snapshot_id)
         except Exception as e:
             self.log.warning(
-                'Unable to delete snapshot %s: %s' % (snapshot_id, e)
+                'Unable to delete %ssnapshot %s: %s' % (prefix, snapshot_id, e)
             )
 
     # ---------------------------------------------------------------------
@@ -925,17 +927,7 @@ class EC2ImageUploader(EC2ImgUtils):
         snapshot_ids = self.temporary_snapshot_ids
         self.temporary_snapshot_ids = []
         for snapshot_id in snapshot_ids:
-            self.log.debug(
-                'Deleting temporary snapshot: {}'.format(snapshot_id)
-            )
-            try:
-                self._connect().delete_snapshot(SnapshotId=snapshot_id)
-            except Exception as e:
-                self.log.warning(
-                    'Unable to delete temporary snapshot %s: %s' % (
-                        snapshot_id, e
-                    )
-                )
+            self._delete_snapshot(snapshot_id, 'temporary')
 
     # ---------------------------------------------------------------------
     def _delete_pending_snapshot(self):
@@ -944,15 +936,7 @@ class EC2ImageUploader(EC2ImgUtils):
         if not snapshot_id:
             return
         self.pending_snapshot_id = None
-        self.log.debug('Deleting incomplete snapshot: {}'.format(snapshot_id))
-        try:
-            self._connect().delete_snapshot(SnapshotId=snapshot_id)
-        except Exception as e:
-            self.log.warning(
-                'Unable to delete incomplete snapshot %s: %s' % (
-                    snapshot_id, e
-                )
-            )
+        self._delete_snapshot(snapshot_id, 'incomplete')
 
     # ---------------------------------------------------------------------
     @staticmethod
