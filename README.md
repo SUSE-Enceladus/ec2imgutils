@@ -121,7 +121,9 @@ man ec2removeimg
 
 A command line utility to upload a raw image file, as created by
 KIWI for example, to Amazon EC2 and create a snapshot or register an EBS
-backed AMI. The image may be xz compressed or contained in a tar archive.
+backed AMI. The image may be xz compressed (.raw.xz) or contained in a tar archive.
+A tar archive must contain exactly one .raw or .raw.xz file, other files
+are ignored.
 The image is written directly to a new EBS snapshot using the EBS direct
 APIs. The apparent size of the raw image is recommended to be 10 GB or less
 and must not exceed the root volume size. It is expected that the raw image

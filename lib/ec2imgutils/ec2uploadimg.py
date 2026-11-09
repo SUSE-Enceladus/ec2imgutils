@@ -836,12 +836,16 @@ class EC2ImageUploader(EC2ImgUtils):
            it is the source of a volume and not the result of the upload"""
         if self.aborted:
             return
+        # Check the archive before any resource is created
+        member_name = None
+        if self._is_archive(source):
+            member_name = self._find_raw_image_in_archive(source)
         self._check_image_exists()
         try:
             ebs = self._connect_ebs()
             snapshot_id, block_size = self._start_snapshot(ebs)
             digests = self._upload_snapshot_blocks(
-                ebs, snapshot_id, block_size, source
+                ebs, snapshot_id, block_size, source, member_name
             )
             if self.aborted:
                 self._clean_up()
@@ -939,27 +943,71 @@ class EC2ImageUploader(EC2ImgUtils):
             )
 
     # ---------------------------------------------------------------------
+    @staticmethod
+    def _is_archive(source):
+        """Tell if the source file is a tar archive by its name"""
+        return os.path.basename(source).endswith(TAR_SUFFIXES)
+
+    # ---------------------------------------------------------------------
+    @staticmethod
+    def _raw_member_name(member):
+        """Return the name of the archive member if it is a raw image or an
+           xz compressed raw image, otherwise None"""
+        if not member.isfile():
+            return None
+        name = member.name.strip()
+        if name.endswith(('.raw.xz', '.raw')):
+            return name
+        return None
+
+    # ---------------------------------------------------------------------
+    def _find_raw_image_in_archive(self, source):
+        """Return the name of the raw image in the tar archive. The archive
+           must contain exactly one file ending with .raw or .raw.xz, other
+           files are ignored. The archive is read completely but nothing
+           is unpacked to disk"""
+        names = []
+        with tarfile.open(source, 'r|*') as archive:
+            for member in archive:
+                name = self._raw_member_name(member)
+                if name:
+                    names.append(name)
+        if not names:
+            msg = 'Unable to find raw image file with .raw extension'
+            raise EC2UploadImgException(msg)
+        if len(names) > 1:
+            msg = 'Found more than one raw image file in the archive, '
+            msg += 'expected exactly one: {}'.format(', '.join(names))
+            raise EC2UploadImgException(msg)
+        return names[0]
+
+    # ---------------------------------------------------------------------
     @contextlib.contextmanager
-    def _open_raw_image(self, source):
+    def _open_raw_image(self, source, member_name=None):
         """Provide a stream of the raw image data contained in the source
            file. The source is either a raw or xz compressed raw file or a
-           tar archive, optionally compressed, containing one. Nothing is
-           unpacked to disk"""
+           tar archive, optionally compressed, containing exactly one. The
+           name of the image in the archive is looked up if it is not given.
+           Nothing is unpacked to disk"""
         filename = os.path.basename(source)
-        if filename.endswith(TAR_SUFFIXES):
+        if self._is_archive(source):
+            if member_name is None:
+                member_name = self._find_raw_image_in_archive(source)
             with tarfile.open(source, 'r|*') as archive:
                 for member in archive:
-                    if not member.isfile():
+                    if self._raw_member_name(member) != member_name:
                         continue
-                    name = member.name.strip()
-                    if name.endswith('.raw.xz'):
-                        self.log.debug('Inflating image: {}'.format(name))
+                    if member_name.endswith('.raw.xz'):
+                        self.log.debug(
+                            'Inflating image: {}'.format(member_name)
+                        )
                         with lzma.LZMAFile(archive.extractfile(member)) as raw:
                             yield raw
-                        return
-                    if name.endswith('.raw'):
+                    else:
                         yield archive.extractfile(member)
-                        return
+                    return
+            msg = 'Unable to find raw image file with .raw extension'
+            raise EC2UploadImgException(msg)
         elif filename.endswith('.raw.xz'):
             self.log.debug('Inflating image: {}'.format(filename))
             with lzma.open(source, 'rb') as raw:
@@ -1078,10 +1126,13 @@ class EC2ImageUploader(EC2ImgUtils):
         return snapshot['SnapshotId'], snapshot.get('BlockSize', 524288)
 
     # ---------------------------------------------------------------------
-    def _upload_snapshot_blocks(self, ebs, snapshot_id, block_size, source):
+    def _upload_snapshot_blocks(
+        self, ebs, snapshot_id, block_size, source, member_name=None
+    ):
         """Upload the raw image data to the snapshot using multiple threads.
            Blocks containing only zeros are not written. Returns the
-           checksums of the written blocks by block index."""
+           checksums of the written blocks by block index. The member name
+           is the raw image in the source if it is a tar archive."""
         max_blocks = (self.root_volume_size * 1024 ** 3) // block_size
         zero_block = bytes(block_size)
         max_pending = self.upload_workers * 2
@@ -1102,7 +1153,7 @@ class EC2ImageUploader(EC2ImgUtils):
             max_workers=self.upload_workers
         ) as pool:
             try:
-                with self._open_raw_image(source) as stream:
+                with self._open_raw_image(source, member_name) as stream:
                     index = 0
                     while not self.aborted:
                         data = _read_exactly(stream, block_size)

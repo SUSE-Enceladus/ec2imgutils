@@ -926,6 +926,132 @@ def test_open_raw_image_no_raw_file(tmp_path, name, is_tar):
     assert 'Unable to find raw image file' in str(exc.value)
 
 
+def _decoy():
+    return lzma.compress(b'not the image')
+
+
+@pytest.mark.parametrize('name,mode,members', [
+    ('image.tar', 'w', [('a.raw', b'a'), ('b.raw', b'b')]),
+    ('image.tar', 'w', [('a.raw', b'a'), ('b.raw.xz', _decoy())]),
+    ('image.tar', 'w', [('a.raw.xz', _decoy()), ('b.raw.xz', _decoy())]),
+    ('image.tar.xz', 'w:xz', [('a.raw', b'a'), ('b.raw', b'b')]),
+    ('image.tgz', 'w:gz', [
+        ('a.raw', b'a'), ('README', b'x'), ('b.raw', b'b')
+    ]),
+    ('image.txz', 'w:xz', [('a.raw', b'a'), ('b.raw', b'b')]),
+    ('image.tar', 'w', [('d1/image.raw', b'a'), ('d2/image.raw', b'b')])
+])
+def test_open_raw_image_multiple_raw_files(tmp_path, name, mode, members):
+    source = tmp_path / name
+    _tar_with(source, members, mode)
+
+    uploader = _make_uploader()
+    with pytest.raises(EC2UploadImgException) as exc:
+        with uploader._open_raw_image(str(source)):
+            pass
+    assert 'more than one raw image' in str(exc.value)
+    for member_name, _ in members:
+        if member_name.endswith(('.raw', '.raw.xz')):
+            assert member_name in str(exc.value)
+
+
+@pytest.mark.parametrize('name,mode,members', [
+    ('image.tgz', 'w:gz', [('README', b'x'), ('checksums.txt.xz', _decoy())]),
+    ('image.txz', 'w:xz', [('build.xz', _decoy()), ('notes_raw', b'x')]),
+    ('image.tar', 'w', [])
+])
+def test_find_raw_image_in_archive_none(tmp_path, name, mode, members):
+    source = tmp_path / name
+    _tar_with(source, members, mode)
+
+    uploader = _make_uploader()
+    with pytest.raises(EC2UploadImgException) as exc:
+        uploader._find_raw_image_in_archive(str(source))
+    assert 'Unable to find raw image file' in str(exc.value)
+
+
+def test_find_raw_image_in_archive_ignores_directory(tmp_path):
+    source = tmp_path / 'image.tar'
+    (tmp_path / 'dir.raw').mkdir()
+    with tarfile.open(source, 'w') as tar:
+        tar.add(tmp_path / 'dir.raw', arcname='dir.raw')
+    _tar_with(tmp_path / 'other.tar', [('image.raw.xz', _decoy())])
+
+    uploader = _make_uploader()
+    with pytest.raises(EC2UploadImgException):
+        uploader._find_raw_image_in_archive(str(source))
+    assert uploader._find_raw_image_in_archive(
+        str(tmp_path / 'other.tar')
+    ) == 'image.raw.xz'
+
+
+def test_find_raw_image_in_archive_ignores_other_files(tmp_path):
+    source = tmp_path / 'image.tar.xz'
+    _tar_with(
+        source,
+        [('README', b'x'), ('image.raw', b'data'), ('image.sha256', b'y')],
+        'w:xz'
+    )
+
+    uploader = _make_uploader()
+    assert uploader._find_raw_image_in_archive(str(source)) == 'image.raw'
+
+
+@patch('ec2imgutils.ec2uploadimg.EC2ImageUploader._check_image_exists')
+@patch('ec2imgutils.ec2uploadimg.EC2ImageUploader._connect')
+def test_create_snapshot_multiple_raw_files_no_snapshot(
+    connect_mock, check_image_exists_mock, tmp_path
+):
+    source = tmp_path / 'image.tar'
+    _tar_with(source, [('a.raw', b'a'), ('b.raw', b'b')])
+    ebs = FakeEBS()
+    ec2 = MagicMock()
+    connect_mock.side_effect = (
+        lambda service='ec2', config=None: ebs if service == 'ebs' else ec2
+    )
+
+    uploader = _make_uploader()
+    with pytest.raises(EC2UploadImgException) as exc:
+        uploader.create_snapshot(str(source))
+
+    assert 'more than one raw image' in str(exc.value)
+    # Nothing was created or checked in AWS
+    assert not ebs.started
+    assert not ebs.blocks
+    check_image_exists_mock.assert_not_called()
+    connect_mock.assert_not_called()
+    ec2.delete_snapshot.assert_not_called()
+
+
+@patch('ec2imgutils.ec2uploadimg.EC2ImageUploader._wait_for_snapshot')
+@patch('ec2imgutils.ec2uploadimg.EC2ImageUploader._check_image_exists')
+@patch('ec2imgutils.ec2uploadimg.EC2ImageUploader._connect')
+def test_create_snapshot_from_archive_scans_once(
+    connect_mock, check_image_exists_mock, wait_mock, tmp_path
+):
+    source = tmp_path / 'image.tar'
+    _write_raw_image(tmp_path / 'image.raw')
+    _tar_with(source, [('README', b'x'), ('image.raw', (
+        tmp_path / 'image.raw').read_bytes())])
+    ebs = FakeEBS()
+    connect_mock.side_effect = (
+        lambda service='ec2', config=None: ebs if service == 'ebs' else
+        MagicMock()
+    )
+
+    uploader = _make_uploader(upload_workers=2)
+    with patch.object(
+        uploader,
+        '_find_raw_image_in_archive',
+        wraps=uploader._find_raw_image_in_archive
+    ) as find_mock:
+        snapshot = uploader.create_snapshot(str(source))
+
+    assert snapshot == {'SnapshotId': 'snap-1234'}
+    find_mock.assert_called_once_with(str(source))
+    assert sorted(ebs.blocks) == [0, 2, 3]
+
+
 def test_upload_snapshot_blocks(tmp_path):
     source = tmp_path / 'image.raw'
     block0, block1, block2, tail = _raw_image_data()

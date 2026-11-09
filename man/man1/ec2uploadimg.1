@@ -9,10 +9,11 @@ a snapshot or an AMI
 .B ec2uploadimg [option] PATH_TO_FILE
 .SH DESCRIPTION
 .B ec2uploadimg
-Upload a raw image, optionally xz compressed or contained in a tar archive,
-to Amazon EC2 and create a snapshot or register a new AMI from the image. The
-apparent size of the raw image is recommended to be 10 GB or less and it must
-not exceed the size given with
+Upload a raw image, optionally xz compressed (.raw.xz) or contained in a tar
+archive, to Amazon EC2 and create a snapshot or register a new AMI from the
+image. A tar archive must contain exactly one .raw or .raw.xz file, other files
+are ignored. The apparent size of the raw image is recommended to be 10 GB or
+less and it must not exceed the size given with
 .I --root-volume-size.
 It is expected that the raw image has 1 partition, i.e. the root partition is
 .I /dev/sda1.
