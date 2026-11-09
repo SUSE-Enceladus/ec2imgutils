@@ -437,7 +437,7 @@ class EC2ImageUploader(EC2ImgUtils):
     def _create_storage_filesystem(self, device_id):
         """Create an ext3 filesystem on the storage volume"""
         self.log.debug('Creating ext3 filesystem on storage volume')
-        filesystem_partition = '%s1' % device_id
+        filesystem_partition = self._get_partition_name(device_id)
         command = 'mkfs -t ext3 %s' % filesystem_partition
         result = self._execute_ssh_command(command)
 
@@ -772,6 +772,19 @@ class EC2ImageUploader(EC2ImgUtils):
         return device
 
     # ---------------------------------------------------------------------
+    def _get_partition_name(self, device_id):
+        """Return the name of the first partition of the given disk device.
+           The kernel puts a "p" between the disk name and the partition
+           number if the disk name ends in a digit, /dev/xvdf has the
+           partition /dev/xvdf1 and /dev/nvme1n1 has the partition
+           /dev/nvme1n1p1"""
+        separator = ''
+        if device_id[-1:].isdigit():
+            separator = 'p'
+
+        return '%s%s1' % (device_id, separator)
+
+    # ---------------------------------------------------------------------
     def _launch_helper_instance(self):
         """Launch the helper instance that is used to create the new image"""
         if self.aborted:
@@ -873,7 +886,7 @@ class EC2ImageUploader(EC2ImgUtils):
     def _mount_storage_volume(self, device_id):
         """Mount the storage volume"""
         mount_point = '/mnt'
-        mount_device = '%s1' % device_id
+        mount_device = self._get_partition_name(device_id)
         command = 'mount %s %s' % (mount_device, mount_point)
         self._execute_ssh_command(command)
 

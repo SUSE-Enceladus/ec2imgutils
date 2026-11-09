@@ -43,6 +43,12 @@ from ec2imgutils.ec2imgutilsExceptions import (  # noqa: E402
 logger = logging.getLogger('ec2imgutils')
 logger.setLevel(logging.INFO)
 
+# A disk and the name of its first partition, on Xen and on NVMe (Nitro)
+PARTITION_NAMES = [
+    pytest.param('/dev/xvdf', '/dev/xvdf1', id='xen'),
+    pytest.param('/dev/nvme1n1', '/dev/nvme1n1p1', id='nvme'),
+]
+
 
 # -----------------------------------------------------------------------------
 def test_instantiation_sriov_error():
@@ -1112,9 +1118,12 @@ def test_create_snapshot_aborted(
     assert bdm is None
 
 
+@pytest.mark.parametrize('device_id, partition', PARTITION_NAMES)
 @patch('ec2imgutils.ec2uploadimg.EC2ImageUploader._execute_ssh_command')
 def test_create_storage_filesystem(
     execute_ssh_command_mock,
+    device_id,
+    partition,
     caplog
 ):
     # Mocks
@@ -1126,12 +1135,12 @@ def test_create_storage_filesystem(
         wait_count=1,
         log_callback=logger
     )
-    result = uploader._create_storage_filesystem('myDeviceId')
+    result = uploader._create_storage_filesystem(device_id)
 
     # assertions
     assert result == 'success'
     execute_ssh_command_mock.assert_has_calls([
-        call('mkfs -t ext3 myDeviceId1')
+        call('mkfs -t ext3 %s' % partition)
     ])
 
 
@@ -1727,9 +1736,24 @@ def test_launch_helper_instance(
     show_progress_mock.assert_has_calls([call()])
 
 
+@pytest.mark.parametrize('device_id, partition', PARTITION_NAMES)
+def test_get_partition_name(device_id, partition):
+    uploader = ec2upimg.EC2ImageUploader(
+        access_key='',
+        wait_count=1,
+        log_callback=logger
+    )
+
+    # assertions
+    assert uploader._get_partition_name(device_id) == partition
+
+
+@pytest.mark.parametrize('device_id, partition', PARTITION_NAMES)
 @patch('ec2imgutils.ec2uploadimg.EC2ImageUploader._execute_ssh_command')
 def test_mount_storage_volume(
     execute_ssh_command_mock,
+    device_id,
+    partition,
     caplog
 ):
     # Mocks
@@ -1741,10 +1765,13 @@ def test_mount_storage_volume(
         wait_count=1,
         log_callback=logger
     )
-    result = uploader._mount_storage_volume('sda')
+    result = uploader._mount_storage_volume(device_id)
 
     # assertions
     assert result == '/mnt'
+    execute_ssh_command_mock.assert_called_once_with(
+        'mount %s /mnt' % partition
+    )
 
 
 @patch('ec2imgutils.ec2uploadimg.EC2ImageUploader._connect')
