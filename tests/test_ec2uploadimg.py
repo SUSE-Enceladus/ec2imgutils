@@ -1683,6 +1683,42 @@ def test_get_root_swap_arguments_no_ami(get_from_config_mock, caplog):
     assert 'Could not determine helper AMI-ID' in caplog.text
 
 
+@patch('ec2uploadimg.get_vpc_subnet_id')
+@patch('ec2uploadimg.utils.get_from_config')
+def test_get_root_swap_arguments_running_instance_needs_no_type(
+    get_from_config_mock, get_vpc_subnet_id_mock
+):
+    get_from_config_mock.return_value = None
+    get_vpc_subnet_id_mock.return_value = 'subnet-1'
+
+    arguments = ec2uploadimg.get_root_swap_arguments(
+        _parse(['--use-root-swap', '--instance-id', 'i-1']),
+        None, 'region1', MagicMock(), logger
+    )
+
+    assert arguments['running_id'] == 'i-1'
+    assert arguments['launch_inst_type'] is None
+    # The type is not looked up in the configuration either
+    get_from_config_mock.assert_not_called()
+
+
+@patch('ec2uploadimg.get_vpc_subnet_id')
+@patch('ec2uploadimg.utils.get_from_config')
+def test_get_root_swap_arguments_running_instance_with_type(
+    get_from_config_mock, get_vpc_subnet_id_mock
+):
+    get_vpc_subnet_id_mock.return_value = None
+
+    arguments = ec2uploadimg.get_root_swap_arguments(
+        _parse([
+            '--use-root-swap', '--instance-id', 'i-1', '--type', 't3.micro'
+        ]),
+        None, 'region1', MagicMock(), logger
+    )
+
+    assert arguments['running_id'] == 'i-1'
+
+
 @patch('ec2uploadimg.utils.get_from_config')
 def test_get_root_swap_arguments_no_instance_type(
     get_from_config_mock, caplog

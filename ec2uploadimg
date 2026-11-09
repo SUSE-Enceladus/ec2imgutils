@@ -944,10 +944,13 @@ def get_root_swap_arguments(
             logger.error('Could not determine helper AMI-ID')
             sys.exit(1)
 
-    inst_type = get_inst_type(args, config, region, logger)
-    if not inst_type:
-        logger.error('Could not determine the instance type')
-        sys.exit(1)
+    # No instance is launched for a running donor, the type is not needed
+    inst_type = None
+    if not running_id:
+        inst_type = get_inst_type(args, config, region, logger)
+        if not inst_type:
+            logger.error('Could not determine the instance type')
+            sys.exit(1)
 
     vpc_subnet_id = get_vpc_subnet_id(
         args,
