@@ -2047,6 +2047,54 @@ def test_invalid_imds_value():
     assert msg in str(e)
 
 
+@pytest.mark.parametrize('donor_flag', [True, False])
+@patch('ec2imgutils.ec2uploadimg.EC2ImageUploader._attach_volume')
+@patch('ec2imgutils.ec2uploadimg.EC2ImageUploader._detach_volume')
+@patch('ec2imgutils.ec2uploadimg.EC2ImageUploader._show_progress')
+@patch('ec2imgutils.ec2uploadimg.EC2ImageUploader._create_image_root_volume')
+@patch('ec2imgutils.ec2uploadimg.EC2ImageUploader._connect')
+@patch('ec2imgutils.ec2uploadimg.EC2ImageUploader._check_virt_type_consistent')
+def test_create_image_use_root_swap_delete_on_termination(
+    check_virt_type_mock,
+    connect_mock,
+    create_root_volume_mock,
+    show_progress_mock,
+    detach_volume_mock,
+    attach_volume_mock,
+    donor_flag
+):
+    create_root_volume_mock.return_value = {'VolumeId': 'vol-new'}
+    ec2 = connect_mock.return_value
+
+    def donor(volume_id, flag):
+        return {'Reservations': [{'Instances': [{
+            'RootDeviceName': '/dev/sda1',
+            'BlockDeviceMappings': [{
+                'DeviceName': '/dev/sda1',
+                'Ebs': {'VolumeId': volume_id, 'DeleteOnTermination': flag}
+            }]
+        }]}]}
+
+    # Before the swap the donor reports its own setting, afterwards the
+    # volume attached by attach_volume reports False
+    ec2.describe_instances.side_effect = [
+        donor('vol-old', donor_flag),
+        donor('vol-new', False)
+    ]
+    ec2.create_image.return_value = {'ImageId': 'ami-1'}
+
+    uploader = _make_uploader()
+    uploader.wait_count = 0
+    uploader.helper_instance = {'InstanceId': 'i-donor'}
+    uploader.create_image_use_root_swap('source')
+
+    block_device_map = ec2.create_image.call_args[1]['BlockDeviceMappings']
+    assert block_device_map[0]['DeviceName'] == '/dev/sda1'
+    assert block_device_map[0]['Ebs']['DeleteOnTermination'] is True
+    # The donor is described once, to find the root volume
+    assert ec2.describe_instances.call_count == 1
+
+
 # -----------------------------------------------------------------------------
 # Tests for the retry of writing blocks and the related options
 def test_instantiation_upload_retries_and_timeout():

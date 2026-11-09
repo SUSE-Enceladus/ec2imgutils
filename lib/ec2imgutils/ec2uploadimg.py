@@ -1523,15 +1523,16 @@ class EC2ImageUploader(EC2ImgUtils):
         self._detach_volume(current_root_volume)
         self._attach_volume(target_root_volume, device_id)
         self.log.debug('Creating new image')
-        helper_dev_map = self._get_root_device_mapping()
-        backing_store = self._get_volume_type()
+        # The root device is the one that was replaced. DeleteOnTermination
+        # is not taken from the attached volume, attach_volume sets it to
+        # False. Like the default upload, the volumes of instances launched
+        # from the image are deleted with the instance.
         block_device_map = {
-            'DeviceName': helper_dev_map['DeviceName'],
+            'DeviceName': device_id,
             'Ebs': {
-                'DeleteOnTermination':
-                helper_dev_map['Ebs']['DeleteOnTermination'],
+                'DeleteOnTermination': True,
                 'VolumeSize': self.root_volume_size,
-                'VolumeType': backing_store
+                'VolumeType': self._get_volume_type()
             }
         }
         ami = self._connect().create_image(
