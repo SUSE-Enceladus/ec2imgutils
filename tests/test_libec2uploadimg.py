@@ -1697,17 +1697,6 @@ def test_create_image_use_root_swap(
     connect_mock.stop_instances.return_value = None
     waiter = MagicMock()
     connect_mock.get_waiter.return_value = waiter
-    volumes = [
-        {
-            'Attachments': [
-                {
-                    'InstanceId': 'myInstanceId',
-                    'Device': 'myDevice'
-                }
-            ]
-        }
-    ]
-    connect_mock.describe_volumes.return_value = volumes
     instances = {
         'Reservations': [{
             'Instances': [
@@ -1718,10 +1707,12 @@ def test_create_image_use_root_swap(
                     'SubnetId': 'mySubnetId',
                     'InstanceId': 'myInstanceId',
                     'PublicIpAddress': '1.2.3.4',
+                    'RootDeviceName': 'myDeviceName',
                     'BlockDeviceMappings': [
                         {
                             'DeviceName': 'myDeviceName',
                             'Ebs': {
+                                'VolumeId': 'vol-root',
                                 'DeleteOnTermination': True
                             }
                         }
@@ -1730,7 +1721,7 @@ def test_create_image_use_root_swap(
             ]
         }]
     }
-    connect_mock.describe_instances.return_value = instances
+    connect_mock().describe_instances.return_value = instances
     ami = {
         'ImageId': 'imageId1'
     }
@@ -1755,8 +1746,11 @@ def test_create_image_use_root_swap(
     check_virt_type_consistent_mock.assert_has_calls([call()])
     create_root_volume_mock.assert_has_calls([call('source')])
     show_progress_mock.assert_has_calls([call(), call()])
-    detach_volume_mock.assert_has_calls([call(None)])
-    attach_volume_mock.assert_has_calls([call('targetRootVol', None)])
+    detach_volume_mock.assert_has_calls([call({'VolumeId': 'vol-root'})])
+    attach_volume_mock.assert_has_calls(
+        [call('targetRootVol', 'myDeviceName')]
+    )
+    connect_mock().describe_volumes.assert_not_called()
 
 
 def test_invalid_tpm_value():
@@ -2547,21 +2541,18 @@ def test_create_image_use_root_swap_complete_flow(
     }
     ec2.create_volume.return_value = {'VolumeId': 'vol-new'}
     ec2.describe_volumes.side_effect = [
-        {'Volumes': [{
-            'VolumeId': 'vol-old',
-            'State': 'in-use',
-            'Attachments': [
-                {'InstanceId': 'i-donor', 'Device': '/dev/sda1'}
-            ]
-        }]},
         {'Volumes': [{'VolumeId': 'vol-old', 'State': 'in-use'}]},
         {'Volumes': [{'VolumeId': 'vol-new', 'State': 'available'}]}
     ]
     ec2.describe_instances.return_value = {
         'Reservations': [{'Instances': [{
+            'RootDeviceName': '/dev/sda1',
             'BlockDeviceMappings': [{
+                'DeviceName': '/dev/sdb',
+                'Ebs': {'VolumeId': 'vol-data', 'DeleteOnTermination': False}
+            }, {
                 'DeviceName': '/dev/sda1',
-                'Ebs': {'DeleteOnTermination': True}
+                'Ebs': {'VolumeId': 'vol-old', 'DeleteOnTermination': True}
             }]
         }]}]
     }
@@ -2603,6 +2594,11 @@ def test_create_image_use_root_swap_complete_flow(
     )
     ec2.delete_snapshot.assert_called_once_with(SnapshotId='snap-1234')
     assert ec2.create_image.call_args[1]['InstanceId'] == 'i-donor'
+    # The root volume is replaced, the data volume is left alone
+    ec2.detach_volume.assert_called_once_with(VolumeId='vol-old')
+    block_device_map = ec2.create_image.call_args[1]['BlockDeviceMappings']
+    assert block_device_map[0]['DeviceName'] == '/dev/sda1'
+    assert block_device_map[0]['Ebs']['DeleteOnTermination'] is True
 
 
 # -----------------------------------------------------------------------------
@@ -2838,3 +2834,90 @@ def test_connect_config_subclass_accepted(boto3_mock):
 
     session = boto3_mock.session.Session.return_value
     assert session.client.call_args[1]['config'] is config
+
+
+# -----------------------------------------------------------------------------
+# Tests for finding the root device of the donor instance
+def _donor_instance(mappings, root_device='/dev/sda1'):
+    instance = {'InstanceId': 'i-donor', 'BlockDeviceMappings': mappings}
+    if root_device:
+        instance['RootDeviceName'] = root_device
+    return {'Reservations': [{'Instances': [instance]}]}
+
+
+def _ebs_mapping(device, volume_id):
+    return {
+        'DeviceName': device,
+        'Ebs': {'VolumeId': volume_id, 'DeleteOnTermination': True}
+    }
+
+
+@patch('ec2imgutils.ec2uploadimg.EC2ImageUploader._connect')
+@pytest.mark.parametrize('mappings', [
+    [('/dev/sda1', 'vol-root'), ('/dev/sdb', 'vol-data')],
+    [('/dev/sdb', 'vol-data'), ('/dev/sda1', 'vol-root')]
+])
+def test_get_root_device_mapping_ignores_order(connect_mock, mappings):
+    ec2 = MagicMock()
+    ec2.describe_instances.return_value = _donor_instance(
+        [_ebs_mapping(*mapping) for mapping in mappings]
+    )
+    connect_mock.return_value = ec2
+    uploader = _make_uploader()
+    uploader.helper_instance = {'InstanceId': 'i-donor'}
+
+    mapping = uploader._get_root_device_mapping()
+
+    assert mapping['DeviceName'] == '/dev/sda1'
+    assert mapping['Ebs']['VolumeId'] == 'vol-root'
+    ec2.describe_instances.assert_called_once_with(InstanceIds=['i-donor'])
+
+
+@patch('ec2imgutils.ec2uploadimg.EC2ImageUploader._connect')
+def test_get_root_device_mapping_uses_root_device_name(connect_mock):
+    ec2 = MagicMock()
+    ec2.describe_instances.return_value = _donor_instance(
+        [_ebs_mapping('/dev/sda1', 'vol-data'),
+         _ebs_mapping('/dev/xvda', 'vol-root')],
+        root_device='/dev/xvda'
+    )
+    connect_mock.return_value = ec2
+    uploader = _make_uploader()
+    uploader.helper_instance = {'InstanceId': 'i-donor'}
+
+    assert uploader._get_root_device_mapping()['Ebs']['VolumeId'] == (
+        'vol-root'
+    )
+
+
+@patch('ec2imgutils.ec2uploadimg.EC2ImageUploader._connect')
+def test_get_root_device_mapping_no_root_device_name(connect_mock):
+    ec2 = MagicMock()
+    ec2.describe_instances.return_value = _donor_instance(
+        [_ebs_mapping('/dev/sda1', 'vol-root')], root_device=None
+    )
+    connect_mock.return_value = ec2
+    uploader = _make_uploader()
+    uploader.helper_instance = {'InstanceId': 'i-donor'}
+
+    with pytest.raises(ec2upimg.EC2UploadImgException) as error:
+        uploader._get_root_device_mapping()
+    assert 'Could not determine the root device' in str(error.value)
+
+
+@patch('ec2imgutils.ec2uploadimg.EC2ImageUploader._connect')
+@pytest.mark.parametrize('mappings', [
+    [],
+    [{'DeviceName': '/dev/sda1'}],
+    [_ebs_mapping('/dev/sdb', 'vol-data')]
+])
+def test_get_root_device_mapping_not_ebs(connect_mock, mappings):
+    ec2 = MagicMock()
+    ec2.describe_instances.return_value = _donor_instance(mappings)
+    connect_mock.return_value = ec2
+    uploader = _make_uploader()
+    uploader.helper_instance = {'InstanceId': 'i-donor'}
+
+    with pytest.raises(ec2upimg.EC2UploadImgException) as error:
+        uploader._get_root_device_mapping()
+    assert 'is not an EBS volume' in str(error.value)

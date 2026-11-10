@@ -574,6 +574,29 @@ class EC2ImageUploader(EC2ImgUtils):
         return helper_instance
 
     # ---------------------------------------------------------------------
+    def _get_root_device_mapping(self):
+        """Returns the block device mapping of the root device of the
+           donor instance. The instance may have more volumes and the
+           order of the mappings is not guaranteed"""
+        instance_id = self.helper_instance['InstanceId']
+        reservations = self._connect().describe_instances(
+            InstanceIds=[instance_id]
+        )['Reservations']
+        instance = reservations[0]['Instances'][0]
+        root_device = instance.get('RootDeviceName')
+        if not root_device:
+            msg = 'Could not determine the root device of instance %s'
+            raise EC2UploadImgException(msg % instance_id)
+        for mapping in instance.get('BlockDeviceMappings', []):
+            if mapping.get('DeviceName') != root_device:
+                continue
+            if 'VolumeId' not in mapping.get('Ebs', {}):
+                break
+            return mapping
+        msg = 'The root device %s of instance %s is not an EBS volume'
+        raise EC2UploadImgException(msg % (root_device, instance_id))
+
+    # ---------------------------------------------------------------------
     def _launch_helper_instance(self):
         """Launch the donor instance that provides the meta data for the new
            image, it is not accessed, it is stopped and gets the new root
@@ -1166,28 +1189,15 @@ class EC2ImageUploader(EC2ImgUtils):
                 repeat_count
             )
 
-        # Find the current root volume
-        my_volumes = self._connect().describe_volumes()['Volumes']
-        current_root_volume = None
-        device_id = None
-        for volume in my_volumes:
-            attached = volume['Attachments']
-            if not attached:
-                continue
-            attached_to_instance = attached[0].get('InstanceId')
-            if attached_to_instance == self.helper_instance['InstanceId']:
-                current_root_volume = volume
-                device_id = attached[0].get('Device')
-                break
+        # Find the current root volume, the donor may have other volumes
+        root_mapping = self._get_root_device_mapping()
+        device_id = root_mapping['DeviceName']
+        current_root_volume = {'VolumeId': root_mapping['Ebs']['VolumeId']}
 
         self._detach_volume(current_root_volume)
         self._attach_volume(target_root_volume, device_id)
         self.log.debug('Creating new image')
-        instance_info = self._connect().describe_instances(
-            InstanceIds=[self.helper_instance['InstanceId']]
-        )
-        helper_instance = instance_info['Reservations'][0]['Instances']
-        helper_dev_map = helper_instance[0]['BlockDeviceMappings'][0]
+        helper_dev_map = self._get_root_device_mapping()
         if self.backing_store == 'mag':
             backing_store = 'standard'
         else:
