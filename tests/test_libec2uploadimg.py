@@ -19,15 +19,23 @@
 # <http://www.gnu.org/licenses/>.
 #
 
+import base64
+import boto3
+import botocore.config
+import botocore.exceptions
+import hashlib
 import inspect
 import logging
+import lzma
 import os
 import pytest
-import socket
 import sys
+import tarfile
+import threading
 
 
-from unittest.mock import patch, MagicMock, call
+from botocore.stub import Stubber
+from unittest.mock import ANY, patch, MagicMock, call
 
 # Load the module from the source tree not the one on the system
 test_path = os.path.abspath(
@@ -61,19 +69,6 @@ def test_instantiation_sriov_error():
 
 # -----------------------------------------------------------------------------
 def test_instantiation_tpm_error():
-    uploader = ec2upimg.EC2ImageUploader(
-        access_key='',
-        wait_count=1,
-        log_callback=logger
-    )
-    uploader.abort()
-    uploader._attach_volume("volume")
-    # Assertions
-    assert uploader.aborted is True
-
-
-# -----------------------------------------------------------------------------
-def test_attach_volume_aborted():
     with pytest.raises(EC2UploadImgException) as e:
         # Instance creation
         ec2upimg.EC2ImageUploader(
@@ -88,55 +83,16 @@ def test_attach_volume_aborted():
 
 
 # -----------------------------------------------------------------------------
-@patch('ec2imgutils.ec2uploadimg.EC2ImageUploader._check_wait_status')
-@patch('ec2imgutils.ec2uploadimg.EC2ImageUploader._show_progress')
-@patch('ec2imgutils.ec2uploadimg.EC2ImageUploader._connect')
-def test_attach_volume_without_device(
-    ec2connect_mock,
-    show_progress_mock,
-    check_wait_status_mock,
-    caplog
-):
-    # mocks
-    def log_args(**kwargs):
-        logger.info(str(kwargs))
-
-    ec2 = MagicMock()
-    ec2.attach_volume.return_value = True
-    ec2connect_mock.return_value = ec2
-
-    # Instance creation
+def test_attach_volume_aborted():
     uploader = ec2upimg.EC2ImageUploader(
         access_key='',
         wait_count=1,
-        log_callback=logger,
-        running_id='myRunningId'
+        log_callback=logger
     )
-    uploader.default_sleep = 0.1
-    uploader.wait_count = 0
-
-    helper_instance = {
-        'State': {
-            'Name': 'Running'
-        },
-        'SubnetId': 'mySubnetId',
-        'InstanceId': 'myInstanceId'
-    }
-    uploader.helper_instance = helper_instance
-
-    volume = {
-        'VolumeId': 'myVolumeId'
-    }
-    uploader._attach_volume(volume)
-
-    # asserts
-    ec2.attach_volume.assert_called_once_with(
-        VolumeId='myVolumeId',
-        InstanceId='myInstanceId',
-        Device='/dev/sdf'
-    )
-    ec2.get_waiter.assert_called_once_with('volume_in_use')
-    ec2.get_waiter().wait.assert_not_called()
+    uploader.abort()
+    uploader._attach_volume("volume", "/dev/sda1")
+    # Assertions
+    assert uploader.aborted is True
 
 
 # -----------------------------------------------------------------------------
@@ -275,121 +231,6 @@ def test_attach_volume(
     )
 
 
-def test_execute_ssh_command(
-    caplog
-):
-
-    # Mocks
-    ssh_client_mock = MagicMock()
-    stdin_mock = MagicMock()
-    stdin_mock.read.response_value = ''
-    stdout_mock = MagicMock()
-    stdout_mock.read.return_value = bytearray('stdout', 'utf-8')
-    stderr_mock = MagicMock()
-    stderr_mock.read.return_value = ''
-    ssh_client_mock.exec_command.return_value = (
-        stdin_mock,
-        stdout_mock,
-        stderr_mock
-    )
-
-    # Instance creation
-    uploader = ec2upimg.EC2ImageUploader(
-        access_key='',
-        wait_count=1,
-        log_callback=logger
-    )
-    uploader.ssh_client = ssh_client_mock
-    command = 'example command'
-    response = uploader._execute_ssh_command(command)
-
-    # assertions
-    assert response == 'stdout'
-    stderr_mock.read.assert_has_calls([call()])
-    stdout_mock.read.assert_has_calls([call()])
-    ssh_client_mock.assert_has_calls([
-        call.__bool__(),
-        call.exec_command('sudo example command', get_pty=True)
-    ])
-
-
-def test_execute_ssh_command_aborted(
-    caplog
-):
-    # Instance creation
-    uploader = ec2upimg.EC2ImageUploader(
-        access_key='',
-        wait_count=1,
-        log_callback=logger
-    )
-    uploader.aborted = True
-    uploader.backing_store = 'mag'
-
-    bdm = uploader._execute_ssh_command("myCommand")
-
-    # assertions
-    assert bdm is None
-
-
-def test_execute_ssh_command_without_connection(
-    caplog
-):
-    # Instance creation
-    uploader = ec2upimg.EC2ImageUploader(
-        access_key='',
-        wait_count=1,
-        log_callback=logger
-    )
-    uploader.aborted = False
-    uploader.backing_store = 'mag'
-
-    with pytest.raises(EC2UploadImgException) as e:
-        uploader._execute_ssh_command("myCommand")
-
-    # assertions
-    msg = 'No ssh connection established, cannot execute command'
-    assert msg in str(e)
-
-
-def test_change_mount_point_permissions(
-    caplog
-):
-    # mocks
-    ssh_client_mock = MagicMock()
-    stdin_mock = MagicMock()
-    stdin_mock.read.response_value = ''
-    stdout_mock = MagicMock()
-    stdout_mock.read.return_value = bytearray('stdout', 'utf-8')
-    stderr_mock = MagicMock()
-    stderr_mock.read.return_value = ''
-    ssh_client_mock.exec_command.return_value = (
-        stdin_mock,
-        stdout_mock,
-        stderr_mock
-    )
-
-    # Instance creation
-    uploader = ec2upimg.EC2ImageUploader(
-        access_key='',
-        wait_count=1,
-        log_callback=logger
-    )
-    uploader.ssh_client = ssh_client_mock
-    response = uploader._change_mount_point_permissions(
-        "target",
-        "permissions"
-    )
-
-    # assertions
-    assert response == 'stdout'
-    stderr_mock.read.assert_has_calls([call()])
-    stdout_mock.read.assert_has_calls([call()])
-    ssh_client_mock.assert_has_calls([
-        call.__bool__(),
-        call.exec_command('sudo chmod permissions target', get_pty=True)
-    ])
-
-
 @patch('ec2imgutils.ec2uploadimg.EC2ImageUploader._get_owned_images')
 def test_check_image_exists(
     get_owned_images_mock,
@@ -418,37 +259,6 @@ def test_check_image_exists(
     msg = 'Image with name "default" already exists'
     assert msg in str(e)
     get_owned_images_mock.assert_has_calls([call()])
-
-
-@patch('ec2imgutils.ec2uploadimg.EC2ImageUploader._connect')
-def test_check_security_groups_exist(
-    ec2connect_mock,
-    caplog
-):
-
-    # Mocks
-    ec2 = MagicMock()
-    ec2.describe_security_groups.side_effect = Exception("except")
-    ec2connect_mock.return_value = ec2
-
-    # Instance creation
-    uploader = ec2upimg.EC2ImageUploader(
-        access_key='',
-        wait_count=1,
-        log_callback=logger
-    )
-    uploader.security_group_ids = 'securityGroupId'
-
-    with pytest.raises(EC2UploadImgException) as e:
-        uploader._check_security_groups_exist()
-
-    # assertions
-    msg = 'One or more of the specified security groups '
-    msg += 'could not be found: securityGroupId'
-    assert msg in str(e)
-    ec2.assert_has_calls([
-        call.describe_security_groups(GroupIds=['securityGroupId'])
-    ])
 
 
 @patch('ec2imgutils.ec2uploadimg.EC2ImageUploader._connect')
@@ -913,270 +723,580 @@ def test_create_block_device_map_aborted(
     assert bdm is None
 
 
-@patch('ec2imgutils.ec2uploadimg.EC2ImageUploader._detach_volume')
-@patch('ec2imgutils.ec2uploadimg.EC2ImageUploader._end_ssh_session')
-@patch('ec2imgutils.ec2uploadimg.EC2ImageUploader._execute_ssh_command')
-@patch('ec2imgutils.ec2uploadimg.EC2ImageUploader._dump_root_fs')
-@patch('ec2imgutils.ec2uploadimg.EC2ImageUploader._unpack_image')
-@patch('ec2imgutils.ec2uploadimg.EC2ImageUploader._upload_image')
-@patch('ec2imgutils.ec2uploadimg.EC2ImageUploader._change_mount_point_permissions')  # noqa: E501
-@patch('ec2imgutils.ec2uploadimg.EC2ImageUploader._mount_storage_volume')
-@patch('ec2imgutils.ec2uploadimg.EC2ImageUploader._create_storage_filesystem')
-@patch('ec2imgutils.ec2uploadimg.EC2ImageUploader._format_storage_volume')
-@patch('ec2imgutils.ec2uploadimg.EC2ImageUploader._create_target_root_volume')
-@patch('ec2imgutils.ec2uploadimg.EC2ImageUploader._find_device_name')
-@patch('ec2imgutils.ec2uploadimg.EC2ImageUploader._establish_ssh_connection')
-@patch('ec2imgutils.ec2uploadimg.EC2ImageUploader._attach_volume')
-@patch('ec2imgutils.ec2uploadimg.EC2ImageUploader._create_storage_volume')
-@patch('ec2imgutils.ec2uploadimg.EC2ImageUploader._get_helper_instance')
-@patch('ec2imgutils.ec2uploadimg.EC2ImageUploader._check_security_groups_exist')  # noqa: E501
-@patch('ec2imgutils.ec2uploadimg.EC2ImageUploader._check_subnet_exists')
+# -----------------------------------------------------------------------------
+# Tests for the upload using the EBS direct APIs
+BLOCK_SIZE = 524288
+
+
+class FakeEBS:
+    """Stand-in for the boto3 ebs client"""
+
+    def __init__(self, block_size=BLOCK_SIZE, fail_on_put=None,
+                 on_put=None):
+        self.block_size = block_size
+        self.fail_on_put = fail_on_put
+        self.on_put = on_put
+        self.blocks = {}
+        self.started = []
+        self.completed = []
+        self.lock = threading.Lock()
+
+    def start_snapshot(self, **kwargs):
+        self.started.append(kwargs)
+        return {'SnapshotId': 'snap-1234', 'BlockSize': self.block_size}
+
+    def put_snapshot_block(self, **kwargs):
+        if self.on_put:
+            self.on_put()
+        if kwargs['BlockIndex'] == self.fail_on_put:
+            raise RuntimeError('put failed')
+        with self.lock:
+            self.blocks[kwargs['BlockIndex']] = kwargs
+
+    def complete_snapshot(self, **kwargs):
+        self.completed.append(kwargs)
+        return {'Status': 'pending'}
+
+
+def _make_uploader(**kwargs):
+    kwargs.setdefault('access_key', '')
+    kwargs.setdefault('wait_count', 1)
+    kwargs.setdefault('log_callback', logger)
+    return ec2upimg.EC2ImageUploader(**kwargs)
+
+
+def _sha(data):
+    return hashlib.sha256(data).digest()
+
+
+def _b64(digest):
+    return base64.b64encode(digest).decode()
+
+
+def _raw_image_data():
+    """3 blocks and a bit, the second block is all zeros"""
+    block0 = b'\x01' * BLOCK_SIZE
+    block1 = bytes(BLOCK_SIZE)
+    block2 = b'\x02' * BLOCK_SIZE
+    tail = b'\x03' * 100
+    return block0, block1, block2, tail
+
+
+def _write_raw_image(path):
+    data = b''.join(_raw_image_data())
+    path.write_bytes(data)
+    return data
+
+
+def test_instantiation_upload_workers_error():
+    with pytest.raises(EC2UploadImgException) as exc:
+        _make_uploader(upload_workers=0)
+    assert 'upload_workers' in str(exc.value)
+    with pytest.raises(EC2UploadImgException):
+        _make_uploader(upload_workers='many')
+
+
+def test_instantiation_upload_workers():
+    assert _make_uploader().upload_workers == 8
+    assert _make_uploader(upload_workers='3').upload_workers == 3
+
+
+def _tar_with(path, members, mode='w'):
+    with tarfile.open(path, mode) as tar:
+        for name, content in members:
+            with open(path.parent / 'member.tmp', 'wb') as tmp:
+                tmp.write(content)
+            tar.add(path.parent / 'member.tmp', arcname=name)
+
+
+@pytest.mark.parametrize('kind', [
+    'raw', 'xz', 'tar_raw', 'tgz_raw', 'tar_xz', 'tar_xz_compressed'
+])
+def test_open_raw_image(tmp_path, kind):
+    data = b'raw image data' * 100
+    if kind == 'raw':
+        source = tmp_path / 'image.raw'
+        source.write_bytes(data)
+    elif kind == 'xz':
+        source = tmp_path / 'image.raw.xz'
+        source.write_bytes(lzma.compress(data))
+    elif kind == 'tar_raw':
+        source = tmp_path / 'image.tar'
+        _tar_with(source, [('README', b'x'), ('image.raw', data)])
+    elif kind == 'tgz_raw':
+        source = tmp_path / 'image.tgz'
+        _tar_with(source, [('image.raw', data)], 'w:gz')
+    elif kind == 'tar_xz':
+        source = tmp_path / 'image.tar'
+        _tar_with(source, [('image.raw.xz', lzma.compress(data))])
+    else:
+        source = tmp_path / 'image.tar.xz'
+        _tar_with(source, [('image.raw', data)], 'w:xz')
+
+    uploader = _make_uploader()
+    with uploader._open_raw_image(str(source)) as stream:
+        assert stream.read() == data
+
+
+@pytest.mark.parametrize('name,is_tar', [
+    ('image.qcow2', False),
+    ('image.tar', True)
+])
+def test_open_raw_image_no_raw_file(tmp_path, name, is_tar):
+    source = tmp_path / name
+    if is_tar:
+        _tar_with(source, [('README', b'nothing to see')])
+    else:
+        source.write_bytes(b'data')
+
+    uploader = _make_uploader()
+    with pytest.raises(EC2UploadImgException) as exc:
+        with uploader._open_raw_image(str(source)):
+            pass
+    assert 'Unable to find raw image file' in str(exc.value)
+
+
+def test_upload_snapshot_blocks(tmp_path):
+    source = tmp_path / 'image.raw'
+    block0, block1, block2, tail = _raw_image_data()
+    _write_raw_image(source)
+    ebs = FakeEBS()
+
+    uploader = _make_uploader(upload_workers=2)
+    digests = uploader._upload_snapshot_blocks(
+        ebs, 'snap-1234', BLOCK_SIZE, str(source)
+    )
+
+    # The all zero block is skipped, the last block is padded
+    assert sorted(ebs.blocks) == [0, 2, 3]
+    assert sorted(digests) == [0, 2, 3]
+    padded_tail = tail + bytes(BLOCK_SIZE - len(tail))
+    for index, data in ((0, block0), (2, block2), (3, padded_tail)):
+        put = ebs.blocks[index]
+        assert put['SnapshotId'] == 'snap-1234'
+        assert put['BlockData'] == data
+        assert put['DataLength'] == BLOCK_SIZE
+        assert put['Checksum'] == _b64(_sha(data))
+        assert put['ChecksumAlgorithm'] == 'SHA256'
+        assert digests[index] == _sha(data)
+
+
+def test_upload_snapshot_blocks_many_blocks(tmp_path):
+    # More blocks than in flight limit to exercise the wait loop
+    source = tmp_path / 'image.raw'
+    source.write_bytes(
+        b''.join(bytes([i + 1]) * 1024 for i in range(50))
+    )
+    ebs = FakeEBS(block_size=1024)
+
+    uploader = _make_uploader(upload_workers=2)
+    digests = uploader._upload_snapshot_blocks(
+        ebs, 'snap-1234', 1024, str(source)
+    )
+
+    assert sorted(digests) == list(range(50))
+    assert sorted(ebs.blocks) == list(range(50))
+
+
+def test_upload_snapshot_blocks_too_large(tmp_path):
+    source = tmp_path / 'image.raw'
+    source.write_bytes(b'\x01' * 3000)
+    ebs = FakeEBS(block_size=1024)
+
+    uploader = _make_uploader()
+    # Root volume of 2048 bytes
+    uploader.root_volume_size = 2048 / 1024 ** 3
+    with pytest.raises(EC2UploadImgException) as exc:
+        uploader._upload_snapshot_blocks(
+            ebs, 'snap-1234', 1024, str(source)
+        )
+    assert 'larger than the root volume size' in str(exc.value)
+
+
+def test_upload_snapshot_blocks_exact_fit(tmp_path):
+    source = tmp_path / 'image.raw'
+    source.write_bytes(b'\x01' * 2048)
+    ebs = FakeEBS(block_size=1024)
+
+    uploader = _make_uploader()
+    uploader.root_volume_size = 2048 / 1024 ** 3
+    digests = uploader._upload_snapshot_blocks(
+        ebs, 'snap-1234', 1024, str(source)
+    )
+    assert sorted(digests) == [0, 1]
+
+
+def test_upload_snapshot_blocks_put_failure(tmp_path):
+    source = tmp_path / 'image.raw'
+    _write_raw_image(source)
+    ebs = FakeEBS(fail_on_put=2)
+
+    uploader = _make_uploader(upload_workers=1)
+    with pytest.raises(RuntimeError):
+        uploader._upload_snapshot_blocks(
+            ebs, 'snap-1234', BLOCK_SIZE, str(source)
+        )
+
+
+@patch('ec2imgutils.ec2uploadimg.EC2ImageUploader._wait_for_snapshot')
+@patch('ec2imgutils.ec2uploadimg.EC2ImageUploader._check_image_exists')
+def test_create_snapshot_matches_ebs_api_model(
+    check_image_exists_mock,
+    wait_for_snapshot_mock,
+    tmp_path
+):
+    """Run against a real boto3 ebs client whose responses are stubbed,
+       botocore validates all parameters against the API model"""
+    source = tmp_path / 'image.raw'
+    block0, block1, block2, tail = _raw_image_data()
+    _write_raw_image(source)
+    padded_tail = tail + bytes(BLOCK_SIZE - len(tail))
+
+    ebs = boto3.client(
+        'ebs',
+        region_name='us-east-1',
+        aws_access_key_id='key',
+        aws_secret_access_key='secret'
+    )
+    stubber = Stubber(ebs)
+    stubber.add_response(
+        'start_snapshot',
+        {'SnapshotId': 'snap-1234', 'BlockSize': BLOCK_SIZE},
+        {
+            'VolumeSize': 10,
+            'Description': 'AWS EC2 AMI',
+            'ClientToken': ANY,
+            'Timeout': ec2upimg.SNAPSHOT_TIMEOUT_MINUTES
+        }
+    )
+    digests = []
+    for index, data in ((0, block0), (2, block2), (3, padded_tail)):
+        digests.append(_sha(data))
+        stubber.add_response(
+            'put_snapshot_block',
+            {},
+            {
+                'SnapshotId': 'snap-1234',
+                'BlockIndex': index,
+                'BlockData': data,
+                'DataLength': BLOCK_SIZE,
+                'Checksum': _b64(_sha(data)),
+                'ChecksumAlgorithm': 'SHA256'
+            }
+        )
+    stubber.add_response(
+        'complete_snapshot',
+        {'Status': 'pending'},
+        {
+            'SnapshotId': 'snap-1234',
+            'ChangedBlocksCount': 3,
+            'Checksum': _b64(_sha(b''.join(digests))),
+            'ChecksumAlgorithm': 'SHA256',
+            'ChecksumAggregationMethod': 'LINEAR'
+        }
+    )
+
+    uploader = _make_uploader(upload_workers=1)
+    with stubber, patch.object(uploader, '_connect', return_value=ebs):
+        snapshot = uploader.create_snapshot(str(source))
+
+    assert snapshot == {'SnapshotId': 'snap-1234'}
+    stubber.assert_no_pending_responses()
+
+
+def test_complete_snapshot():
+    ebs = FakeEBS()
+    uploader = _make_uploader()
+    uploader.pending_snapshot_id = 'snap-1234'
+    # Intentionally not in order, the checksum is based on the index order
+    digests = {5: _sha(b'five'), 0: _sha(b'zero'), 2: _sha(b'two')}
+
+    uploader._complete_snapshot(ebs, 'snap-1234', digests)
+
+    expected = _sha(_sha(b'zero') + _sha(b'two') + _sha(b'five'))
+    assert ebs.completed == [{
+        'SnapshotId': 'snap-1234',
+        'ChangedBlocksCount': 3,
+        'Checksum': _b64(expected),
+        'ChecksumAlgorithm': 'SHA256',
+        'ChecksumAggregationMethod': 'LINEAR'
+    }]
+    assert uploader.pending_snapshot_id is None
+
+
+def test_complete_snapshot_no_blocks():
+    ebs = FakeEBS()
+    uploader = _make_uploader()
+    uploader._complete_snapshot(ebs, 'snap-1234', {})
+    assert ebs.completed[0]['ChangedBlocksCount'] == 0
+    assert ebs.completed[0]['Checksum'] == _b64(_sha(b''))
+
+
+def test_start_snapshot():
+    ebs = FakeEBS()
+    uploader = _make_uploader(root_volume_size=12, image_description='desc')
+
+    snapshot_id, block_size = uploader._start_snapshot(ebs)
+
+    assert snapshot_id == 'snap-1234'
+    assert block_size == BLOCK_SIZE
+    assert uploader.pending_snapshot_id == 'snap-1234'
+    start = ebs.started[0]
+    assert start['VolumeSize'] == 12
+    assert start['Description'] == 'desc'
+    assert start['Timeout'] == ec2upimg.SNAPSHOT_TIMEOUT_MINUTES
+    assert start['ClientToken']
+
+
+@patch('ec2imgutils.ec2uploadimg.EC2ImageUploader._wait_for_snapshot')
 @patch('ec2imgutils.ec2uploadimg.EC2ImageUploader._check_image_exists')
 @patch('ec2imgutils.ec2uploadimg.EC2ImageUploader._connect')
-def test_create_image_root_volume(
-    ec2connect_mock,
+def test_create_snapshot_ebs_direct(
+    connect_mock,
     check_image_exists_mock,
-    check_subnet_exists_mock,
-    check_security_groups_exist_mock,
-    get_helper_instance_mock,
-    create_storage_volume_mock,
-    attach_volume_mock,
-    establish_ssh_connection_mock,
-    find_device_name_mock,
-    create_target_root_volume_mock,
-    format_storage_volume_mock,
-    create_storage_filesystem_mock,
-    mount_storage_volume_mock,
-    change_mount_point_permissions_mock,
-    upload_image_mock,
-    unpack_image_mock,
-    dump_root_fs_mock,
-    execute_ssh_command_mock,
-    end_ssh_session_mock,
-    detach_volume_mock,
-    caplog
+    wait_for_snapshot_mock,
+    tmp_path
 ):
-
-    # Mocks
-    check_image_exists_mock.return_value = None
-    check_subnet_exists_mock.return_value = None
-    check_security_groups_exist_mock.return_value = None
-    get_helper_instance_mock.return_value = None
-    create_storage_volume_mock.return_value = 'myStorageVolume'
-    attach_volume_mock.return_value = None
-    establish_ssh_connection_mock.return_value = None
-    find_device_name_mock.side_effect = ['myStoreDeviceId', 'myRootDeviceId']
-    create_target_root_volume_mock.return_value = 'myTargetRootVolume'
-    format_storage_volume_mock.return_value = None
-    create_storage_filesystem_mock.return_value = None
-    mount_storage_volume_mock.return_value = 'myMountPoint'
-    change_mount_point_permissions_mock.return_value = None
-    upload_image_mock.return_value = 'myImageFilename'
-    unpack_image_mock.return_value = 'rawImageFilename'
-    dump_root_fs_mock.return_value = None
-    execute_ssh_command_mock.return_value = None
-    end_ssh_session_mock.return_value = None
-    detach_volume_mock.return_value = None
-
-    # Instance creation
-    uploader = ec2upimg.EC2ImageUploader(
-        access_key='',
-        wait_count=1,
-        log_callback=logger
+    source = tmp_path / 'image.raw'
+    _write_raw_image(source)
+    ebs = FakeEBS()
+    ec2 = MagicMock()
+    connect_mock.side_effect = (
+        lambda service='ec2', config=None: ebs if service == 'ebs' else ec2
     )
-    uploader.vpc_subnet_id = 'mySubnetId'
-    uploader.security_group_ids = 'mySecurityGroupId'
-    uploader.running_id = 'myRunningId'
-    uploader.storage_volume_size = '10G'
-    uploader.root_volume_size = '20G'
-    response = uploader._create_image_root_volume('myImageFilename')
 
-    # assertions
-    assert response == 'myTargetRootVolume'
+    uploader = _make_uploader(upload_workers=3)
+    snapshot = uploader.create_snapshot(str(source))
+
+    assert snapshot == {'SnapshotId': 'snap-1234'}
     check_image_exists_mock.assert_called_once_with()
-    check_subnet_exists_mock.assert_called_once_with()
-    check_security_groups_exist_mock.assert_called_once_with()
-    get_helper_instance_mock.assert_called_once_with()
-    create_storage_volume_mock.assert_called_once_with()
-    attach_volume_mock.assert_has_calls([
-        call('myStorageVolume'),
-        call('myTargetRootVolume')
-    ])
-    establish_ssh_connection_mock.assert_called_once_with()
-    find_device_name_mock.assert_has_calls([call('10G'), call('20G')])
-    create_target_root_volume_mock.assert_called_once_with()
-    format_storage_volume_mock.assert_called_once_with('myStoreDeviceId')
-    create_storage_filesystem_mock.assert_called_once_with('myStoreDeviceId')
-    mount_storage_volume_mock.assert_called_once_with('myStoreDeviceId')
-    change_mount_point_permissions_mock.assert_called_once_with(
-        'myMountPoint',
-        '777'
-    )
-    upload_image_mock.assert_called_once_with(
-        'myMountPoint',
-        'myImageFilename'
-    )
-    unpack_image_mock.assert_called_once_with(
-        'myMountPoint',
-        'myImageFilename'
-    )
-    dump_root_fs_mock.assert_called_once_with(
-        'myMountPoint',
-        'rawImageFilename',
-        'myRootDeviceId'
-    )
-    execute_ssh_command_mock.assert_called_once_with('umount myMountPoint')
-    end_ssh_session_mock.assert_called_once_with()
-    detach_volume_mock.assert_has_calls([
-        call('myTargetRootVolume'),
-        call('myStorageVolume')
-    ])
+    wait_for_snapshot_mock.assert_called_once_with('snap-1234')
+    assert sorted(ebs.blocks) == [0, 2, 3]
+    assert ebs.completed[0]['ChangedBlocksCount'] == 3
+    assert uploader.pending_snapshot_id is None
+    # The sealed snapshot must not be deleted
+    ec2.delete_snapshot.assert_not_called()
+    # The EBS client gets one connection per worker
+    ebs_call = [
+        c for c in connect_mock.call_args_list
+        if c[1].get('service') == 'ebs'
+    ][0]
+    assert ebs_call[1]['config'].max_pool_connections == 3
 
 
-def test_create_image_root_volume_aborted(
-    caplog
+@patch('ec2imgutils.ec2uploadimg.EC2ImageUploader._check_image_exists')
+@patch('ec2imgutils.ec2uploadimg.EC2ImageUploader._connect')
+def test_create_snapshot_ebs_direct_upload_failure(
+    connect_mock,
+    check_image_exists_mock,
+    tmp_path
 ):
-    # Instance creation
-    uploader = ec2upimg.EC2ImageUploader(
-        access_key='',
-        wait_count=1,
-        log_callback=logger
+    source = tmp_path / 'image.raw'
+    _write_raw_image(source)
+    ebs = FakeEBS(fail_on_put=0)
+    ec2 = MagicMock()
+    connect_mock.side_effect = (
+        lambda service='ec2', config=None: ebs if service == 'ebs' else ec2
     )
+
+    uploader = _make_uploader(upload_workers=1)
+    with pytest.raises(RuntimeError):
+        uploader.create_snapshot(str(source))
+
+    assert not ebs.completed
+    ec2.delete_snapshot.assert_called_once_with(SnapshotId='snap-1234')
+    assert uploader.pending_snapshot_id is None
+
+
+@patch('ec2imgutils.ec2uploadimg.EC2ImageUploader._check_image_exists')
+@patch('ec2imgutils.ec2uploadimg.EC2ImageUploader._connect')
+def test_create_snapshot_ebs_direct_too_large(
+    connect_mock,
+    check_image_exists_mock,
+    tmp_path
+):
+    source = tmp_path / 'image.raw'
+    source.write_bytes(b'\x01' * 3000)
+    ebs = FakeEBS(block_size=1024)
+    ec2 = MagicMock()
+    connect_mock.side_effect = (
+        lambda service='ec2', config=None: ebs if service == 'ebs' else ec2
+    )
+
+    uploader = _make_uploader()
+    uploader.root_volume_size = 2048 / 1024 ** 3
+    with pytest.raises(EC2UploadImgException):
+        uploader.create_snapshot(str(source))
+
+    assert not ebs.completed
+    ec2.delete_snapshot.assert_called_once_with(SnapshotId='snap-1234')
+
+
+@patch('ec2imgutils.ec2uploadimg.EC2ImageUploader._check_image_exists')
+@patch('ec2imgutils.ec2uploadimg.EC2ImageUploader._connect')
+def test_create_snapshot_ebs_direct_abort_during_upload(
+    connect_mock,
+    check_image_exists_mock,
+    tmp_path
+):
+    source = tmp_path / 'image.raw'
+    _write_raw_image(source)
+    uploader = _make_uploader(upload_workers=1)
+    ebs = FakeEBS(on_put=uploader.abort)
+    ec2 = MagicMock()
+    connect_mock.side_effect = (
+        lambda service='ec2', config=None: ebs if service == 'ebs' else ec2
+    )
+
+    snapshot = uploader.create_snapshot(str(source))
+
+    assert snapshot is None
+    assert not ebs.completed
+    ec2.delete_snapshot.assert_called_once_with(SnapshotId='snap-1234')
+
+
+def test_create_snapshot_ebs_direct_aborted():
+    uploader = _make_uploader()
     uploader.aborted = True
 
-    bdm = uploader._create_image_root_volume({'SnapshotId': 'mySnapshotId'})
+    assert uploader._create_snapshot_from_image('source') is None
 
-    # assertions
-    assert bdm is None
+
+@patch('ec2imgutils.ec2uploadimg.EC2ImageUploader._connect')
+def test_delete_pending_snapshot(connect_mock):
+    ec2 = MagicMock()
+    connect_mock.return_value = ec2
+    uploader = _make_uploader()
+    uploader.pending_snapshot_id = 'snap-1234'
+
+    uploader._delete_pending_snapshot()
+
+    ec2.delete_snapshot.assert_called_once_with(SnapshotId='snap-1234')
+    assert uploader.pending_snapshot_id is None
+
+    # Nothing pending, nothing to do
+    uploader._delete_pending_snapshot()
+    ec2.delete_snapshot.assert_called_once()
+
+
+@patch('ec2imgutils.ec2uploadimg.EC2ImageUploader._connect')
+def test_delete_pending_snapshot_error(connect_mock, caplog):
+    ec2 = MagicMock()
+    ec2.delete_snapshot.side_effect = Exception('nope')
+    connect_mock.return_value = ec2
+    uploader = _make_uploader()
+    uploader.pending_snapshot_id = 'snap-1234'
+
+    uploader._delete_pending_snapshot()
+
+    assert 'Unable to delete incomplete snapshot snap-1234' in caplog.text
+
+
+@patch('ec2imgutils.ec2uploadimg.EC2ImageUploader._connect')
+def test_clean_up_deletes_pending_snapshot(connect_mock):
+    ec2 = MagicMock()
+    connect_mock.return_value = ec2
+    uploader = _make_uploader()
+    uploader.pending_snapshot_id = 'snap-1234'
+
+    uploader._clean_up()
+
+    ec2.delete_snapshot.assert_called_once_with(SnapshotId='snap-1234')
+    ec2.terminate_instances.assert_not_called()
 
 
 @patch('ec2imgutils.ec2uploadimg.EC2ImageUploader._check_wait_status')
 @patch('ec2imgutils.ec2uploadimg.EC2ImageUploader._show_progress')
 @patch('ec2imgutils.ec2uploadimg.EC2ImageUploader._connect')
-def test_create_snapshot(
-    ec2connect_mock,
+def test_wait_for_snapshot(
+    connect_mock,
     show_progress_mock,
-    check_wait_status_mock,
-    caplog
+    check_wait_status_mock
 ):
-
-    # Mocks
-    snapshot = {
-        'SnapshotId': 'mySnapshotId'
-    }
     ec2 = MagicMock()
-    ec2.create_snapshot.return_value = snapshot
-
-    waiter_mock = MagicMock()
-    waiter_mock.wait.return_value = None
-
-    ec2.get_waiter.return_value = waiter_mock
-    ec2connect_mock.return_value = ec2
-
+    connect_mock.return_value = ec2
     check_wait_status_mock.return_value = 3
 
-    # Instance creation
-    uploader = ec2upimg.EC2ImageUploader(
-        access_key='',
-        wait_count=1,
-        log_callback=logger
+    uploader = _make_uploader()
+    uploader._wait_for_snapshot('snap-1234')
+
+    ec2.get_waiter.assert_called_once_with('snapshot_completed')
+    ec2.get_waiter().wait.assert_called_once_with(
+        SnapshotIds=['snap-1234'],
+        Filters=[{'Name': 'status', 'Values': ['completed']}]
     )
-    vol = {
-        'VolumeId': 'myVolumeId'
-    }
-    resp = uploader._create_snapshot(vol)
-    uploader.wait_count = 1
-
-    # assertions
-    assert resp['SnapshotId'] == snapshot['SnapshotId']
-    ec2.assert_has_calls([
-        call.create_snapshot(VolumeId='myVolumeId', Description='AWS EC2 AMI'),
-        call.get_waiter('snapshot_completed')
-    ])
 
 
-def test_create_snapshot_aborted(
-    caplog
-):
-    # Instance creation
-    uploader = ec2upimg.EC2ImageUploader(
-        access_key='',
-        wait_count=1,
-        log_callback=logger
-    )
+def test_wait_for_snapshot_aborted():
+    uploader = _make_uploader()
     uploader.aborted = True
 
-    bdm = uploader._create_snapshot({'VolumeId': 'myVolumeId'})
-
-    # assertions
-    assert bdm is None
+    assert uploader._wait_for_snapshot('snap-1234') is None
 
 
-@patch('ec2imgutils.ec2uploadimg.EC2ImageUploader._execute_ssh_command')
-def test_create_storage_filesystem(
-    execute_ssh_command_mock,
-    caplog
-):
-    # Mocks
-    execute_ssh_command_mock.return_value = 'success'
+@patch('ec2imgutils.ec2imgutils.boto3')
+def test_connect_ebs_service(boto3_mock):
+    uploader = _make_uploader(region='us-east-1')
+    config = botocore.config.Config(read_timeout=5)
 
-    # Instance creation
-    uploader = ec2upimg.EC2ImageUploader(
-        access_key='',
-        wait_count=1,
-        log_callback=logger
+    client = uploader._connect(service='ebs', config=config)
+
+    session = boto3_mock.session.Session.return_value
+    session.client.assert_called_once_with(
+        aws_access_key_id='',
+        aws_secret_access_key=None,
+        region_name='us-east-1',
+        service_name='ebs',
+        config=config
     )
-    result = uploader._create_storage_filesystem('myDeviceId')
-
-    # assertions
-    assert result == 'success'
-    execute_ssh_command_mock.assert_has_calls([
-        call('mkfs -t ext3 myDeviceId1')
-    ])
+    assert client == session.client.return_value
 
 
-@patch('ec2imgutils.ec2uploadimg.EC2ImageUploader._create_volume')
-def test_create_storage_volume(
-    create_volume_mock,
-    caplog
-):
-    # Mocks
-    create_volume_mock.return_value = 'myStorageVolume'
+@patch('ec2imgutils.ec2imgutils.boto3')
+def test_connect_ebs_service_session_token(boto3_mock):
+    uploader = _make_uploader(region='us-east-1', session_token='token')
 
-    # Instance creation
-    uploader = ec2upimg.EC2ImageUploader(
-        access_key='',
-        wait_count=1,
-        log_callback=logger
+    client = uploader._connect(service='ebs')
+
+    boto3_mock.client.assert_called_once_with(
+        aws_access_key_id='',
+        aws_secret_access_key=None,
+        aws_session_token='token',
+        region_name='us-east-1',
+        service_name='ebs'
     )
-    uploader.storage_volume_size = 99
-    result = uploader._create_storage_volume()
-
-    # assertions
-    assert result == 'myStorageVolume'
-    create_volume_mock.assert_has_calls([call('99')])
+    assert client == boto3_mock.client.return_value
 
 
-@patch('ec2imgutils.ec2uploadimg.EC2ImageUploader._create_volume')
-def test_create_target_root_volume(
-    create_volume_mock,
-    caplog
-):
-    # Mocks
-    create_volume_mock.return_value = 'myStorageVolume'
+@patch('ec2imgutils.ec2imgutils.boto3')
+def test_connect_defaults_to_ec2(boto3_mock):
+    uploader = _make_uploader(region='us-east-1')
 
-    # Instance creation
-    uploader = ec2upimg.EC2ImageUploader(
-        access_key='',
-        wait_count=1,
-        log_callback=logger
-    )
-    uploader.root_volume_size = 99
-    result = uploader._create_target_root_volume()
+    uploader._connect()
 
-    # assertions
-    assert result == 'myStorageVolume'
-    create_volume_mock.assert_has_calls([call('99')])
+    session = boto3_mock.session.Session.return_value
+    assert session.client.call_args[1]['service_name'] == 'ec2'
+    assert 'config' not in session.client.call_args[1]
+
+
+def test_connect_ebs_config():
+    uploader = _make_uploader(region='us-east-1', upload_workers=5)
+    with patch.object(uploader, '_connect') as connect_mock:
+        uploader._connect_ebs()
+    kwargs = connect_mock.call_args[1]
+    assert kwargs['service'] == 'ebs'
+    assert kwargs['config'].max_pool_connections == 5
+    assert kwargs['config'].retries['mode'] == 'standard'
+    assert kwargs['config'].retries['max_attempts'] == 2
+    assert kwargs['config'].connect_timeout == ec2upimg.CONNECT_TIMEOUT
+    assert kwargs['config'].read_timeout == 300
+
+
+def test_connect_ebs_config_upload_timeout():
+    uploader = _make_uploader(region='us-east-1', upload_timeout=900)
+    with patch.object(uploader, '_connect') as connect_mock:
+        uploader._connect_ebs()
+    assert connect_mock.call_args[1]['config'].read_timeout == 900
 
 
 @patch('ec2imgutils.ec2uploadimg.EC2ImageUploader._check_wait_status')
@@ -1339,414 +1459,6 @@ def test_detach_volume_none(
     assert bdm is None
 
 
-@patch('ec2imgutils.ec2uploadimg.EC2ImageUploader._execute_ssh_command')
-def test_device_exists(
-    execute_ssh_command_mock,
-    caplog
-):
-    # Mocks
-    execute_ssh_command_mock.return_value = 'myDeviceId'
-
-    # Instance creation
-    uploader = ec2upimg.EC2ImageUploader(
-        access_key='',
-        wait_count=1,
-        log_callback=logger
-    )
-    result = uploader._device_exists('myDeviceId')
-
-    # assertions
-    assert result is True
-    execute_ssh_command_mock.assert_has_calls([call('ls myDeviceId')])
-
-
-@patch('ec2imgutils.ec2uploadimg.EC2ImageUploader._execute_ssh_command')
-def test_dump_root_fs(
-    execute_ssh_command_mock,
-    caplog
-):
-    # Mocks
-    execute_ssh_command_mock.return_value = 'success'
-
-    # Instance creation
-    uploader = ec2upimg.EC2ImageUploader(
-        access_key='',
-        wait_count=1,
-        log_callback=logger
-    )
-    result = uploader._dump_root_fs(
-        'myImageDir',
-        'rawImageName',
-        'targetRootDevice'
-    )
-
-    # assertions
-    assert result == 'success'
-    execute_ssh_command_mock.assert_has_calls([
-        call('dd if=myImageDir/rawImageName of=targetRootDevice bs=32k')
-    ])
-
-
-def test_dump_root_fs_aborted(
-    caplog
-):
-    # Instance creation
-    uploader = ec2upimg.EC2ImageUploader(
-        access_key='',
-        wait_count=1,
-        log_callback=logger
-    )
-    uploader.aborted = True
-
-    bdm = uploader._dump_root_fs(
-        "image_dir",
-        "raw_image_name",
-        "target_root_device"
-    )
-
-    # assertions
-    assert bdm is None
-
-
-@patch('ec2imgutils.ec2uploadimg.EC2ImageUploader._execute_ssh_command')
-def test_end_ssh_session_not_ssh_client(
-    caplog
-):
-    # Instance creation
-    uploader = ec2upimg.EC2ImageUploader(
-        access_key='',
-        wait_count=1,
-        log_callback=logger
-    )
-    uploader.ssh_client = None
-    result = uploader._end_ssh_session()
-    assert result is None
-
-
-@patch('ec2imgutils.ec2uploadimg.EC2ImageUploader._execute_ssh_command')
-def test_end_ssh_session_ssh_client(
-    caplog
-):
-    # Mocks
-    ssh_client_mock = MagicMock()
-    ssh_client_mock.close.return_value = None
-
-    # Instance creation
-    uploader = ec2upimg.EC2ImageUploader(
-        access_key='',
-        wait_count=1,
-        log_callback=logger
-    )
-    uploader.ssh_client = ssh_client_mock
-    result = uploader._end_ssh_session()
-
-    # assertions
-    assert result == 1
-
-
-@patch('ec2imgutils.ec2uploadimg.paramiko.WarningPolicy')
-@patch('ec2imgutils.ec2uploadimg.paramiko.client')
-@patch('ec2imgutils.ec2uploadimg.EC2ImageUploader._connect')
-def test_establish_ssh_connection(
-    ec2connect_mock,
-    paramiko_client_mock,
-    paramiko_warning_pol_mock,
-    caplog
-):
-    # Mocks
-    ssh_client = MagicMock()
-    warningPolicy_mock = MagicMock()
-    paramiko_warning_pol_mock.return_value = warningPolicy_mock
-    paramiko_client_mock.response_value = ssh_client
-
-    instances = {
-        'Reservations': [{
-            'Instances': [
-                {
-                    'State': {
-                        'Name': 'Running'
-                    },
-                    'SubnetId': 'mySubnetId',
-                    'InstanceId': 'myInstanceId',
-                    'PublicIpAddress': '1.2.3.4',
-                }
-            ]
-        }]
-    }
-    ec2connect_mock.describe_instances.return_value = instances
-
-    helper_instance = {
-        'PublicIpAddress': '1.2.3.4'
-    }
-
-    # Instance creation
-    uploader = ec2upimg.EC2ImageUploader(
-        access_key='',
-        wait_count=1,
-        log_callback=logger
-    )
-    uploader.helper_instance = helper_instance
-    uploader._establish_ssh_connection()
-
-    # assertions
-    paramiko_client_mock.assert_has_calls([
-        call.SSHClient(),
-        call.SSHClient().set_missing_host_key_policy(warningPolicy_mock),
-        call.SSHClient().connect(
-            key_filename=None,
-            username=None,
-            hostname='1.2.3.4',
-            timeout=300,
-            banner_timeout=300,
-            auth_timeout=300
-        ),
-    ])
-
-
-def test_establish_ssh_connection_aborted(
-    caplog
-):
-    # Instance creation
-    uploader = ec2upimg.EC2ImageUploader(
-        access_key='',
-        wait_count=1,
-        log_callback=logger
-    )
-    uploader.aborted = True
-    uploader.backing_store = 'mag'
-
-    bdm = uploader._establish_ssh_connection()
-
-    # assertions
-    assert bdm is None
-
-
-@patch('ec2imgutils.ec2uploadimg.EC2ImageUploader._execute_ssh_command')
-def test_find_device_name(
-    execute_command_mock,
-    caplog
-):
-    # Mocks
-    lsbk_resp = '''{
-        "blockdevices": [
-            {
-                "size": "10G",
-                "name": "myDeviceName"
-            }
-        ]
-    }'''
-
-    execute_command_mock.return_value = lsbk_resp
-
-    # Instance creation
-    uploader = ec2upimg.EC2ImageUploader(
-        access_key='',
-        wait_count=1,
-        log_callback=logger
-    )
-    resp = uploader._find_device_name(10)
-
-    # assertions
-    assert resp == '/dev/myDeviceName'
-    execute_command_mock.assert_has_calls([call('lsblk -a -J')])
-
-
-@patch('ec2imgutils.ec2uploadimg.EC2ImageUploader._execute_ssh_command')
-@patch('ec2imgutils.ec2uploadimg.EC2ImageUploader._get_command_from_instance')
-def test_format_storage_volume(
-    get_command_mock,
-    execute_ssh_command_mock,
-    caplog
-):
-    # Mocks
-    get_command_mock.side_effect = ['parted', 'blockdev']
-    execute_ssh_command_mock.side_effect = ['parted', '1000', 'result']
-
-    # Instance creation
-    uploader = ec2upimg.EC2ImageUploader(
-        access_key='',
-        wait_count=1,
-        log_callback=logger
-    )
-    resp = uploader._format_storage_volume('myDeviceId')
-
-    # assertions
-    assert resp == 'result'
-    get_command_mock.assert_has_calls([call('parted'), call('blockdev')])
-    execute_ssh_command_mock.assert_has_calls([
-        call('parted -s myDeviceId mklabel gpt'),
-        call('blockdev --getsize myDeviceId'),
-        call('parted -s myDeviceId unit s mkpart primary 2048 900')
-    ])
-
-
-def test_format_storage_volume_aborted(
-    caplog
-):
-    # Instance creation
-    uploader = ec2upimg.EC2ImageUploader(
-        access_key='',
-        wait_count=1,
-        log_callback=logger
-    )
-    uploader.aborted = True
-
-    bdm = uploader._format_storage_volume("myDeviceId")
-
-    # assertions
-    assert bdm is None
-
-
-@patch('ec2imgutils.ec2uploadimg.EC2ImageUploader._execute_ssh_command')
-def test_get_command_from_instance(
-    execute_ssh_command_mock,
-    caplog
-):
-    # Mocks
-    execute_ssh_command_mock.side_effect = ['/usr/bin/gparted']
-
-    # Instance creation
-    uploader = ec2upimg.EC2ImageUploader(
-        access_key='',
-        wait_count=1,
-        log_callback=logger
-    )
-    resp = uploader._get_command_from_instance('gparted')
-
-    # assertions
-    assert resp == '/usr/bin/gparted'
-    execute_ssh_command_mock.assert_has_calls([call('which gparted')])
-
-
-def test_get_command_from_instance_aborted(
-    caplog
-):
-    # Instance creation
-    uploader = ec2upimg.EC2ImageUploader(
-        access_key='',
-        wait_count=1,
-        log_callback=logger
-    )
-    uploader.aborted = True
-
-    bdm = uploader._get_command_from_instance("myDeviceId")
-
-    # assertions
-    assert bdm is None
-
-
-def test_get_next_disk_id(
-    caplog
-):
-    # Instance creation
-    uploader = ec2upimg.EC2ImageUploader(
-        access_key='',
-        wait_count=1,
-        log_callback=logger
-    )
-    uploader.next_device_id = 2
-    uploader.device_ids = ['0', '1', '2', '3', '4']
-    resp = uploader._get_next_disk_id()
-
-    # assertions
-    assert resp == '/dev/sd2'
-
-
-@patch('ec2imgutils.ec2uploadimg.EC2ImageUploader._show_progress')
-@patch('ec2imgutils.ec2uploadimg.EC2ImageUploader._set_zone_to_use')
-@patch('ec2imgutils.ec2uploadimg.EC2ImageUploader._connect')
-def test_launch_helper_instance(
-    ec2connect_mock,
-    set_zone_mock,
-    show_progress_mock,
-    caplog
-):
-
-    # Mocks
-    ec2 = MagicMock()
-    instances = {
-        'Instances': [
-            {
-                'InstanceId': 'myInstanceId'
-            }
-        ]
-    }
-    ec2.run_instances.return_value = instances
-    waiter = MagicMock()
-    waiter.wait.return_value = None
-    ec2.get_waiter.return_value = waiter
-    ec2connect_mock.return_value = ec2
-
-    # Instance creation
-    uploader = ec2upimg.EC2ImageUploader(
-        access_key='',
-        wait_count=1,
-        log_callback=logger
-    )
-    uploader.zone = 'myZone'
-    uploader.launch_ami_id = 'launchAmiId'
-    uploader.ssh_key_pair_name = 'keyPairName'
-    uploader.launch_ins_type = 'instanceType'
-    uploader.use_private_ip = False
-    uploader.use_enclave = True
-    uploader.vpc_subnet_id = 'mySubnetId'
-    uploader.wait_count = 0
-
-    resp = uploader._launch_helper_instance()
-
-    # assertions
-    assert resp['InstanceId'] == 'myInstanceId'
-
-    ec2connect_mock.assert_has_calls([
-        call(),
-        call().run_instances(
-            ImageId='launchAmiId',
-            MinCount=1,
-            MaxCount=1,
-            KeyName='keyPairName',
-            InstanceType='instanceType',
-            Placement={'AvailabilityZone': 'myZone'},
-            EnclaveOptions={'Enabled': True},
-            NetworkInterfaces=[{
-                'DeviceIndex': 0,
-                'AssociatePublicIpAddress': True,
-                'SubnetId': 'mySubnetId'
-            }],
-            TagSpecifications=[{
-                'ResourceType': 'instance',
-                'Tags': [{
-                    'Key': 'Name',
-                    'Value': 'ec2uploadimg-helper-instance'
-                }]
-            }]
-        ),
-        call(),
-        call().get_waiter('instance_running')
-    ])
-    set_zone_mock.assert_has_calls([call()])
-    show_progress_mock.assert_has_calls([call()])
-
-
-@patch('ec2imgutils.ec2uploadimg.EC2ImageUploader._execute_ssh_command')
-def test_mount_storage_volume(
-    execute_ssh_command_mock,
-    caplog
-):
-    # Mocks
-    execute_ssh_command_mock.side_effect = [None]
-
-    # Instance creation
-    uploader = ec2upimg.EC2ImageUploader(
-        access_key='',
-        wait_count=1,
-        log_callback=logger
-    )
-    result = uploader._mount_storage_volume('sda')
-
-    # assertions
-    assert result == '/mnt'
-
-
 @patch('ec2imgutils.ec2uploadimg.EC2ImageUploader._connect')
 @patch('ec2imgutils.ec2uploadimg.EC2ImageUploader._determine_root_device')
 @patch('ec2imgutils.ec2uploadimg.EC2ImageUploader._create_block_device_map')
@@ -1774,8 +1486,6 @@ def test_register_image(
     )
     uploader.billing_codes = 'billingCode1,billingCode2'
     uploader.boot_mode = 'uefi'
-    uploader.image_virt_type = 'paravirtual'
-    uploader.bootkernel = 'myBootKernel'
     uploader.tmp = 'tmpVersion'
 
     response = uploader._register_image('snapshot')
@@ -1795,10 +1505,9 @@ def test_register_image(
             EnaSupport=False,
             Name='default',
             RootDeviceName='rootDevice',
-            VirtualizationType='paravirtual',
+            VirtualizationType='hvm',
             BillingProducts=['billingCode1', 'billingCode2'],
-            BootMode='uefi',
-            KernelId='myBootKernel'
+            BootMode='uefi'
         )
     ])
 
@@ -1895,122 +1604,6 @@ def test_set_zone_to_use(
     ])
 
 
-@patch('ec2imgutils.ec2uploadimg.EC2ImageUploader._upload_progress')
-def test_upload_image(
-    upload_progress_mock,
-    caplog
-):
-    # Mocks
-    ssh_client_mock = MagicMock()
-    sftp_mock = MagicMock()
-    sftp_mock.put.side_effect = [None]
-    ssh_client_mock().open_sftp.side_effect = [sftp_mock]
-
-    # Instance creation
-    uploader = ec2upimg.EC2ImageUploader(
-        access_key='',
-        wait_count=1,
-        log_callback=logger
-    )
-    uploader.ssh_client = ssh_client_mock
-
-    response = uploader._upload_image('targetDir', '/test/imageName.img')
-
-    # assertions
-    assert response == 'imageName.img'
-    ssh_client_mock.assert_has_calls([
-        call(),
-        call.open_sftp(),
-        call.open_sftp().get_channel(),
-        call.open_sftp().get_channel().settimeout(900),
-        call.open_sftp().put(
-            '/test/imageName.img',
-            'targetDir/imageName.img',
-            upload_progress_mock
-        )
-    ])
-
-
-@patch('ec2imgutils.ec2uploadimg.EC2ImageUploader._upload_progress')
-def test_upload_image_socket_timeout(
-    upload_progress_mock,
-    caplog
-):
-    # Mocks
-    ssh_client_mock = MagicMock()
-    sftp_mock = MagicMock()
-    sftp_mock.put.side_effect = socket.timeout
-    ssh_client_mock.open_sftp.return_value = sftp_mock
-
-    # Instance creation
-    uploader = ec2upimg.EC2ImageUploader(
-        access_key='',
-        wait_count=1,
-        log_callback=logger
-    )
-    uploader.ssh_client = ssh_client_mock
-
-    with pytest.raises(EC2UploadImgException) as e:
-        uploader._upload_image('targetDir', '/test/imageName.img')
-
-    # assertions
-    msg = 'Channel timeout reached during upload process.'
-    assert msg in str(e)
-    ssh_client_mock.open_sftp.assert_called_once()
-    sftp_mock.get_channel().settimeout.assert_called_with(900)
-    sftp_mock.put.assert_called_with(
-        '/test/imageName.img',
-        'targetDir/imageName.img',
-        upload_progress_mock
-    )
-
-
-@patch('ec2imgutils.ec2uploadimg.EC2ImageUploader._clean_up')
-@patch('ec2imgutils.ec2uploadimg.EC2ImageUploader._execute_ssh_command')
-def test_unpack_image(
-    execute_ssh_command_mock,
-    clean_up_mock,
-    caplog
-):
-    # Mocks
-    files = 'fileName1.xz\r\nfilename2.xz'
-
-    execute_ssh_command_mock.return_value = files
-
-    # Instance creation
-    uploader = ec2upimg.EC2ImageUploader(
-        access_key='',
-        wait_count=1,
-        log_callback=logger
-    )
-    response = uploader._unpack_image('imageDir', 'imageFilename.tgz')
-
-    # assertions
-    assert response == 'fileName1'
-    execute_ssh_command_mock.assert_has_calls([
-        call('tar -C imageDir -xvf imageDir/imageFilename.tgz'),
-        call('xz -d imageDir/fileName1.xz')
-    ])
-
-
-def test_unpack_image_aborted(
-    caplog
-):
-    # Mocks
-
-    # Instance creation
-    uploader = ec2upimg.EC2ImageUploader(
-        access_key='',
-        wait_count=1,
-        log_callback=logger
-    )
-    uploader.aborted = True
-    response = uploader._unpack_image("image_dir", "image_filename")
-
-    # assertions
-    assert response is None
-
-
 @patch('ec2imgutils.ec2uploadimg.EC2ImageUploader._register_image')
 @patch('ec2imgutils.ec2uploadimg.EC2ImageUploader.create_snapshot')
 def test_create_image(
@@ -2034,6 +1627,23 @@ def test_create_image(
     assert response == 'myAMI1'
     create_snapshot_mock.assert_has_calls([call('source')])
     register_image_mock.assert_has_calls([call('snapshot')])
+
+
+@patch('ec2imgutils.ec2uploadimg.EC2ImageUploader._tag_image')
+@patch('ec2imgutils.ec2uploadimg.EC2ImageUploader._register_image')
+@patch('ec2imgutils.ec2uploadimg.EC2ImageUploader.create_snapshot')
+def test_create_image_aborted(
+    create_snapshot_mock,
+    register_image_mock,
+    tag_image_mock
+):
+    create_snapshot_mock.return_value = None
+
+    uploader = _make_uploader()
+
+    assert uploader.create_image('source') is None
+    register_image_mock.assert_not_called()
+    tag_image_mock.assert_not_called()
 
 
 @patch('ec2imgutils.ec2uploadimg.EC2ImageUploader._register_image')
@@ -2173,3 +1783,1058 @@ def test_invalid_imds_value():
         )
     msg = "imds_support must be one of ['2.0', 'v2.0']"
     assert msg in str(e)
+
+
+# -----------------------------------------------------------------------------
+# Tests for the retry of writing blocks and the related options
+def test_instantiation_upload_retries_and_timeout():
+    uploader = _make_uploader()
+    assert uploader.upload_retries == 8
+    assert uploader.upload_timeout == 300
+    uploader = _make_uploader(upload_retries='3', upload_timeout='45')
+    assert uploader.upload_retries == 3
+    assert uploader.upload_timeout == 45
+
+
+@pytest.mark.parametrize('option', ['upload_retries', 'upload_timeout'])
+@pytest.mark.parametrize('value', [0, -1, 'many', None])
+def test_instantiation_upload_retries_and_timeout_error(option, value):
+    with pytest.raises(EC2UploadImgException) as exc:
+        _make_uploader(**{option: value})
+    assert option in str(exc.value)
+
+
+def _client_error(code=None, status=400, message='failed'):
+    error = {'Message': message}
+    if code:
+        error['Code'] = code
+    else:
+        error['Code'] = str(status)
+    return botocore.exceptions.ClientError(
+        {
+            'Error': error,
+            'ResponseMetadata': {
+                'HTTPStatusCode': status,
+                'RequestId': 'req-1'
+            }
+        },
+        'PutSnapshotBlock'
+    )
+
+
+class FlakyEBS:
+    """Raises the given errors for the first calls, then succeeds"""
+
+    def __init__(self, errors):
+        self.errors = list(errors)
+        self.calls = 0
+
+    def put_snapshot_block(self, **kwargs):
+        self.calls += 1
+        if self.errors:
+            raise self.errors.pop(0)
+
+
+@pytest.fixture
+def no_sleep():
+    with patch('ec2imgutils.ec2uploadimg.time.sleep') as sleep_mock:
+        yield sleep_mock
+
+
+@pytest.mark.parametrize('error', [
+    _client_error(),
+    _client_error(status=400, message=''),
+    _client_error('RequestThrottledException'),
+    _client_error('ThrottlingException'),
+    _client_error('ConcurrentLimitExceededException'),
+    _client_error('InternalServerException', 500),
+    _client_error('ServiceUnavailable', 503),
+    botocore.exceptions.ReadTimeoutError(endpoint_url='https://ebs'),
+    botocore.exceptions.ConnectTimeoutError(endpoint_url='https://ebs'),
+    botocore.exceptions.ConnectionClosedError(endpoint_url='https://ebs'),
+    botocore.exceptions.EndpointConnectionError(endpoint_url='https://ebs'),
+    ConnectionResetError('reset'),
+    TimeoutError('timed out')
+])
+def test_put_snapshot_block_retries(error, no_sleep, caplog):
+    ebs = FlakyEBS([error, error])
+    uploader = _make_uploader(upload_retries=3)
+
+    result = uploader._put_snapshot_block(ebs, 'snap-1234', 7, b'data')
+
+    assert result == (7, _sha(b'data'))
+    assert ebs.calls == 3
+    assert caplog.text.count('Writing block 7 failed') == 2
+    assert 'attempt 2 of 3' in caplog.text
+
+
+def test_put_snapshot_block_logs_details(no_sleep, caplog):
+    ebs = FlakyEBS([_client_error()])
+    uploader = _make_uploader()
+
+    uploader._put_snapshot_block(ebs, 'snap-1234', 1, b'data')
+
+    assert 'HTTP status 400' in caplog.text
+    assert 'request id req-1' in caplog.text
+
+
+@pytest.mark.parametrize('code,status', [
+    ('ValidationException', 400),
+    ('AccessDeniedException', 403),
+    ('ResourceNotFoundException', 404),
+    ('ServiceQuotaExceededException', 402)
+])
+def test_put_snapshot_block_no_retry(code, status, no_sleep):
+    error = _client_error(code, status)
+    ebs = FlakyEBS([error, error])
+    uploader = _make_uploader()
+
+    with pytest.raises(botocore.exceptions.ClientError):
+        uploader._put_snapshot_block(ebs, 'snap-1234', 1, b'data')
+
+    assert ebs.calls == 1
+    no_sleep.assert_not_called()
+
+
+def test_put_snapshot_block_other_exception_no_retry(no_sleep):
+    ebs = FlakyEBS([RuntimeError('bug')])
+    uploader = _make_uploader()
+
+    with pytest.raises(RuntimeError):
+        uploader._put_snapshot_block(ebs, 'snap-1234', 1, b'data')
+
+    assert ebs.calls == 1
+
+
+def test_put_snapshot_block_attempts_exhausted(no_sleep):
+    ebs = FlakyEBS([_client_error()] * 10)
+    uploader = _make_uploader(upload_retries=4)
+
+    with pytest.raises(EC2UploadImgException) as exc:
+        uploader._put_snapshot_block(ebs, 'snap-1234', 9, b'data')
+
+    assert ebs.calls == 4
+    assert 'block 9' in str(exc.value)
+    assert 'snap-1234' in str(exc.value)
+    assert '4 attempt(s)' in str(exc.value)
+
+
+def test_put_snapshot_block_single_attempt(no_sleep):
+    ebs = FlakyEBS([_client_error()])
+    uploader = _make_uploader(upload_retries=1)
+
+    with pytest.raises(EC2UploadImgException):
+        uploader._put_snapshot_block(ebs, 'snap-1234', 1, b'data')
+
+    assert ebs.calls == 1
+    no_sleep.assert_not_called()
+
+
+def test_put_snapshot_block_aborted_stops_retrying(no_sleep):
+    uploader = _make_uploader(upload_retries=5)
+    ebs = FlakyEBS([_client_error()] * 5)
+    ebs_put = ebs.put_snapshot_block
+
+    def put_and_abort(**kwargs):
+        uploader.abort()
+        return ebs_put(**kwargs)
+
+    ebs.put_snapshot_block = put_and_abort
+
+    with pytest.raises(EC2UploadImgException):
+        uploader._put_snapshot_block(ebs, 'snap-1234', 1, b'data')
+
+    assert ebs.calls == 1
+
+
+@pytest.mark.parametrize('attempt,limit', [
+    (1, 4), (2, 8), (3, 16), (4, 32), (5, 60), (20, 60)
+])
+def test_wait_before_retry_backoff_limit(attempt, limit):
+    uploader = _make_uploader()
+    with patch('ec2imgutils.ec2uploadimg.random.uniform') as uniform_mock:
+        uniform_mock.return_value = 0
+        uploader._wait_before_retry(attempt)
+    uniform_mock.assert_called_once_with(0, limit)
+
+
+def test_wait_before_retry_sleeps_in_steps(no_sleep):
+    uploader = _make_uploader()
+    with patch(
+        'ec2imgutils.ec2uploadimg.random.uniform', return_value=2.5
+    ):
+        uploader._wait_before_retry(1)
+    assert [c[0][0] for c in no_sleep.call_args_list] == [1, 1, 0.5]
+
+
+def test_wait_before_retry_aborted(no_sleep):
+    uploader = _make_uploader()
+    uploader.aborted = True
+    with patch('ec2imgutils.ec2uploadimg.random.uniform', return_value=30):
+        uploader._wait_before_retry(1)
+    no_sleep.assert_not_called()
+
+
+def test_upload_snapshot_blocks_recovers_from_errors(tmp_path, no_sleep):
+    source = tmp_path / 'image.raw'
+    block0, block1, block2, tail = _raw_image_data()
+    _write_raw_image(source)
+    ebs = FakeEBS()
+    original_put = ebs.put_snapshot_block
+    failures = {0: 2, 2: 1}
+
+    def flaky_put(**kwargs):
+        index = kwargs['BlockIndex']
+        if failures.get(index):
+            failures[index] -= 1
+            raise _client_error()
+        return original_put(**kwargs)
+
+    ebs.put_snapshot_block = flaky_put
+    uploader = _make_uploader(upload_workers=3, upload_retries=3)
+
+    digests = uploader._upload_snapshot_blocks(
+        ebs, 'snap-1234', BLOCK_SIZE, str(source)
+    )
+
+    assert sorted(digests) == [0, 2, 3]
+    assert sorted(ebs.blocks) == [0, 2, 3]
+    assert digests[0] == _sha(block0)
+    assert digests[2] == _sha(block2)
+
+
+@patch('ec2imgutils.ec2uploadimg.EC2ImageUploader._check_image_exists')
+@patch('ec2imgutils.ec2uploadimg.EC2ImageUploader._connect')
+def test_create_snapshot_retries_exhausted_deletes_snapshot(
+    connect_mock,
+    check_image_exists_mock,
+    tmp_path,
+    no_sleep
+):
+    source = tmp_path / 'image.raw'
+    _write_raw_image(source)
+    ebs = FakeEBS()
+
+    def always_400(**kwargs):
+        raise _client_error()
+
+    ebs.put_snapshot_block = always_400
+    ec2 = MagicMock()
+    connect_mock.side_effect = (
+        lambda service='ec2', config=None: ebs if service == 'ebs' else ec2
+    )
+
+    uploader = _make_uploader(upload_workers=1, upload_retries=2)
+    with pytest.raises(EC2UploadImgException):
+        uploader.create_snapshot(str(source))
+
+    assert not ebs.completed
+    ec2.delete_snapshot.assert_called_once_with(SnapshotId='snap-1234')
+
+
+# -----------------------------------------------------------------------------
+# Tests for the dropped para-virtual support
+def test_determine_root_device():
+    assert _make_uploader()._determine_root_device() == '/dev/sda1'
+
+
+@pytest.mark.parametrize('virt_type', ['paravirtual', 'para', 'other'])
+def test_instantiation_virt_type_error(virt_type):
+    with pytest.raises(EC2UploadImgException) as exc:
+        _make_uploader(image_virt_type=virt_type)
+    assert 'Only hvm images are supported' in str(exc.value)
+
+
+def test_instantiation_virt_type_hvm(caplog):
+    uploader = _make_uploader(image_virt_type='hvm')
+    assert uploader.image_virt_type == 'hvm'
+    assert 'deprecated' not in caplog.text
+
+
+@pytest.mark.parametrize('argument', [
+    {'bootkernel': 'aki-1'}, {'use_grub2': True}
+])
+def test_instantiation_deprecated_arguments(argument, caplog):
+    uploader = _make_uploader(**argument)
+    assert 'deprecated and ignored' in caplog.text
+    assert uploader.image_virt_type == 'hvm'
+
+
+@patch('ec2imgutils.ec2uploadimg.EC2ImageUploader._connect')
+def test_register_image_never_sends_kernel(connect_mock):
+    connect_mock().register_image.return_value = {'ImageId': 'ami-1'}
+    uploader = _make_uploader(bootkernel='aki-1')
+
+    uploader._register_image({'SnapshotId': 'snap-1'})
+
+    kwargs = connect_mock().register_image.call_args[1]
+    assert kwargs['VirtualizationType'] == 'hvm'
+    assert kwargs['RootDeviceName'] == '/dev/sda1'
+    assert 'KernelId' not in kwargs
+
+
+def test_constructor_accepts_all_previous_arguments():
+    """The signature of the uploader is backwards compatible"""
+    _make_uploader(
+        access_key='key', backing_store='ssd', billing_codes='code',
+        bootkernel=None, config=None, ena_support=False, image_arch='x86_64',
+        image_description='desc', image_name='name', image_virt_type='hvm',
+        inst_user_name='root', launch_ami='ami-1',
+        launch_inst_type='t2.micro', region='us-east-1',
+        root_volume_size=10, running_id=None, secret_key='secret',
+        security_group_ids='sg-1', session_token=None, sriov_type=None,
+        ssh_key_pair_name='key', ssh_key_private_key_file='file',
+        ssh_timeout=300, channel_timeout=900, use_grub2=False,
+        use_private_ip=False, vpc_subnet_id='subnet-1', use_enclave=False,
+        wait_count=1, log_level=logging.INFO, log_callback=logger,
+        boot_mode=None, tpm_support=None, imds_support=None, image_tags=None
+    )
+
+
+# -----------------------------------------------------------------------------
+# Tests for the root swap method with the EBS direct upload
+def _root_swap_uploader(**kwargs):
+    kwargs.setdefault('launch_ami', 'ami-donor')
+    kwargs.setdefault('launch_inst_type', 't3.micro')
+    return _make_uploader(**kwargs)
+
+
+@patch('ec2imgutils.ec2uploadimg.EC2ImageUploader._create_volume')
+@patch('ec2imgutils.ec2uploadimg.EC2ImageUploader._launch_helper_instance')
+@patch('ec2imgutils.ec2uploadimg.EC2ImageUploader._create_snapshot_from_image')
+@patch('ec2imgutils.ec2uploadimg.EC2ImageUploader._check_subnet_exists')
+def test_create_image_root_volume(
+    check_subnet_mock,
+    create_snapshot_mock,
+    launch_mock,
+    create_volume_mock
+):
+    order = MagicMock()
+    order.attach_mock(check_subnet_mock, 'check_subnet')
+    order.attach_mock(create_snapshot_mock, 'snapshot')
+    order.attach_mock(launch_mock, 'launch')
+    order.attach_mock(create_volume_mock, 'volume')
+    create_snapshot_mock.return_value = {'SnapshotId': 'snap-1'}
+    launch_mock.return_value = {'InstanceId': 'i-donor'}
+    create_volume_mock.return_value = {'VolumeId': 'vol-1'}
+
+    uploader = _root_swap_uploader(
+        root_volume_size=12, vpc_subnet_id='subnet-1'
+    )
+    volume = uploader._create_image_root_volume('source')
+
+    assert volume == {'VolumeId': 'vol-1'}
+    assert uploader.helper_instance == {'InstanceId': 'i-donor'}
+    # The image is uploaded first, no instance is needed for it
+    assert order.mock_calls == [
+        call.check_subnet(),
+        call.snapshot('source', temporary=True),
+        call.launch(),
+        call.volume(12, 'snap-1')
+    ]
+
+
+@patch('ec2imgutils.ec2uploadimg.EC2ImageUploader._create_volume')
+@patch('ec2imgutils.ec2uploadimg.EC2ImageUploader._launch_helper_instance')
+@patch('ec2imgutils.ec2uploadimg.EC2ImageUploader._get_helper_instance')
+@patch('ec2imgutils.ec2uploadimg.EC2ImageUploader._create_snapshot_from_image')
+def test_create_image_root_volume_running_instance(
+    create_snapshot_mock,
+    get_helper_mock,
+    launch_mock,
+    create_volume_mock
+):
+    create_snapshot_mock.return_value = {'SnapshotId': 'snap-1'}
+    get_helper_mock.return_value = {'InstanceId': 'i-running'}
+    create_volume_mock.return_value = {'VolumeId': 'vol-1'}
+
+    uploader = _make_uploader(running_id='i-running')
+    uploader._create_image_root_volume('source')
+
+    get_helper_mock.assert_called_once_with()
+    launch_mock.assert_not_called()
+    assert uploader.helper_instance == {'InstanceId': 'i-running'}
+    create_volume_mock.assert_called_once_with(10, 'snap-1')
+
+
+def test_create_image_root_volume_aborted():
+    uploader = _root_swap_uploader()
+    uploader.aborted = True
+    assert uploader._create_image_root_volume('source') is None
+
+
+@patch('ec2imgutils.ec2uploadimg.EC2ImageUploader._clean_up')
+@patch('ec2imgutils.ec2uploadimg.EC2ImageUploader._create_volume')
+@patch('ec2imgutils.ec2uploadimg.EC2ImageUploader._launch_helper_instance')
+@patch('ec2imgutils.ec2uploadimg.EC2ImageUploader._create_snapshot_from_image')
+@patch('ec2imgutils.ec2uploadimg.EC2ImageUploader._check_subnet_exists')
+def test_create_image_root_volume_upload_aborted(
+    check_subnet_mock,
+    create_snapshot_mock,
+    launch_mock,
+    create_volume_mock,
+    clean_up_mock
+):
+    create_snapshot_mock.return_value = None
+
+    uploader = _root_swap_uploader()
+
+    assert uploader._create_image_root_volume('source') is None
+    launch_mock.assert_not_called()
+    create_volume_mock.assert_not_called()
+    clean_up_mock.assert_called_once_with()
+
+
+@patch('ec2imgutils.ec2uploadimg.EC2ImageUploader._clean_up')
+@patch('ec2imgutils.ec2uploadimg.EC2ImageUploader._create_volume')
+@patch('ec2imgutils.ec2uploadimg.EC2ImageUploader._launch_helper_instance')
+@patch('ec2imgutils.ec2uploadimg.EC2ImageUploader._create_snapshot_from_image')
+def test_create_image_root_volume_aborted_after_upload(
+    create_snapshot_mock,
+    launch_mock,
+    create_volume_mock,
+    clean_up_mock
+):
+    uploader = _root_swap_uploader()
+
+    def upload_and_abort(source, temporary=False):
+        uploader.abort()
+        return {'SnapshotId': 'snap-1'}
+
+    create_snapshot_mock.side_effect = upload_and_abort
+
+    assert uploader._create_image_root_volume('source') is None
+    launch_mock.assert_not_called()
+    clean_up_mock.assert_called_once_with()
+
+
+@patch('ec2imgutils.ec2uploadimg.EC2ImageUploader._clean_up')
+@patch('ec2imgutils.ec2uploadimg.EC2ImageUploader._create_volume')
+@patch('ec2imgutils.ec2uploadimg.EC2ImageUploader._launch_helper_instance')
+@patch('ec2imgutils.ec2uploadimg.EC2ImageUploader._create_snapshot_from_image')
+def test_create_image_root_volume_aborted_at_launch(
+    create_snapshot_mock,
+    launch_mock,
+    create_volume_mock,
+    clean_up_mock
+):
+    create_snapshot_mock.return_value = {'SnapshotId': 'snap-1'}
+    launch_mock.return_value = None
+
+    uploader = _root_swap_uploader()
+
+    assert uploader._create_image_root_volume('source') is None
+    create_volume_mock.assert_not_called()
+    clean_up_mock.assert_called_once_with()
+
+
+@patch('ec2imgutils.ec2uploadimg.EC2ImageUploader._clean_up')
+@patch('ec2imgutils.ec2uploadimg.EC2ImageUploader._create_volume')
+@patch('ec2imgutils.ec2uploadimg.EC2ImageUploader._launch_helper_instance')
+@patch('ec2imgutils.ec2uploadimg.EC2ImageUploader._create_snapshot_from_image')
+def test_create_image_root_volume_aborted_at_volume(
+    create_snapshot_mock,
+    launch_mock,
+    create_volume_mock,
+    clean_up_mock
+):
+    create_snapshot_mock.return_value = {'SnapshotId': 'snap-1'}
+    launch_mock.return_value = {'InstanceId': 'i-donor'}
+    create_volume_mock.return_value = None
+
+    uploader = _root_swap_uploader()
+
+    assert uploader._create_image_root_volume('source') is None
+    clean_up_mock.assert_called_once_with()
+
+
+@patch('ec2imgutils.ec2uploadimg.EC2ImageUploader._create_image_root_volume')
+@patch('ec2imgutils.ec2uploadimg.EC2ImageUploader._check_virt_type_consistent')
+@patch('ec2imgutils.ec2uploadimg.EC2ImageUploader._connect')
+def test_create_image_use_root_swap_aborted(
+    connect_mock,
+    check_virt_type_mock,
+    create_root_volume_mock
+):
+    create_root_volume_mock.return_value = None
+
+    uploader = _root_swap_uploader()
+
+    assert uploader.create_image_use_root_swap('source') is None
+    connect_mock.return_value.stop_instances.assert_not_called()
+
+
+@patch('ec2imgutils.ec2uploadimg.EC2ImageUploader._create_volume')
+@patch('ec2imgutils.ec2uploadimg.EC2ImageUploader._launch_helper_instance')
+@patch('ec2imgutils.ec2uploadimg.EC2ImageUploader._wait_for_snapshot')
+@patch('ec2imgutils.ec2uploadimg.EC2ImageUploader._check_image_exists')
+@patch('ec2imgutils.ec2uploadimg.EC2ImageUploader._check_subnet_exists')
+@patch('ec2imgutils.ec2uploadimg.EC2ImageUploader._connect')
+def test_create_image_root_volume_registers_temporary_snapshot(
+    connect_mock,
+    check_subnet_mock,
+    check_image_exists_mock,
+    wait_for_snapshot_mock,
+    launch_mock,
+    create_volume_mock,
+    tmp_path
+):
+    source = tmp_path / 'image.raw'
+    _write_raw_image(source)
+    ebs = FakeEBS()
+    ec2 = MagicMock()
+    connect_mock.side_effect = (
+        lambda service='ec2', config=None: ebs if service == 'ebs' else ec2
+    )
+    launch_mock.return_value = {'InstanceId': 'i-donor'}
+    create_volume_mock.return_value = {'VolumeId': 'vol-1'}
+
+    uploader = _root_swap_uploader(upload_workers=2)
+    uploader._create_image_root_volume(str(source))
+
+    assert sorted(ebs.blocks) == [0, 2, 3]
+    assert ebs.completed
+    assert uploader.temporary_snapshot_ids == ['snap-1234']
+    create_volume_mock.assert_called_once_with(10, 'snap-1234')
+
+    # The temporary snapshot is removed with the other resources
+    uploader._clean_up()
+    ec2.delete_snapshot.assert_called_once_with(SnapshotId='snap-1234')
+    assert uploader.temporary_snapshot_ids == []
+
+
+@patch('ec2imgutils.ec2uploadimg.EC2ImageUploader._wait_for_snapshot')
+@patch('ec2imgutils.ec2uploadimg.EC2ImageUploader._check_image_exists')
+@patch('ec2imgutils.ec2uploadimg.EC2ImageUploader._connect')
+def test_create_snapshot_keeps_snapshot_by_default(
+    connect_mock,
+    check_image_exists_mock,
+    wait_for_snapshot_mock,
+    tmp_path
+):
+    source = tmp_path / 'image.raw'
+    _write_raw_image(source)
+    ebs = FakeEBS()
+    ec2 = MagicMock()
+    connect_mock.side_effect = (
+        lambda service='ec2', config=None: ebs if service == 'ebs' else ec2
+    )
+
+    uploader = _make_uploader()
+    uploader.create_snapshot(str(source))
+
+    assert uploader.temporary_snapshot_ids == []
+    ec2.delete_snapshot.assert_not_called()
+
+
+@patch('ec2imgutils.ec2uploadimg.EC2ImageUploader._connect')
+def test_clean_up_deletes_temporary_snapshots(connect_mock, caplog):
+    ec2 = MagicMock()
+    ec2.delete_snapshot.side_effect = [Exception('nope'), None]
+    connect_mock.return_value = ec2
+    uploader = _make_uploader()
+    uploader.temporary_snapshot_ids = ['snap-1', 'snap-2']
+
+    uploader._clean_up()
+
+    assert ec2.delete_snapshot.call_args_list == [
+        call(SnapshotId='snap-1'), call(SnapshotId='snap-2')
+    ]
+    assert 'Unable to delete temporary snapshot snap-1' in caplog.text
+    ec2.terminate_instances.assert_not_called()
+
+
+@patch('ec2imgutils.ec2uploadimg.EC2ImageUploader._connect')
+def test_clean_up_snapshots_after_instance_and_volumes(connect_mock):
+    ec2 = MagicMock()
+    ec2.describe_volumes.return_value = {
+        'Volumes': [{'State': 'available', 'VolumeId': 'vol-1'}]
+    }
+    ec2.get_waiter().wait.return_value = None
+    connect_mock.return_value = ec2
+    uploader = _make_uploader()
+    uploader.instance_ids = ['i-donor']
+    uploader.helper_instance = {'InstanceId': 'i-donor'}
+    uploader.default_sleep = 0
+    uploader.created_volumes = [{'VolumeId': 'vol-1'}]
+    uploader.temporary_snapshot_ids = ['snap-1']
+
+    uploader._clean_up()
+
+    names = [c[0] for c in ec2.method_calls if c[0] in (
+        'terminate_instances', 'delete_volume', 'delete_snapshot'
+    )]
+    assert names == [
+        'terminate_instances', 'delete_volume', 'delete_snapshot'
+    ]
+
+
+@patch('ec2imgutils.ec2uploadimg.EC2ImageUploader._connect')
+def test_clean_up_launched_instance_without_helper_instance(connect_mock):
+    ec2 = MagicMock()
+    ec2.get_waiter().wait.return_value = None
+    connect_mock.return_value = ec2
+    uploader = _make_uploader()
+    uploader.instance_ids = ['i-donor']
+    uploader.default_sleep = 0
+
+    uploader._clean_up()
+
+    ec2.get_waiter().wait.assert_called_once_with(
+        InstanceIds=['i-donor'],
+        Filters=[{'Name': 'instance-state-name', 'Values': ['terminated']}]
+    )
+
+
+@patch('ec2imgutils.ec2uploadimg.EC2ImageUploader._check_wait_status')
+@patch('ec2imgutils.ec2uploadimg.EC2ImageUploader._show_progress')
+@patch('ec2imgutils.ec2uploadimg.EC2ImageUploader._connect')
+def test_create_volume_from_snapshot(
+    connect_mock,
+    show_progress_mock,
+    check_wait_status_mock
+):
+    ec2 = MagicMock()
+    ec2.create_volume.return_value = {'VolumeId': 'vol-1'}
+    connect_mock.return_value = ec2
+    check_wait_status_mock.return_value = 3
+
+    uploader = _make_uploader()
+    uploader.zone = 'myZone'
+    volume = uploader._create_volume(12, 'snap-1')
+
+    assert volume == {'VolumeId': 'vol-1'}
+    ec2.create_volume.assert_called_once_with(
+        Size=12,
+        AvailabilityZone='myZone',
+        VolumeType='gp2',
+        SnapshotId='snap-1'
+    )
+    assert uploader.created_volumes == [{'VolumeId': 'vol-1'}]
+
+
+@patch('ec2imgutils.ec2uploadimg.EC2ImageUploader._show_progress')
+@patch('ec2imgutils.ec2uploadimg.EC2ImageUploader._set_zone_to_use')
+@patch('ec2imgutils.ec2uploadimg.EC2ImageUploader._connect')
+def test_launch_helper_instance(
+    connect_mock,
+    set_zone_mock,
+    show_progress_mock
+):
+    ec2 = MagicMock()
+    ec2.run_instances.return_value = {
+        'Instances': [{'InstanceId': 'myInstanceId'}]
+    }
+    ec2.get_waiter().wait.return_value = None
+    connect_mock.return_value = ec2
+
+    uploader = _root_swap_uploader(
+        use_enclave=True, wait_count=1, vpc_subnet_id='subnet-1'
+    )
+    uploader.zone = 'myZone'
+    with patch.object(uploader, '_check_wait_status', return_value=2):
+        instance = uploader._launch_helper_instance()
+
+    assert instance['InstanceId'] == 'myInstanceId'
+    assert uploader.instance_ids == ['myInstanceId']
+    assert ec2.run_instances.call_args[1] == {
+        'ImageId': 'ami-donor',
+        'MinCount': 1,
+        'MaxCount': 1,
+        'InstanceType': 't3.micro',
+        'Placement': {'AvailabilityZone': 'myZone'},
+        'EnclaveOptions': {'Enabled': True},
+        'SubnetId': 'subnet-1',
+        'TagSpecifications': [{
+            'ResourceType': 'instance',
+            'Tags': [{
+                'Key': 'Name',
+                'Value': 'ec2uploadimg-helper-instance'
+            }]
+        }]
+    }
+
+
+@patch('ec2imgutils.ec2uploadimg.EC2ImageUploader._show_progress')
+@patch('ec2imgutils.ec2uploadimg.EC2ImageUploader._set_zone_to_use')
+@patch('ec2imgutils.ec2uploadimg.EC2ImageUploader._connect')
+def test_launch_helper_instance_without_ssh_arguments(
+    connect_mock,
+    set_zone_mock,
+    show_progress_mock
+):
+    """No key pair, security group or public address is needed as the
+       donor instance is never accessed"""
+    ec2 = MagicMock()
+    ec2.run_instances.return_value = {'Instances': [{'InstanceId': 'i-1'}]}
+    connect_mock.return_value = ec2
+
+    uploader = _make_uploader(
+        launch_ami='ami-donor',
+        vpc_subnet_id='',
+        ssh_key_pair_name='key',
+        security_group_ids='sg-1',
+        use_private_ip=False
+    )
+    uploader.zone = 'myZone'
+    with patch.object(uploader, '_check_wait_status', return_value=2):
+        uploader._launch_helper_instance()
+
+    launch_args = ec2.run_instances.call_args[1]
+    for ignored in ('KeyName', 'NetworkInterfaces', 'SecurityGroupIds'):
+        assert ignored not in launch_args
+    assert 'SubnetId' not in launch_args
+
+
+def test_launch_helper_instance_aborted():
+    uploader = _root_swap_uploader()
+    uploader.aborted = True
+    assert uploader._launch_helper_instance() is None
+
+
+@pytest.mark.parametrize('argument,value', [
+    ('inst_user_name', 'root'),
+    ('security_group_ids', 'sg-1'),
+    ('ssh_key_pair_name', 'key'),
+    ('ssh_key_private_key_file', '/key'),
+    ('ssh_timeout', 10),
+    ('channel_timeout', 10),
+    ('use_private_ip', True)
+])
+def test_instantiation_ssh_arguments_deprecated(argument, value, caplog):
+    uploader = _make_uploader(**{argument: value})
+    assert 'deprecated and ignored' in caplog.text
+    assert argument in caplog.text
+    assert not hasattr(uploader, 'ssh_client')
+
+
+def test_instantiation_default_ssh_arguments_no_warning(caplog):
+    _make_uploader(ssh_timeout=300, channel_timeout=900, security_group_ids='')
+    assert 'deprecated' not in caplog.text
+
+
+def test_removed_ssh_code_is_gone():
+    for name in (
+        '_establish_ssh_connection', '_execute_ssh_command',
+        '_end_ssh_session', '_upload_image', '_unpack_image',
+        '_dump_root_fs', '_find_device_name', '_format_storage_volume',
+        '_create_storage_volume', '_create_target_root_volume',
+        '_check_security_groups_exist', '_get_next_disk_id'
+    ):
+        assert not hasattr(ec2upimg.EC2ImageUploader, name)
+    assert not hasattr(ec2upimg, 'paramiko')
+
+
+@patch('ec2imgutils.ec2uploadimg.time.sleep')
+@patch('ec2imgutils.ec2uploadimg.EC2ImageUploader._set_zone_to_use')
+@patch('ec2imgutils.ec2uploadimg.EC2ImageUploader._check_image_exists')
+@patch('ec2imgutils.ec2uploadimg.EC2ImageUploader._connect')
+def test_create_image_use_root_swap_complete_flow(
+    connect_mock,
+    check_image_exists_mock,
+    set_zone_mock,
+    sleep_mock,
+    tmp_path
+):
+    """Run the complete root swap method with fake EBS and EC2 clients"""
+    source = tmp_path / 'image.raw'
+    _write_raw_image(source)
+    ebs = FakeEBS()
+    ec2 = MagicMock()
+    ec2.get_waiter().wait.return_value = None
+    ec2.run_instances.return_value = {
+        'Instances': [{'InstanceId': 'i-donor'}]
+    }
+    ec2.create_volume.return_value = {'VolumeId': 'vol-new'}
+    ec2.describe_volumes.side_effect = [
+        {'Volumes': [{
+            'VolumeId': 'vol-old',
+            'State': 'in-use',
+            'Attachments': [
+                {'InstanceId': 'i-donor', 'Device': '/dev/sda1'}
+            ]
+        }]},
+        {'Volumes': [{'VolumeId': 'vol-old', 'State': 'in-use'}]},
+        {'Volumes': [{'VolumeId': 'vol-new', 'State': 'available'}]}
+    ]
+    ec2.describe_instances.return_value = {
+        'Reservations': [{'Instances': [{
+            'BlockDeviceMappings': [{
+                'DeviceName': '/dev/sda1',
+                'Ebs': {'DeleteOnTermination': True}
+            }]
+        }]}]
+    }
+    ec2.describe_images.return_value = {
+        'Images': [{'VirtualizationType': 'hvm'}]
+    }
+    ec2.create_image.return_value = {'ImageId': 'ami-new'}
+    connect_mock.side_effect = (
+        lambda service='ec2', config=None: ebs if service == 'ebs' else ec2
+    )
+
+    uploader = _make_uploader(
+        launch_ami='ami-donor',
+        upload_workers=2,
+        image_tags=[{'Key': 'k', 'Value': 'v'}]
+    )
+    uploader.zone = 'zone-a'
+    ami = uploader.create_image_use_root_swap(str(source))
+
+    assert ami == 'ami-new'
+    assert sorted(ebs.blocks) == [0, 2, 3]
+    assert ebs.completed
+    names = [c[0] for c in ec2.method_calls if c[0] in (
+        'run_instances', 'create_volume', 'stop_instances', 'detach_volume',
+        'attach_volume', 'create_image', 'terminate_instances',
+        'delete_volume', 'delete_snapshot', 'create_tags'
+    )]
+    assert names == [
+        'run_instances', 'create_volume', 'stop_instances', 'detach_volume',
+        'attach_volume', 'create_image', 'terminate_instances',
+        'delete_volume', 'delete_snapshot', 'create_tags'
+    ]
+    ec2.create_volume.assert_called_once_with(
+        Size=10, AvailabilityZone='zone-a', VolumeType='gp2',
+        SnapshotId='snap-1234'
+    )
+    ec2.attach_volume.assert_called_once_with(
+        VolumeId='vol-new', InstanceId='i-donor', Device='/dev/sda1'
+    )
+    ec2.delete_snapshot.assert_called_once_with(SnapshotId='snap-1234')
+    assert ec2.create_image.call_args[1]['InstanceId'] == 'i-donor'
+
+
+# -----------------------------------------------------------------------------
+# Tests for guarding the instance given with running_id
+def test_running_instance_not_cleaned_up_by_default():
+    uploader = _make_uploader(running_id='i-running')
+    assert uploader.instance_ids == []
+
+
+@patch('ec2imgutils.ec2uploadimg.EC2ImageUploader._connect')
+def test_clean_up_leaves_running_instance_alone(connect_mock):
+    ec2 = MagicMock()
+    connect_mock.return_value = ec2
+    uploader = _make_uploader(running_id='i-running')
+
+    uploader._clean_up()
+
+    ec2.terminate_instances.assert_not_called()
+
+
+def test_claim_running_instance():
+    uploader = _make_uploader(running_id='i-running')
+    uploader.instance_ids = ['i-other']
+    uploader._claim_running_instance()
+    uploader._claim_running_instance()
+    assert uploader.instance_ids == ['i-other', 'i-running']
+
+
+def test_claim_running_instance_launched_donor():
+    uploader = _make_uploader()
+    uploader.instance_ids = ['i-donor']
+    uploader._claim_running_instance()
+    assert uploader.instance_ids == ['i-donor']
+
+
+@patch('ec2imgutils.ec2uploadimg.EC2ImageUploader._wait_for_snapshot')
+@patch('ec2imgutils.ec2uploadimg.EC2ImageUploader._get_helper_instance')
+@patch('ec2imgutils.ec2uploadimg.EC2ImageUploader._check_virt_type_consistent')
+@patch('ec2imgutils.ec2uploadimg.EC2ImageUploader._check_image_exists')
+@patch('ec2imgutils.ec2uploadimg.EC2ImageUploader._connect')
+def test_root_swap_failed_upload_keeps_running_instance(
+    connect_mock,
+    check_image_exists_mock,
+    check_virt_type_mock,
+    get_helper_mock,
+    wait_for_snapshot_mock,
+    tmp_path
+):
+    source = tmp_path / 'image.raw'
+    _write_raw_image(source)
+    ebs = FakeEBS(fail_on_put=0)
+    ec2 = MagicMock()
+    connect_mock.side_effect = (
+        lambda service='ec2', config=None: ebs if service == 'ebs' else ec2
+    )
+    get_helper_mock.return_value = {'InstanceId': 'i-running'}
+
+    uploader = _make_uploader(
+        running_id='i-running', upload_workers=1, upload_retries=1
+    )
+    with pytest.raises(Exception):
+        uploader.create_image_use_root_swap(str(source))
+
+    # The pending snapshot is removed, the instance of the user is not
+    ec2.delete_snapshot.assert_called_once_with(SnapshotId='snap-1234')
+    ec2.terminate_instances.assert_not_called()
+    ec2.stop_instances.assert_not_called()
+    ec2.create_volume.assert_not_called()
+
+
+@patch('ec2imgutils.ec2uploadimg.EC2ImageUploader._create_volume')
+@patch('ec2imgutils.ec2uploadimg.EC2ImageUploader._get_helper_instance')
+@patch('ec2imgutils.ec2uploadimg.EC2ImageUploader._create_snapshot_from_image')
+@patch('ec2imgutils.ec2uploadimg.EC2ImageUploader._check_virt_type_consistent')
+@patch('ec2imgutils.ec2uploadimg.EC2ImageUploader._connect')
+def test_root_swap_failure_before_swap_keeps_running_instance(
+    connect_mock,
+    check_virt_type_mock,
+    create_snapshot_mock,
+    get_helper_mock,
+    create_volume_mock
+):
+    ec2 = MagicMock()
+    connect_mock.return_value = ec2
+    create_snapshot_mock.return_value = {'SnapshotId': 'snap-1'}
+    get_helper_mock.return_value = {'InstanceId': 'i-running'}
+    create_volume_mock.side_effect = RuntimeError('create volume failed')
+
+    uploader = _make_uploader(running_id='i-running')
+    uploader.temporary_snapshot_ids = ['snap-1']
+    with pytest.raises(RuntimeError):
+        uploader.create_image_use_root_swap('source')
+
+    ec2.terminate_instances.assert_not_called()
+    ec2.stop_instances.assert_not_called()
+    ec2.delete_snapshot.assert_called_once_with(SnapshotId='snap-1')
+
+
+@patch('ec2imgutils.ec2uploadimg.EC2ImageUploader._create_volume')
+@patch('ec2imgutils.ec2uploadimg.EC2ImageUploader._launch_helper_instance')
+@patch('ec2imgutils.ec2uploadimg.EC2ImageUploader._create_snapshot_from_image')
+@patch('ec2imgutils.ec2uploadimg.EC2ImageUploader._check_virt_type_consistent')
+@patch('ec2imgutils.ec2uploadimg.EC2ImageUploader._connect')
+def test_root_swap_failure_terminates_launched_donor(
+    connect_mock,
+    check_virt_type_mock,
+    create_snapshot_mock,
+    launch_mock,
+    create_volume_mock
+):
+    ec2 = MagicMock()
+    ec2.get_waiter().wait.return_value = None
+    connect_mock.return_value = ec2
+    create_snapshot_mock.return_value = {'SnapshotId': 'snap-1'}
+    create_volume_mock.side_effect = RuntimeError('create volume failed')
+
+    uploader = _make_uploader(launch_ami='ami-donor')
+    uploader.default_sleep = 0
+
+    def launch():
+        uploader.instance_ids.append('i-donor')
+        return {'InstanceId': 'i-donor'}
+
+    launch_mock.side_effect = launch
+    with pytest.raises(RuntimeError):
+        uploader.create_image_use_root_swap('source')
+
+    # An instance that was launched for the image is terminated
+    ec2.terminate_instances.assert_called_once_with(InstanceIds=['i-donor'])
+
+
+@patch('ec2imgutils.ec2uploadimg.EC2ImageUploader._clean_up')
+@patch('ec2imgutils.ec2uploadimg.EC2ImageUploader._create_image_root_volume')
+@patch('ec2imgutils.ec2uploadimg.EC2ImageUploader._check_virt_type_consistent')
+def test_root_swap_failed_clean_up_keeps_original_error(
+    check_virt_type_mock,
+    create_root_volume_mock,
+    clean_up_mock,
+    caplog
+):
+    create_root_volume_mock.side_effect = RuntimeError('original')
+    clean_up_mock.side_effect = ValueError('clean up')
+
+    uploader = _make_uploader()
+    with pytest.raises(RuntimeError) as exc:
+        uploader.create_image_use_root_swap('source')
+
+    assert 'original' in str(exc.value)
+    assert 'Clean up failed: clean up' in caplog.text
+
+
+@patch('ec2imgutils.ec2uploadimg.EC2ImageUploader._connect')
+def test_running_instance_terminated_after_swap_started(connect_mock):
+    """Once the root volume of the instance is replaced it is part of the
+       image creation and cleaned up with it"""
+    ec2 = MagicMock()
+    ec2.get_waiter().wait.return_value = None
+    connect_mock.return_value = ec2
+    uploader = _make_uploader(running_id='i-running')
+    uploader.default_sleep = 0
+    uploader.helper_instance = {'InstanceId': 'i-running'}
+
+    uploader._claim_running_instance()
+    uploader._clean_up()
+
+    ec2.terminate_instances.assert_called_once_with(
+        InstanceIds=['i-running']
+    )
+
+
+# -----------------------------------------------------------------------------
+# Tests for the type check of the config of the client
+@pytest.mark.parametrize('config,type_name', [
+    ({'read_timeout': 5}, 'dict'),
+    ('config', 'str'),
+    (5, 'int')
+])
+@patch('ec2imgutils.ec2imgutils.boto3')
+def test_connect_config_wrong_type(boto3_mock, config, type_name):
+    uploader = _make_uploader(region='us-east-1')
+
+    with pytest.raises(TypeError) as exc:
+        uploader._connect(service='ebs', config=config)
+
+    assert 'config must be a botocore.config.Config' in str(exc.value)
+    assert type_name in str(exc.value)
+    # Nothing is created before the check
+    boto3_mock.client.assert_not_called()
+    boto3_mock.session.Session.assert_not_called()
+
+
+@patch('ec2imgutils.ec2imgutils.boto3')
+def test_connect_config_wrong_type_without_region(boto3_mock):
+    uploader = _make_uploader()
+
+    with pytest.raises(TypeError):
+        uploader._connect(config={})
+
+    assert uploader.region is None
+
+
+@patch('ec2imgutils.ec2imgutils.boto3')
+def test_connect_config_accepted(boto3_mock):
+    uploader = _make_uploader(region='us-east-1')
+    config = botocore.config.Config(read_timeout=5)
+
+    uploader._connect(service='ebs', config=config)
+
+    session = boto3_mock.session.Session.return_value
+    assert session.client.call_args[1]['config'] is config
+
+
+@patch('ec2imgutils.ec2imgutils.boto3')
+def test_connect_config_accepted_session_token(boto3_mock):
+    uploader = _make_uploader(region='us-east-1', session_token='token')
+    config = botocore.config.Config(read_timeout=5)
+
+    uploader._connect(service='ebs', config=config)
+
+    assert boto3_mock.client.call_args[1]['config'] is config
+
+
+@patch('ec2imgutils.ec2imgutils.boto3')
+def test_connect_config_subclass_accepted(boto3_mock):
+
+    class MyConfig(botocore.config.Config):
+        pass
+
+    uploader = _make_uploader(region='us-east-1')
+    config = MyConfig()
+
+    uploader._connect(config=config)
+
+    session = boto3_mock.session.Session.return_value
+    assert session.client.call_args[1]['config'] is config

@@ -40,7 +40,6 @@ BuildRequires:  fdupes
 BuildRequires:  python-rpm-macros
 Requires:       %{pythons}-boto3 >= 1.29.84
 Requires:       %{pythons}-dateutil
-Requires:       %{pythons}-paramiko >= 2.2.0
 %if %{with libalternatives}
 BuildRequires:  alts
 Requires:       alts
