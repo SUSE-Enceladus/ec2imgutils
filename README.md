@@ -142,9 +142,16 @@ fails, which helps on slow or unreliable networks. Use _--upload-retries_
 _--upload-workers_ (default 8) to tune this, for example fewer workers
 and a longer timeout for a very slow link.
 
+Blocks containing only zeros are not written by default. Use
+_--write-zero-blocks_ to write them as well. With _--verify-snapshot_ the
+snapshot is read back after the upload and every block is compared with the
+uploaded data. A snapshot that does not match is deleted and the upload fails,
+add _--keep-snapshot-on-verify-failure_ to keep it for inspection.
+
 The credentials need permission for the EBS direct API actions
-`ebs:StartSnapshot`, `ebs:PutSnapshotBlock` and `ebs:CompleteSnapshot` as well
-as for the EC2 actions `ec2:DescribeImages`, `ec2:DescribeSnapshots`,
+`ebs:StartSnapshot`, `ebs:PutSnapshotBlock` and `ebs:CompleteSnapshot`, with
+_--verify-snapshot_ also `ebs:ListSnapshotBlocks` and `ebs:GetSnapshotBlock`,
+as well as for the EC2 actions `ec2:DescribeImages`, `ec2:DescribeSnapshots`,
 `ec2:DeleteSnapshot`, `ec2:RegisterImage` and `ec2:CreateTags`.
 
 With _--use-root-swap_ the image is also uploaded with the EBS direct APIs.
