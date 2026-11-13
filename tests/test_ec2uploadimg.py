@@ -886,6 +886,40 @@ def test_main_happy_path_snapOnly(
     assert "mySnapshotId" in caplog.text
 
 
+@pytest.mark.parametrize('extra,method', [
+    (['--snaponly'], 'create_snapshot'),
+    (['--use-root-swap'], 'create_image_use_root_swap'),
+    (['--use-snapshot'], 'create_image_from_snapshot'),
+    ([], 'create_image')
+])
+@patch('ec2uploadimg.ec2upimg.EC2ImageUploader')
+def test_main_aborted_upload(EC2ImageUploader_mock, extra, method, caplog):
+    ec2I = MagicMock()
+    getattr(ec2I, method).return_value = None
+    EC2ImageUploader_mock.return_value = ec2I
+
+    cli_args = [
+        "--access-id", "testAccId",
+        "--account", "testAccName",
+        "--description", "This is a test description for the image",
+        "--ec2-ami", "testAWSAmiId",
+        "--file", data_path + os.sep + 'complete.cfg',
+        "--machine", "x86_64",
+        "--name", "testImageName",
+        "--regions", "region1",
+        "--secret-key", "testAwsSecretKey",
+        "--type", "testType",
+        "--virt-type", "hvm"
+    ] + extra + [data_path + os.sep + 'complete.cfg']
+    # Aborting is not an error, the exit code stays 0
+    ec2uploadimg.main(cli_args)
+
+    getattr(ec2I, method).assert_called_once()
+    assert 'The upload was aborted' in caplog.text
+    assert 'Created' not in caplog.text
+    assert 'TypeError' not in caplog.text
+
+
 @patch('ec2uploadimg.ec2upimg.EC2ImageUploader')
 def test_main_happy_path_rootSwapMethod(
     EC2ImageUploader_mock,
@@ -1681,6 +1715,42 @@ def test_get_root_swap_arguments_no_ami(get_from_config_mock, caplog):
         )
     assert excinfo.value.code == 1
     assert 'Could not determine helper AMI-ID' in caplog.text
+
+
+@patch('ec2uploadimg.get_vpc_subnet_id')
+@patch('ec2uploadimg.utils.get_from_config')
+def test_get_root_swap_arguments_running_instance_needs_no_type(
+    get_from_config_mock, get_vpc_subnet_id_mock
+):
+    get_from_config_mock.return_value = None
+    get_vpc_subnet_id_mock.return_value = 'subnet-1'
+
+    arguments = ec2uploadimg.get_root_swap_arguments(
+        _parse(['--use-root-swap', '--instance-id', 'i-1']),
+        None, 'region1', MagicMock(), logger
+    )
+
+    assert arguments['running_id'] == 'i-1'
+    assert arguments['launch_inst_type'] is None
+    # The type is not looked up in the configuration either
+    get_from_config_mock.assert_not_called()
+
+
+@patch('ec2uploadimg.get_vpc_subnet_id')
+@patch('ec2uploadimg.utils.get_from_config')
+def test_get_root_swap_arguments_running_instance_with_type(
+    get_from_config_mock, get_vpc_subnet_id_mock
+):
+    get_vpc_subnet_id_mock.return_value = None
+
+    arguments = ec2uploadimg.get_root_swap_arguments(
+        _parse([
+            '--use-root-swap', '--instance-id', 'i-1', '--type', 't3.micro'
+        ]),
+        None, 'region1', MagicMock(), logger
+    )
+
+    assert arguments['running_id'] == 'i-1'
 
 
 @patch('ec2uploadimg.utils.get_from_config')
