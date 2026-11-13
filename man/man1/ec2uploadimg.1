@@ -9,13 +9,17 @@ a snapshot or an AMI
 .B ec2uploadimg [option] PATH_TO_FILE
 .SH DESCRIPTION
 .B ec2uploadimg
-Upload a raw image, optionally xz compressed or contained in a tar archive,
-to Amazon EC2 and create a snapshot or register a new AMI from the image. The
-apparent size of the raw image is recommended to be 10 GB or less and it must
-not exceed the size given with
+Upload a raw image, optionally xz compressed (.raw.xz) or contained in a tar
+archive, to Amazon EC2 and create a snapshot or register a new AMI from the
+image. A tar archive must contain exactly one .raw or .raw.xz file, other files
+are ignored. The apparent size of the raw image is recommended to be 10 GB or
+less and it must not exceed the size given with
 .I --root-volume-size.
-It is expected that the raw image has 1 partition, i.e. the root partition is
-.I /dev/sda1.
+The partition layout of the raw image is not checked, it must match the boot
+mode of the image. An image that only supports BIOS boot is expected to have
+one partition, the root partition. An image that supports UEFI boot is
+expected to have the EFI system partition as the first partition, formatted as
+FAT32. The root partition follows it.
 The image data is written directly to a new EBS snapshot using the EBS direct
 APIs. The process of creating the image is as
 follows:
@@ -25,7 +29,7 @@ in blocks using several threads in parallel. Blocks containing only zeros are
 not written
 - complete the snapshot and wait for it to become available
 - register a new AMI
-- clean up, an incomplete snapshot is deleted when an error occurs
+- clean up, an incomplete snapshot is deleted if an error occurs
 .PP
 The credentials need permission for the EBS direct API actions
 .I ebs:StartSnapshot,
@@ -129,6 +133,8 @@ If no boot mode is specified the default behavior for the instance type
 applies, uefi for aarch64 instances and bios for x86_64 based instances.
 An image with the uefi-preferred setting will boot using uefi if the instance
 type supports uefi, otherwise it will use bios.
+The uefi and uefi-preferred settings need an image with an EFI system
+partition, see DESCRIPTION for the expected partition layout.
 .IP "-d --description IMAGE_DESCRIPTION"
 Specifies a description for the image. The description will also be used for
 the snapshot.
@@ -220,9 +226,6 @@ supports. This option can only be used if
 .I boot-mode
 is set to
 .I uefi.
-AWS does not accept TPM support with the
-.I uefi-preferred
-boot mode.
 Accepted values are
 .I 2.0
 alternatively prefixed with a

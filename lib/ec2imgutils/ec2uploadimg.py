@@ -41,6 +41,12 @@ from ec2imgutils.ec2imgutilsExceptions import EC2UploadImgException
 SNAPSHOT_TIMEOUT_MINUTES = 1440
 # Amount of raw image data between two progress indicator dots (debug mode)
 PROGRESS_STEP_BYTES = 128 * 1024 * 1024
+# The EBS direct APIs use a fixed block size of 512 KiB, the value is in
+# bytes. It is not read from the StartSnapshot response on purpose. A
+# different unit or value there would silently break the block math of the
+# upload. If the service ever changes the block size, PutSnapshotBlock
+# rejects the blocks with a ValidationException and the upload fails.
+EBS_BLOCK_SIZE = 524288
 # Writing a block is retried with an exponential backoff and full jitter,
 # these are the base and the upper limit of the wait in seconds
 RETRY_BACKOFF_BASE = 2
@@ -59,6 +65,17 @@ NON_RETRYABLE_ERROR_CODES = (
     'ResourceNotFoundException',
     'ServiceQuotaExceededException',
     'ValidationException'
+)
+# File name suffixes of the tar archives that may contain the raw image
+TAR_SUFFIXES = (
+    '.tar',
+    '.tar.gz',
+    '.tar.bz2',
+    '.tar.xz',
+    '.tgz',
+    '.tbz',
+    '.tbz2',
+    '.txz'
 )
 
 
@@ -431,7 +448,7 @@ class EC2ImageUploader(EC2ImgUtils):
         """Create a block device map with the given snapshot"""
         if self.aborted:
             return
-        # We assume the root image has 1 partition (either case)
+        # The partition layout of the image is not checked, see the man page
         root_device_name = self._determine_root_device()
 
         if self.backing_store == 'mag':
@@ -825,12 +842,16 @@ class EC2ImageUploader(EC2ImgUtils):
            it is the source of a volume and not the result of the upload"""
         if self.aborted:
             return
+        # Check the archive before any resource is created
+        member_name = None
+        if self._is_archive(source):
+            member_name = self._find_raw_image_in_archive(source)
         self._check_image_exists()
         try:
             ebs = self._connect_ebs()
-            snapshot_id, block_size = self._start_snapshot(ebs)
+            snapshot_id = self._start_snapshot(ebs)
             digests = self._upload_snapshot_blocks(
-                ebs, snapshot_id, block_size, source
+                ebs, snapshot_id, EBS_BLOCK_SIZE, source, member_name
             )
             if self.aborted:
                 self._clean_up()
@@ -928,37 +949,77 @@ class EC2ImageUploader(EC2ImgUtils):
             )
 
     # ---------------------------------------------------------------------
+    @staticmethod
+    def _is_archive(source):
+        """Tell if the source file is a tar archive by its name"""
+        return os.path.basename(source).endswith(TAR_SUFFIXES)
+
+    # ---------------------------------------------------------------------
+    @staticmethod
+    def _raw_member_name(member):
+        """Return the name of the archive member if it is a raw image or an
+           xz compressed raw image, otherwise None"""
+        if not member.isfile():
+            return None
+        name = member.name.strip()
+        if name.endswith(('.raw.xz', '.raw')):
+            return name
+        return None
+
+    # ---------------------------------------------------------------------
+    def _find_raw_image_in_archive(self, source):
+        """Return the name of the raw image in the tar archive. The archive
+           must contain exactly one file ending with .raw or .raw.xz, other
+           files are ignored. The archive is read completely but nothing
+           is unpacked to disk"""
+        names = []
+        with tarfile.open(source, 'r|*') as archive:
+            for member in archive:
+                name = self._raw_member_name(member)
+                if name:
+                    names.append(name)
+        if not names:
+            msg = 'Unable to find raw image file with .raw extension'
+            raise EC2UploadImgException(msg)
+        if len(names) > 1:
+            msg = 'Found more than one raw image file in the archive, '
+            msg += 'expected exactly one: {}'.format(', '.join(names))
+            raise EC2UploadImgException(msg)
+        return names[0]
+
+    # ---------------------------------------------------------------------
     @contextlib.contextmanager
-    def _open_raw_image(self, source):
+    def _open_raw_image(self, source, member_name=None):
         """Provide a stream of the raw image data contained in the source
            file. The source is either a raw or xz compressed raw file or a
-           tar archive, optionally compressed, containing one. Nothing is
-           unpacked to disk"""
+           tar archive, optionally compressed, containing exactly one. The
+           name of the image in the archive is looked up if it is not given.
+           Nothing is unpacked to disk"""
         filename = os.path.basename(source)
-        if (
-            filename.find('.tar') != -1 or
-            filename.find('.tbz') != -1 or
-            filename.find('.tgz') != -1
-        ):
+        if self._is_archive(source):
+            if member_name is None:
+                member_name = self._find_raw_image_in_archive(source)
             with tarfile.open(source, 'r|*') as archive:
                 for member in archive:
-                    if not member.isfile():
+                    if self._raw_member_name(member) != member_name:
                         continue
-                    name = member.name.strip()
-                    if name[-2:] == 'xz':
-                        self.log.debug('Inflating image: {}'.format(name))
+                    if member_name.endswith('.raw.xz'):
+                        self.log.debug(
+                            'Inflating image: {}'.format(member_name)
+                        )
                         with lzma.LZMAFile(archive.extractfile(member)) as raw:
                             yield raw
-                        return
-                    if name[-4:] == '.raw':
+                    else:
                         yield archive.extractfile(member)
-                        return
-        elif filename[-2:] == 'xz':
+                    return
+            msg = 'Unable to find raw image file with .raw extension'
+            raise EC2UploadImgException(msg)
+        elif filename.endswith('.raw.xz'):
             self.log.debug('Inflating image: {}'.format(filename))
             with lzma.open(source, 'rb') as raw:
                 yield raw
             return
-        elif filename[-3:] == 'raw':
+        elif filename.endswith('.raw'):
             with open(source, 'rb') as raw:
                 yield raw
             return
@@ -1056,7 +1117,8 @@ class EC2ImageUploader(EC2ImgUtils):
 
     # ---------------------------------------------------------------------
     def _start_snapshot(self, ebs):
-        """Start a snapshot with the size of the root volume of the image"""
+        """Start a snapshot with the size of the root volume of the image and
+           return its ID. The block size is fixed, see EBS_BLOCK_SIZE"""
         snapshot = ebs.start_snapshot(
             VolumeSize=self.root_volume_size,
             Description=self.image_description,
@@ -1068,13 +1130,16 @@ class EC2ImageUploader(EC2ImgUtils):
             'Started snapshot: {}'.format(snapshot['SnapshotId'])
         )
 
-        return snapshot['SnapshotId'], snapshot.get('BlockSize', 524288)
+        return snapshot['SnapshotId']
 
     # ---------------------------------------------------------------------
-    def _upload_snapshot_blocks(self, ebs, snapshot_id, block_size, source):
+    def _upload_snapshot_blocks(
+        self, ebs, snapshot_id, block_size, source, member_name=None
+    ):
         """Upload the raw image data to the snapshot using multiple threads.
            Blocks containing only zeros are not written. Returns the
-           checksums of the written blocks by block index."""
+           checksums of the written blocks by block index. The member name
+           is the raw image in the source if it is a tar archive."""
         max_blocks = (self.root_volume_size * 1024 ** 3) // block_size
         zero_block = bytes(block_size)
         max_pending = self.upload_workers * 2
@@ -1095,7 +1160,7 @@ class EC2ImageUploader(EC2ImgUtils):
             max_workers=self.upload_workers
         ) as pool:
             try:
-                with self._open_raw_image(source) as stream:
+                with self._open_raw_image(source, member_name) as stream:
                     index = 0
                     while not self.aborted:
                         data = _read_exactly(stream, block_size)
