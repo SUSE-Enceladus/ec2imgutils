@@ -1978,6 +1978,49 @@ def test_create_image_use_root_swap(
     connect_mock().describe_volumes.assert_not_called()
 
 
+@pytest.mark.parametrize('backing_store,volume_type', [
+    ('ssd', 'gp3'),
+    ('mag', 'standard'),
+    ('io2', 'io2')
+])
+@patch('ec2imgutils.ec2uploadimg.EC2ImageUploader._attach_volume')
+@patch('ec2imgutils.ec2uploadimg.EC2ImageUploader._detach_volume')
+@patch('ec2imgutils.ec2uploadimg.EC2ImageUploader._show_progress')
+@patch('ec2imgutils.ec2uploadimg.EC2ImageUploader._create_image_root_volume')
+@patch('ec2imgutils.ec2uploadimg.EC2ImageUploader._connect')
+@patch('ec2imgutils.ec2uploadimg.EC2ImageUploader._check_virt_type_consistent')
+def test_create_image_use_root_swap_volume_type(
+    check_virt_type_mock,
+    connect_mock,
+    create_root_volume_mock,
+    show_progress_mock,
+    detach_volume_mock,
+    attach_volume_mock,
+    backing_store,
+    volume_type
+):
+    create_root_volume_mock.return_value = 'targetRootVol'
+    ec2 = connect_mock.return_value
+    ec2.describe_instances.return_value = {
+        'Reservations': [{'Instances': [{
+            'RootDeviceName': '/dev/sda1',
+            'BlockDeviceMappings': [{
+                'DeviceName': '/dev/sda1',
+                'Ebs': {'VolumeId': 'vol-root', 'DeleteOnTermination': True}
+            }]
+        }]}]
+    }
+    ec2.create_image.return_value = {'ImageId': 'ami-1'}
+
+    uploader = _make_uploader(backing_store=backing_store)
+    uploader.wait_count = 0
+    uploader.helper_instance = {'InstanceId': 'i-donor'}
+    uploader.create_image_use_root_swap('source')
+
+    block_device_map = ec2.create_image.call_args[1]['BlockDeviceMappings']
+    assert block_device_map[0]['Ebs']['VolumeType'] == volume_type
+
+
 def test_invalid_tpm_value():
     with pytest.raises(EC2UploadImgException) as e:
         # Instance creation
@@ -3403,6 +3446,115 @@ def test_verify_snapshot_short_read_is_retried(tmp_path, no_sleep):
     assert uploader._verify_snapshot(ebs, 'snap-1234', digests) == []
 
 
+def test_list_snapshot_blocks_stops_on_abort():
+    ebs = FakeEBS(block_size=1024, page_size=2)
+    for index in range(6):
+        ebs.blocks[index] = {}
+    uploader = _make_uploader()
+    requests = []
+    original = ebs.list_snapshot_blocks
+
+    def list_blocks(**kwargs):
+        requests.append(kwargs)
+        # The abort arrives while the first page is read
+        uploader.aborted = True
+        return original(**kwargs)
+
+    ebs.list_snapshot_blocks = list_blocks
+
+    tokens = uploader._list_snapshot_blocks(ebs, 'snap-1234')
+
+    assert len(requests) == 1
+    assert sorted(tokens) == [0, 1]
+
+
+def test_list_snapshot_blocks_pages_without_abort():
+    ebs = FakeEBS(block_size=1024, page_size=2)
+    for index in range(5):
+        ebs.blocks[index] = {}
+
+    tokens = _make_uploader()._list_snapshot_blocks(ebs, 'snap-1234')
+
+    assert sorted(tokens) == [0, 1, 2, 3, 4]
+
+
+def test_verify_snapshot_abort_reports_no_problems(tmp_path):
+    source = tmp_path / 'image.raw'
+    source.write_bytes(b''.join(bytes([i + 1]) * 1024 for i in range(6)))
+    ebs = FakeEBS(block_size=1024, page_size=2)
+    uploader = _make_uploader()
+    digests = uploader._upload_snapshot_blocks(
+        ebs, 'snap-1234', 1024, str(source)
+    )
+    original = ebs.list_snapshot_blocks
+
+    def list_blocks(**kwargs):
+        uploader.aborted = True
+        return original(**kwargs)
+
+    ebs.list_snapshot_blocks = list_blocks
+
+    # The incomplete list must not be reported as missing blocks
+    assert uploader._verify_snapshot(ebs, 'snap-1234', digests) == []
+    assert ebs.get_calls == 0
+
+
+def test_read_snapshot_block_closes_stream(tmp_path):
+    uploader, ebs, digests = _uploaded(tmp_path)
+    streams = []
+    original = ebs.get_snapshot_block
+
+    def get_block(**kwargs):
+        response = original(**kwargs)
+        streams.append(response['BlockData'])
+        return response
+
+    ebs.get_snapshot_block = get_block
+
+    index, digest, _ = uploader._read_snapshot_block(
+        ebs, 'snap-1234', 0, 'token-0'
+    )
+
+    assert digest == digests[0]
+    assert len(streams) == 1
+    assert streams[0].closed
+
+
+def test_read_snapshot_block_closes_stream_on_short_read(
+    tmp_path, no_sleep
+):
+    uploader, ebs, digests = _uploaded(tmp_path)
+    streams = []
+    original = ebs.get_snapshot_block
+
+    def get_block(**kwargs):
+        response = original(**kwargs)
+        if not streams:
+            response['BlockData'] = io.BytesIO(b'short')
+        streams.append(response['BlockData'])
+        return response
+
+    ebs.get_snapshot_block = get_block
+
+    uploader._read_snapshot_block(ebs, 'snap-1234', 0, 'token-0')
+
+    # The stream of the failed attempt and of the retry are both closed
+    assert len(streams) == 2
+    assert all(stream.closed for stream in streams)
+
+
+def test_read_snapshot_block_closes_stream_on_read_error(tmp_path):
+    uploader, ebs, digests = _uploaded(tmp_path)
+    body = MagicMock()
+    body.read.side_effect = RuntimeError('broken connection')
+    ebs.get_snapshot_block = MagicMock(return_value={'BlockData': body})
+
+    with pytest.raises(RuntimeError):
+        uploader._read_snapshot_block(ebs, 'snap-1234', 0, 'token-0')
+
+    body.close.assert_called_once_with()
+
+
 def _check_snapshot_setup(tmp_path, **kwargs):
     uploader, ebs, digests = _uploaded(tmp_path)
     uploader.keep_snapshot_on_verify_failure = kwargs.get('keep', False)
@@ -3476,6 +3628,24 @@ def test_check_snapshot_failure_temporary_snapshot(tmp_path, keep):
     deleted = [c[1]['SnapshotId'] for c in ec2.delete_snapshot.call_args_list]
     assert deleted.count('snap-1234') == (0 if keep else 1)
     assert 'snap-other' in deleted
+
+
+@pytest.mark.parametrize('kind,text', [
+    ('', 'snapshot snap-1'),
+    ('temporary', 'temporary snapshot snap-1'),
+    ('incomplete', 'incomplete snapshot snap-1')
+])
+@patch('ec2imgutils.ec2uploadimg.EC2ImageUploader._connect')
+def test_delete_snapshot_kind(connect_mock, kind, text, caplog):
+    ec2 = MagicMock()
+    ec2.delete_snapshot.side_effect = RuntimeError('nope')
+    connect_mock.return_value = ec2
+
+    uploader = _make_uploader()
+    uploader._delete_snapshot('snap-1', kind)
+
+    ec2.delete_snapshot.assert_called_once_with(SnapshotId='snap-1')
+    assert 'Unable to delete ' + text in caplog.text
 
 
 def test_check_snapshot_delete_failure_is_logged(tmp_path, caplog):

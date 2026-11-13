@@ -1289,6 +1289,15 @@ def test_check_regions_parameter_helper_options_root_swap():
         ec2uploadimg.check_regions_parameter(args, logger)
 
 
+def test_check_regions_parameter_error_message(caplog):
+    args = _parse(['--use-root-swap', '--ec2-ami', 'ami-1'])
+    args.regions = 'region1,region2'
+    with pytest.raises(SystemExit):
+        ec2uploadimg.check_regions_parameter(args, logger)
+    assert '--vpc-subnet-id' in caplog.text
+    assert '--boot-kernel' not in caplog.text
+
+
 @patch('ec2uploadimg.utils.get_from_config')
 @patch('ec2uploadimg.ec2upimg.EC2ImageUploader')
 def test_get_uploader_default_needs_no_helper_instance(
@@ -1550,7 +1559,9 @@ def test_warn_root_swap_only_arguments(caplog):
 
     ec2uploadimg.warn_root_swap_only_arguments(args, logger)
 
-    assert 'deprecated and ignored' in caplog.text
+    assert 'are ignored' in caplog.text
+    # The options are supported with the root swap method
+    assert 'deprecated' not in caplog.text
     for option in (
         '--ec2-ami', '--instance-id', '--vpc-subnet-id', '--use-enclave',
         '--type'

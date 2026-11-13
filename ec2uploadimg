@@ -599,9 +599,9 @@ def warn_root_swap_only_arguments(args, logger):
     ]
     if ignored:
         logger.warning(
-            'The following options are deprecated and ignored, the image is '
-            'uploaded with the EBS direct APIs without a donor instance. '
-            'They are only used with --use-root-swap: %s' % ', '.join(ignored)
+            'The following options are ignored, the image is uploaded with '
+            'the EBS direct APIs without a donor instance. They are only '
+            'used with --use-root-swap: %s' % ', '.join(ignored)
         )
 
 
@@ -754,7 +754,7 @@ def check_regions_parameter(args, logger):
     if len(regions) > 1 and any(region_specific):
         logger.error('Incompatible arguments: multiple regions specified')
         logger.error('Cannot process region unique argument for --ec2-ami,')
-        logger.error('--instance-id, or --boot-kernel')
+        logger.error('--instance-id, or --vpc-subnet-id')
         sys.exit(1)
 
 

@@ -444,6 +444,17 @@ class EC2ImageUploader(EC2ImgUtils):
         self._delete_temporary_snapshots()
 
     # ---------------------------------------------------------------------
+    def _get_volume_type(self):
+        """Return the EBS volume type of the root volume of the image. The
+           generic backing store ssd is mapped to gp3 and mag to standard,
+           any other value is a volume type and used as given"""
+        if self.backing_store == 'mag':
+            return 'standard'
+        if self.backing_store == 'ssd':
+            return 'gp3'
+        return self.backing_store
+
+    # ---------------------------------------------------------------------
     def _create_block_device_map(self, snapshot):
         """Create a block device map with the given snapshot"""
         if self.aborted:
@@ -451,12 +462,7 @@ class EC2ImageUploader(EC2ImgUtils):
         # The partition layout of the image is not checked, see the man page
         root_device_name = self._determine_root_device()
 
-        if self.backing_store == 'mag':
-            backing_store = 'standard'
-        elif self.backing_store == 'ssd':
-            backing_store = 'gp3'
-        else:
-            backing_store = self.backing_store
+        backing_store = self._get_volume_type()
 
         block_device_map = {
             'DeviceName': root_device_name,
@@ -895,14 +901,16 @@ class EC2ImageUploader(EC2ImgUtils):
         )
 
     # ---------------------------------------------------------------------
-    def _delete_snapshot(self, snapshot_id):
-        """Delete the given snapshot"""
-        self.log.debug('Deleting snapshot: {}'.format(snapshot_id))
+    def _delete_snapshot(self, snapshot_id, kind=''):
+        """Delete the given snapshot. The kind, for example temporary or
+           incomplete, is part of the log messages"""
+        prefix = kind + ' ' if kind else ''
+        self.log.debug('Deleting {}snapshot: {}'.format(prefix, snapshot_id))
         try:
             self._connect().delete_snapshot(SnapshotId=snapshot_id)
         except Exception as e:
             self.log.warning(
-                'Unable to delete snapshot %s: %s' % (snapshot_id, e)
+                'Unable to delete %ssnapshot %s: %s' % (prefix, snapshot_id, e)
             )
 
     # ---------------------------------------------------------------------
@@ -919,17 +927,7 @@ class EC2ImageUploader(EC2ImgUtils):
         snapshot_ids = self.temporary_snapshot_ids
         self.temporary_snapshot_ids = []
         for snapshot_id in snapshot_ids:
-            self.log.debug(
-                'Deleting temporary snapshot: {}'.format(snapshot_id)
-            )
-            try:
-                self._connect().delete_snapshot(SnapshotId=snapshot_id)
-            except Exception as e:
-                self.log.warning(
-                    'Unable to delete temporary snapshot %s: %s' % (
-                        snapshot_id, e
-                    )
-                )
+            self._delete_snapshot(snapshot_id, 'temporary')
 
     # ---------------------------------------------------------------------
     def _delete_pending_snapshot(self):
@@ -938,15 +936,7 @@ class EC2ImageUploader(EC2ImgUtils):
         if not snapshot_id:
             return
         self.pending_snapshot_id = None
-        self.log.debug('Deleting incomplete snapshot: {}'.format(snapshot_id))
-        try:
-            self._connect().delete_snapshot(SnapshotId=snapshot_id)
-        except Exception as e:
-            self.log.warning(
-                'Unable to delete incomplete snapshot %s: %s' % (
-                    snapshot_id, e
-                )
-            )
+        self._delete_snapshot(snapshot_id, 'incomplete')
 
     # ---------------------------------------------------------------------
     @staticmethod
@@ -1254,7 +1244,9 @@ class EC2ImageUploader(EC2ImgUtils):
 
     # ---------------------------------------------------------------------
     def _list_snapshot_blocks(self, ebs, snapshot_id):
-        """Return the block tokens of the written blocks by block index"""
+        """Return the block tokens of the written blocks by block index. The
+           listing stops if the upload gets aborted, the result is incomplete
+           then"""
         tokens = {}
         arguments = {
             'SnapshotId': snapshot_id,
@@ -1269,7 +1261,7 @@ class EC2ImageUploader(EC2ImgUtils):
             for block in response.get('Blocks', []):
                 tokens[block['BlockIndex']] = block['BlockToken']
             next_token = response.get('NextToken')
-            if not next_token:
+            if not next_token or self.aborted:
                 return tokens
             arguments['NextToken'] = next_token
 
@@ -1283,7 +1275,12 @@ class EC2ImageUploader(EC2ImgUtils):
                 BlockIndex=index,
                 BlockToken=token
             )
-            data = response['BlockData'].read()
+            body = response['BlockData']
+            try:
+                data = body.read()
+            finally:
+                # Release the connection also if reading fails
+                body.close()
             length = response.get('DataLength')
             if isinstance(length, int) and length != len(data):
                 raise _TransientBlockError(
@@ -1307,6 +1304,9 @@ class EC2ImageUploader(EC2ImgUtils):
            exception, this is not a verification result"""
         self.log.debug('Verifying snapshot: {}'.format(snapshot_id))
         tokens = self._list_snapshot_blocks(ebs, snapshot_id)
+        if self.aborted:
+            # The list is incomplete, blocks would be reported as missing
+            return []
         missing = sorted(set(digests) - set(tokens))
         extra = sorted(set(tokens) - set(digests))
         corrupt = []
@@ -1507,10 +1507,7 @@ class EC2ImageUploader(EC2ImgUtils):
         self._attach_volume(target_root_volume, device_id)
         self.log.debug('Creating new image')
         helper_dev_map = self._get_root_device_mapping()
-        if self.backing_store == 'mag':
-            backing_store = 'standard'
-        else:
-            backing_store = 'gp2'
+        backing_store = self._get_volume_type()
         block_device_map = {
             'DeviceName': helper_dev_map['DeviceName'],
             'Ebs': {
