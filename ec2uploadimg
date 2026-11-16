@@ -506,10 +506,15 @@ def check_required_arguments_and_constraints(args, logger):
 
 # ----------------------------------------------------------------------------
 def check_upload_workers(args, logger):
-    """This function checks that at least one upload worker is requested"""
+    """This function checks that at least one upload worker is requested.
+    Make a best effort and use 1 worker with a warning otherwise, the upload
+    works with a single worker"""
     if args.uploadWorkers < 1:
-        logger.error('The number of upload workers must be at least 1')
-        sys.exit(1)
+        logger.warning(
+            'The number of upload workers must be at least 1, got %d, '
+            'using 1 upload worker' % args.uploadWorkers
+        )
+        args.uploadWorkers = 1
 
 
 # ----------------------------------------------------------------------------

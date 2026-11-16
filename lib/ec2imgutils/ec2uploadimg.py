@@ -205,10 +205,7 @@ class EC2ImageUploader(EC2ImgUtils):
         self.keep_snapshot_on_verify_failure = bool(
             keep_snapshot_on_verify_failure
         )
-        try:
-            self.upload_workers = int(upload_workers)
-        except (TypeError, ValueError):
-            self.upload_workers = 0
+        self.upload_workers = self._get_upload_workers(upload_workers)
 
         if image_virt_type != 'hvm':
             raise EC2UploadImgException(
@@ -229,10 +226,6 @@ class EC2ImageUploader(EC2ImgUtils):
             channel_timeout=channel_timeout != 900,
             use_private_ip=use_private_ip
         )
-        if self.upload_workers < 1:
-            raise EC2UploadImgException(
-                'upload_workers must be an integer greater than 0'
-            )
         self.upload_retries = self._positive_int(
             upload_retries, 'upload_retries'
         )
@@ -263,6 +256,23 @@ class EC2ImageUploader(EC2ImgUtils):
                 'The following arguments are deprecated and ignored: %s'
                 % ', '.join(ignored)
             )
+
+    # ---------------------------------------------------------------------
+    def _get_upload_workers(self, value):
+        """Return the number of upload workers as integer. Make a best effort
+           and use 1 worker with a warning if the value is not an integer
+           greater than 0, the upload works with a single worker"""
+        try:
+            workers = int(value)
+        except (TypeError, ValueError):
+            workers = 0
+        if workers < 1:
+            self.log.warning(
+                'upload_workers must be an integer greater than 0, got '
+                '"%s", using 1 upload worker' % value
+            )
+            workers = 1
+        return workers
 
     # ---------------------------------------------------------------------
     @staticmethod

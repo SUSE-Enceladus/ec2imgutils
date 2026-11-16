@@ -845,12 +845,11 @@ def _write_raw_image(path):
     return data
 
 
-def test_instantiation_upload_workers_error():
-    with pytest.raises(EC2UploadImgException) as exc:
-        _make_uploader(upload_workers=0)
-    assert 'upload_workers' in str(exc.value)
-    with pytest.raises(EC2UploadImgException):
-        _make_uploader(upload_workers='many')
+@pytest.mark.parametrize('value', [0, -2, 'many', None])
+def test_instantiation_upload_workers_invalid(value, caplog):
+    uploader = _make_uploader(upload_workers=value)
+    assert uploader.upload_workers == 1
+    assert 'using 1 upload worker' in caplog.text
 
 
 def test_instantiation_upload_workers():

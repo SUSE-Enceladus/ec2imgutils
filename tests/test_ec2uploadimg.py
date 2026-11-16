@@ -1275,12 +1275,10 @@ def test_check_upload_workers():
 
 @pytest.mark.parametrize('value', ['0', '-2'])
 def test_check_upload_workers_invalid(value, caplog):
-    with pytest.raises(SystemExit) as excinfo:
-        ec2uploadimg.check_upload_workers(
-            _parse(['--upload-workers', value]), logger
-        )
-    assert excinfo.value.code == 1
-    assert 'upload workers' in caplog.text
+    args = _parse(['--upload-workers', value])
+    ec2uploadimg.check_upload_workers(args, logger)
+    assert args.uploadWorkers == 1
+    assert 'using 1 upload worker' in caplog.text
 
 
 def test_ssh_timeouts_have_no_parser_default():
