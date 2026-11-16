@@ -104,21 +104,6 @@ class _TransientBlockError(Exception):
        this."""
 
 
-def _read_exactly(stream, size):
-    """Read size bytes from the stream, a shorter result means the end of the
-       stream was reached"""
-    chunks = []
-    remaining = size
-    while remaining:
-        chunk = stream.read(remaining)
-        if not chunk:
-            break
-        chunks.append(chunk)
-        remaining -= len(chunk)
-
-    return b''.join(chunks)
-
-
 class EC2ImageUploader(EC2ImgUtils):
     """Upload the given image to Amazon EC2
 
@@ -887,7 +872,7 @@ class EC2ImageUploader(EC2ImgUtils):
             ebs = self._connect_ebs()
             snapshot_id = self._start_snapshot(ebs)
             digests = self._upload_snapshot_blocks(
-                ebs, snapshot_id, EBS_BLOCK_SIZE, source, member_name
+                ebs, snapshot_id, source, member_name
             )
             if self.aborted:
                 self._clean_up()
@@ -1167,14 +1152,14 @@ class EC2ImageUploader(EC2ImgUtils):
 
     # ---------------------------------------------------------------------
     def _upload_snapshot_blocks(
-        self, ebs, snapshot_id, block_size, source, member_name=None
+        self, ebs, snapshot_id, source, member_name=None
     ):
         """Upload the raw image data to the snapshot using multiple threads.
            Blocks containing only zeros are not written. Returns the
            checksums of the written blocks by block index. The member name
            is the raw image in the source if it is a tar archive."""
-        max_blocks = (self.root_volume_size * 1024 ** 3) // block_size
-        zero_block = bytes(block_size)
+        max_blocks = (self.root_volume_size * 1024 ** 3) // EBS_BLOCK_SIZE
+        zero_block = bytes(EBS_BLOCK_SIZE)
         max_pending = self.upload_workers * 2
         digests = {}
         pending = set()
@@ -1197,7 +1182,9 @@ class EC2ImageUploader(EC2ImgUtils):
                 with self._open_raw_image(source, member_name) as stream:
                     index = 0
                     while not self.aborted:
-                        data = _read_exactly(stream, block_size)
+                        # The stream is a buffered reader of a file, a short
+                        # result is only returned at the end of the file
+                        data = stream.read(EBS_BLOCK_SIZE)
                         if not data:
                             break
                         if index >= max_blocks:
@@ -1208,8 +1195,8 @@ class EC2ImageUploader(EC2ImgUtils):
                                 msg % self.root_volume_size
                             )
                         bytes_read += len(data)
-                        if len(data) < block_size:
-                            data = data.ljust(block_size, b'\0')
+                        if len(data) < EBS_BLOCK_SIZE:
+                            data = data.ljust(EBS_BLOCK_SIZE, b'\0')
                         blocks_read += 1
                         if self.write_zero_blocks or data != zero_block:
                             pending.add(pool.submit(
@@ -1255,7 +1242,7 @@ class EC2ImageUploader(EC2ImgUtils):
         self.log.info(
             'Blocks of %d bytes: %d read, %d written, %d zero blocks '
             'skipped' % (
-                block_size, blocks_read, len(digests), zero_blocks_skipped
+                EBS_BLOCK_SIZE, blocks_read, len(digests), zero_blocks_skipped
             )
         )
 
