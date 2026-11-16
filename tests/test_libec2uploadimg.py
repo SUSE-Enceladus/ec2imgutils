@@ -1690,7 +1690,7 @@ def test_create_volume(
         call().create_volume(
             Size=10,
             AvailabilityZone='myZone',
-            VolumeType='gp2'
+            VolumeType='gp3'
         ),
         call(),
         call().get_waiter('volume_available'),
@@ -2967,7 +2967,7 @@ def test_create_volume_from_snapshot(
     ec2.create_volume.assert_called_once_with(
         Size=12,
         AvailabilityZone='myZone',
-        VolumeType='gp2',
+        VolumeType='gp3',
         SnapshotId='snap-1'
     )
     assert uploader.created_volumes == [{'VolumeId': 'vol-1'}]
@@ -3152,7 +3152,7 @@ def test_create_image_use_root_swap_complete_flow(
         'delete_volume', 'delete_snapshot', 'create_tags'
     ]
     ec2.create_volume.assert_called_once_with(
-        Size=10, AvailabilityZone='zone-a', VolumeType='gp2',
+        Size=10, AvailabilityZone='zone-a', VolumeType='gp3',
         SnapshotId='snap-1234'
     )
     ec2.attach_volume.assert_called_once_with(

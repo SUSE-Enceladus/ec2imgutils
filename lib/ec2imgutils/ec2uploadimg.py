@@ -528,10 +528,15 @@ class EC2ImageUploader(EC2ImgUtils):
         """Create a volume, optionally from a snapshot"""
         if self.aborted:
             return
+        # The volume is temporary, it is swapped into the donor instance to
+        # create the image from it. The block device map passed to
+        # create_image sets the volume type of the image, see
+        # --backing-store. gp3 is the default type in EC2 and does not
+        # require a value for the IOPS, as io1 and io2 do.
         volume_args = {
             'Size': int(size),
             'AvailabilityZone': self.zone,
-            'VolumeType': 'gp2'
+            'VolumeType': 'gp3'
         }
         if snapshot_id:
             volume_args['SnapshotId'] = snapshot_id
