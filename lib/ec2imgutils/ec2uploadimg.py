@@ -37,9 +37,15 @@ from ec2imgutils.ec2imgutilsExceptions import EC2UploadImgException
 
 
 # Time in minutes after which AWS cancels a snapshot started with the EBS
-# direct APIs if it is not completed, valid range is 10 to 4320
+# direct APIs if it is not completed, valid range is 10 to 4320. 24 hours
+# leave enough time to upload a large image over a slow link, including
+# retries, and stay well below the maximum of 3 days. The value is far above
+# the minimum of 10 minutes, a slow upload is not cancelled. If an upload dies
+# without cleaning up, AWS cancels the orphaned snapshot after a day.
 SNAPSHOT_TIMEOUT_MINUTES = 1440
-# Amount of raw image data between two progress indicator dots (debug mode)
+# Amount of raw image data between two progress indicator dots (debug mode).
+# 128 MiB are 256 blocks of 512 KiB, a whole number of blocks. A 10 GiB image
+# prints about 80 dots, this shows progress without flooding the output.
 PROGRESS_STEP_BYTES = 128 * 1024 * 1024
 # The EBS direct APIs use a fixed block size of 512 KiB, the value is in
 # bytes. It is not read from the StartSnapshot response on purpose. A
@@ -48,10 +54,23 @@ PROGRESS_STEP_BYTES = 128 * 1024 * 1024
 # rejects the blocks with a ValidationException and the upload fails.
 EBS_BLOCK_SIZE = 524288
 # Writing a block is retried with an exponential backoff and full jitter,
-# these are the base and the upper limit of the wait in seconds
+# these are the base and the upper limit of the wait in seconds.
+# The base of 2 starts with a short wait, the first retry waits 4 seconds at
+# most. This covers a brief network glitch without stalling the upload, the
+# wait doubles with every attempt. The limit of 60 seconds keeps a high
+# --upload-retries value from putting the workers to sleep for minutes. It is
+# reached at the 5th attempt (4, 8, 16, 32, 60 instead of 64) and is long
+# enough for the throttling of the service to ease. With the default of 8
+# attempts the wait adds up to 240 seconds at most. The full jitter spreads
+# the retries of the upload workers so they do not hit the service together.
 RETRY_BACKOFF_BASE = 2
 RETRY_BACKOFF_MAX = 60
-# Timeout in seconds to establish the connection to the EBS direct API
+# Timeout in seconds to establish the connection to the EBS direct API. The
+# default of botocore is 60 seconds. 30 seconds are plenty for the TCP and TLS
+# handshake with a regional endpoint and an unreachable endpoint is given up
+# sooner, the retry logic can then take over. This is not the same as
+# upload_timeout, that is the time to wait for the response while a block of
+# 512 KiB is written and is set with --upload-timeout.
 CONNECT_TIMEOUT = 30
 # Maximum number of block indexes named in a verification error message
 MAX_REPORTED_BLOCKS = 20
