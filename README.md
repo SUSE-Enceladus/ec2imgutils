@@ -145,7 +145,8 @@ Writing a block of the image is retried with an increasing delay if it
 fails, which helps on slow or unreliable networks. Use _--upload-retries_
 (default 8), _--upload-timeout_ in seconds (default 300) and
 _--upload-workers_ (default 8) to tune this, for example fewer workers
-and a longer timeout for a very slow link.
+and a longer timeout for a very slow link. An invalid value is replaced by
+the default (1 for _--upload-workers_) and a warning is issued.
 
 Blocks containing only zeros are not written by default. Use
 _--write-zero-blocks_ to write them as well. With _--verify-snapshot_ the

@@ -2232,10 +2232,14 @@ def test_instantiation_upload_retries_and_timeout():
 
 @pytest.mark.parametrize('option', ['upload_retries', 'upload_timeout'])
 @pytest.mark.parametrize('value', [0, -1, 'many', None])
-def test_instantiation_upload_retries_and_timeout_error(option, value):
-    with pytest.raises(EC2UploadImgException) as exc:
-        _make_uploader(**{option: value})
-    assert option in str(exc.value)
+def test_instantiation_upload_retries_and_timeout_invalid(
+    option, value, caplog
+):
+    uploader = _make_uploader(**{option: value})
+    assert getattr(uploader, option) == (
+        8 if option == 'upload_retries' else 300
+    )
+    assert 'using the default' in caplog.text
 
 
 def _client_error(code=None, status=400, message='failed'):

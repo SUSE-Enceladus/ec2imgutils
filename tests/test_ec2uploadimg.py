@@ -1416,32 +1416,26 @@ def test_check_upload_retries_and_timeout_valid():
 
 @pytest.mark.parametrize('value', ['0', '-3'])
 def test_check_upload_retries_invalid(value, caplog):
-    with pytest.raises(SystemExit) as excinfo:
-        ec2uploadimg.check_upload_retries(
-            _parse(['--upload-retries', value]), logger
-        )
-    assert excinfo.value.code == 1
-    assert 'upload retries' in caplog.text
+    args = _parse(['--upload-retries', value])
+    ec2uploadimg.check_upload_retries(args, logger)
+    assert args.uploadRetries == 8
+    assert 'using the default 8' in caplog.text
 
 
 @pytest.mark.parametrize('value', ['0', '-3'])
 def test_check_upload_timeout_invalid(value, caplog):
-    with pytest.raises(SystemExit) as excinfo:
-        ec2uploadimg.check_upload_timeout(
-            _parse(['--upload-timeout', value]), logger
-        )
-    assert excinfo.value.code == 1
-    assert 'upload timeout' in caplog.text
+    args = _parse(['--upload-timeout', value])
+    ec2uploadimg.check_upload_timeout(args, logger)
+    assert args.uploadTimeout == 300
+    assert 'using the default 300 seconds' in caplog.text
 
 
-def test_checks_reject_invalid_retries_and_timeout():
-    for option in ('--upload-retries', '--upload-timeout'):
-        args = _parse([option, '0'])
-        args.source = data_path + os.sep + 'complete.cfg'
-        with pytest.raises(SystemExit):
-            ec2uploadimg.check_required_arguments_and_constraints(
-                args, logger
-            )
+def test_checks_use_defaults_for_invalid_retries_and_timeout():
+    args = _parse(['--upload-retries', '0', '--upload-timeout', '0'])
+    args.source = data_path + os.sep + 'complete.cfg'
+    ec2uploadimg.check_required_arguments_and_constraints(args, logger)
+    assert args.uploadRetries == 8
+    assert args.uploadTimeout == 300
 
 
 @patch('ec2uploadimg.ec2upimg.EC2ImageUploader')

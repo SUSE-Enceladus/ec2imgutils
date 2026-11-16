@@ -74,6 +74,10 @@ RETRY_BACKOFF_MAX = 60
 CONNECT_TIMEOUT = 30
 # Maximum number of block indexes named in a verification error message
 MAX_REPORTED_BLOCKS = 20
+# Defaults for the number of attempts to write a block and for the time in
+# seconds to wait for the response when writing a block
+DEFAULT_UPLOAD_RETRIES = 8
+DEFAULT_UPLOAD_TIMEOUT = 300
 # Page size to list the blocks of a snapshot, valid range is 100 to 10000
 LIST_BLOCKS_PAGE_SIZE = 10000
 # Errors that cannot be fixed by sending the same request again. All other
@@ -150,8 +154,8 @@ class EC2ImageUploader(EC2ImgUtils):
                  imds_support=None,
                  image_tags=None,
                  upload_workers=8,
-                 upload_retries=8,
-                 upload_timeout=300,
+                 upload_retries=DEFAULT_UPLOAD_RETRIES,
+                 upload_timeout=DEFAULT_UPLOAD_TIMEOUT,
                  write_zero_blocks=False,
                  verify_snapshot=False,
                  keep_snapshot_on_verify_failure=False
@@ -227,10 +231,10 @@ class EC2ImageUploader(EC2ImgUtils):
             use_private_ip=use_private_ip
         )
         self.upload_retries = self._positive_int(
-            upload_retries, 'upload_retries'
+            upload_retries, 'upload_retries', DEFAULT_UPLOAD_RETRIES
         )
         self.upload_timeout = self._positive_int(
-            upload_timeout, 'upload_timeout'
+            upload_timeout, 'upload_timeout', DEFAULT_UPLOAD_TIMEOUT
         )
         if sriov_type and sriov_type != 'simple':
             raise EC2UploadImgException(
@@ -275,17 +279,20 @@ class EC2ImageUploader(EC2ImgUtils):
         return workers
 
     # ---------------------------------------------------------------------
-    @staticmethod
-    def _positive_int(value, name):
-        """Return the value as integer, it must be greater than 0"""
+    def _positive_int(self, value, name, default):
+        """Return the value as integer. Make a best effort and use the
+           default with a warning if the value is not an integer greater
+           than 0"""
         try:
             number = int(value)
         except (TypeError, ValueError):
             number = 0
         if number < 1:
-            raise EC2UploadImgException(
-                '%s must be an integer greater than 0' % name
+            self.log.warning(
+                '%s must be an integer greater than 0, got "%s", using the '
+                'default %d' % (name, value, default)
             )
+            number = default
 
         return number
 
