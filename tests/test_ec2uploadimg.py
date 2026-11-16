@@ -1289,6 +1289,15 @@ def test_check_regions_parameter_helper_options_root_swap():
         ec2uploadimg.check_regions_parameter(args, logger)
 
 
+def test_check_regions_parameter_error_message(caplog):
+    args = _parse(['--use-root-swap', '--ec2-ami', 'ami-1'])
+    args.regions = 'region1,region2'
+    with pytest.raises(SystemExit):
+        ec2uploadimg.check_regions_parameter(args, logger)
+    assert '--vpc-subnet-id' in caplog.text
+    assert '--boot-kernel' not in caplog.text
+
+
 @patch('ec2uploadimg.utils.get_from_config')
 @patch('ec2uploadimg.ec2upimg.EC2ImageUploader')
 def test_get_uploader_default_needs_no_helper_instance(
@@ -1421,6 +1430,56 @@ def test_get_uploader_passes_retries_and_timeout(EC2ImageUploader_mock):
     assert kwargs['upload_timeout'] == 120
 
 
+def test_new_upload_options_defaults():
+    args = _parse([])
+    assert args.writeZeroBlocks is False
+    assert args.verifySnapshot is False
+    assert args.keepSnapshotOnVerifyFailure is False
+
+
+@patch('ec2uploadimg.ec2upimg.EC2ImageUploader')
+def test_get_uploader_passes_verify_options(EC2ImageUploader_mock):
+    args = _parse([
+        '--write-zero-blocks',
+        '--verify-snapshot',
+        '--keep-snapshot-on-verify-failure'
+    ])
+
+    ec2uploadimg.get_uploader(
+        args, 'eusc-de-east-1', None, 'access', 'secret', MagicMock(), logger
+    )
+
+    kwargs = EC2ImageUploader_mock.call_args[1]
+    assert kwargs['write_zero_blocks'] is True
+    assert kwargs['verify_snapshot'] is True
+    assert kwargs['keep_snapshot_on_verify_failure'] is True
+
+
+@patch('ec2uploadimg.ec2upimg.EC2ImageUploader')
+def test_get_uploader_verify_options_default(EC2ImageUploader_mock):
+    ec2uploadimg.get_uploader(
+        _parse([]), 'cn-north-1', None, 'access', 'secret', MagicMock(),
+        logger
+    )
+
+    kwargs = EC2ImageUploader_mock.call_args[1]
+    assert kwargs['write_zero_blocks'] is False
+    assert kwargs['verify_snapshot'] is False
+    assert kwargs['keep_snapshot_on_verify_failure'] is False
+
+
+def test_keep_snapshot_without_verify_warns(caplog):
+    args = _parse(['--keep-snapshot-on-verify-failure'])
+    ec2uploadimg.check_keep_snapshot_option(args, logger)
+    assert 'has no effect without --verify-snapshot' in caplog.text
+
+
+def test_keep_snapshot_with_verify_no_warning(caplog):
+    args = _parse(['--keep-snapshot-on-verify-failure', '--verify-snapshot'])
+    ec2uploadimg.check_keep_snapshot_option(args, logger)
+    assert caplog.text == ''
+
+
 # --------------------------------------------------------------------
 # Tests for the dropped para-virtual support
 def test_virt_type_hvm_accepted(caplog):
@@ -1500,7 +1559,9 @@ def test_warn_root_swap_only_arguments(caplog):
 
     ec2uploadimg.warn_root_swap_only_arguments(args, logger)
 
-    assert 'deprecated and ignored' in caplog.text
+    assert 'are ignored' in caplog.text
+    # The options are supported with the root swap method
+    assert 'deprecated' not in caplog.text
     for option in (
         '--ec2-ami', '--instance-id', '--vpc-subnet-id', '--use-enclave',
         '--type'

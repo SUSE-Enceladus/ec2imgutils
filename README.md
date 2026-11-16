@@ -121,12 +121,17 @@ man ec2removeimg
 
 A command line utility to upload a raw image file, as created by
 KIWI for example, to Amazon EC2 and create a snapshot or register an EBS
-backed AMI. The image may be xz compressed or contained in a tar archive.
+backed AMI. The image may be xz compressed (.raw.xz) or contained in a tar archive.
+A tar archive must contain exactly one .raw or .raw.xz file, other files
+are ignored.
 The image is written directly to a new EBS snapshot using the EBS direct
 APIs. The apparent size of the raw image is recommended to be 10 GB or less
-and must not exceed the root volume size. It is expected that the raw image
-has 1 partition, i.e. the root partition is _/dev/sda1._ Only HVM images
-are supported. The process of creating the image is as follows:
+and must not exceed the root volume size. The partition layout of the raw
+image is not checked, it must match the boot mode of the image. An image that
+only supports BIOS boot is expected to have one partition, the root
+partition. An image that supports UEFI boot is expected to have the EFI
+system partition as the first partition, formatted as FAT32. The root
+partition follows it. Only HVM images are supported. The process of creating the image is as follows:
 
 * Start a snapshot
 * Read the image, decompress it on the fly and write it in blocks to the
@@ -142,9 +147,16 @@ fails, which helps on slow or unreliable networks. Use _--upload-retries_
 _--upload-workers_ (default 8) to tune this, for example fewer workers
 and a longer timeout for a very slow link.
 
+Blocks containing only zeros are not written by default. Use
+_--write-zero-blocks_ to write them as well. With _--verify-snapshot_ the
+snapshot is read back after the upload and every block is compared with the
+uploaded data. A snapshot that does not match is deleted and the upload fails,
+add _--keep-snapshot-on-verify-failure_ to keep it for inspection.
+
 The credentials need permission for the EBS direct API actions
-`ebs:StartSnapshot`, `ebs:PutSnapshotBlock` and `ebs:CompleteSnapshot` as well
-as for the EC2 actions `ec2:DescribeImages`, `ec2:DescribeSnapshots`,
+`ebs:StartSnapshot`, `ebs:PutSnapshotBlock` and `ebs:CompleteSnapshot`, with
+_--verify-snapshot_ also `ebs:ListSnapshotBlocks` and `ebs:GetSnapshotBlock`,
+as well as for the EC2 actions `ec2:DescribeImages`, `ec2:DescribeSnapshots`,
 `ec2:DeleteSnapshot`, `ec2:RegisterImage` and `ec2:CreateTags`.
 
 With _--use-root-swap_ the image is also uploaded with the EBS direct APIs.
