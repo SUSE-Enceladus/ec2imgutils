@@ -160,7 +160,7 @@ as well as for the EC2 actions `ec2:DescribeImages`, `ec2:DescribeSnapshots`,
 `ec2:DeleteSnapshot`, `ec2:RegisterImage` and `ec2:CreateTags`.
 
 With _--use-root-swap_ the image is also uploaded with the EBS direct APIs.
-A donor instance, that provides the meta data of the new image (billing
+A donor instance, that provides the meta data for the new image (billing
 information for example), is stopped and gets a root volume that is created
 from the uploaded image. The new image is created from the donor instance.
 The donor instance is not accessed. An instance given with _--instance-id_ is

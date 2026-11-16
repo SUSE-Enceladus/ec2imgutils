@@ -108,10 +108,10 @@ class EC2ImageUploader(EC2ImgUtils):
     """Upload the given image to Amazon EC2
 
     By default the image is written to a new EBS snapshot with the EBS direct
-    APIs, no EC2 instance is needed for the upload. The root swap method
-    additionally uses a donor instance (called helper instance in the code),
-    it provides the meta data of the new image and gets a root volume that is
-    created from the uploaded image. The donor instance is not accessed."""
+    APIs. The root swap method requires a donor instance (called helper
+    instance in the code), it provides the meta data for the new image and
+    gets a root volume that is created from the uploaded image. The donor
+    instance is not accessed."""
 
     def __init__(self,
                  access_key=None,
@@ -260,9 +260,8 @@ class EC2ImageUploader(EC2ImgUtils):
         ignored = sorted(name for name, value in arguments.items() if value)
         if ignored:
             self.log.warning(
-                'The following arguments are deprecated and ignored, the '
-                'image is uploaded with the EBS direct APIs and no ssh '
-                'connection is needed: %s' % ', '.join(ignored)
+                'The following arguments are deprecated and ignored: %s'
+                % ', '.join(ignored)
             )
 
     # ---------------------------------------------------------------------
