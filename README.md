@@ -169,11 +169,11 @@ stopped and terminated once its root volume is replaced. The donor instance
 and the temporary snapshot are removed afterwards. _--ec2-ami_,
 _--instance-id_, _--type_, _--vpc-subnet-id_ and _--use-enclave_ configure the
 donor instance. They are only used with _--use-root-swap_ and are ignored
-otherwise, a warning is issued. Earlier versions uploaded the image to the instance with ssh.
-_--ssh-key-pair_, _--private-key-file_, _--user_, _--ssh-timeout_,
-_--channel-timeout_, _--security-group-ids_ and _--use-private-ip_ are
-deprecated with all methods, a warning is issued and they are ignored. The
-matching entries in the configuration file are not used anymore.
+otherwise, a warning is issued. _--ssh-key-pair_, _--private-key-file_,
+_--user_, _--ssh-timeout_, _--channel-timeout_, _--security-group-ids_ and
+_--use-private-ip_ are deprecated with all methods, a warning is issued and
+they are ignored. The matching entries in the configuration file are not used
+anymore.
 
 Para-virtual images are no longer supported, only HVM images can be created.
 A _--virt-type_ other than _hvm_ is rejected with an error. _--boot-kernel_
