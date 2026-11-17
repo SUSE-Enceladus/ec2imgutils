@@ -145,7 +145,8 @@ Writing a block of the image is retried with an increasing delay if it
 fails, which helps on slow or unreliable networks. Use _--upload-retries_
 (default 8), _--upload-timeout_ in seconds (default 300) and
 _--upload-workers_ (default 8) to tune this, for example fewer workers
-and a longer timeout for a very slow link.
+and a longer timeout for a very slow link. An invalid value is replaced by
+the default (1 for _--upload-workers_) and a warning is issued.
 
 Blocks containing only zeros are not written by default. Use
 _--write-zero-blocks_ to write them as well. With _--verify-snapshot_ the
@@ -160,7 +161,7 @@ as well as for the EC2 actions `ec2:DescribeImages`, `ec2:DescribeSnapshots`,
 `ec2:DeleteSnapshot`, `ec2:RegisterImage` and `ec2:CreateTags`.
 
 With _--use-root-swap_ the image is also uploaded with the EBS direct APIs.
-A donor instance, that provides the meta data of the new image (billing
+A donor instance, that provides the meta data for the new image (billing
 information for example), is stopped and gets a root volume that is created
 from the uploaded image. The new image is created from the donor instance.
 The donor instance is not accessed. An instance given with _--instance-id_ is
@@ -169,11 +170,11 @@ stopped and terminated once its root volume is replaced. The donor instance
 and the temporary snapshot are removed afterwards. _--ec2-ami_,
 _--instance-id_, _--type_, _--vpc-subnet-id_ and _--use-enclave_ configure the
 donor instance. They are only used with _--use-root-swap_ and are ignored
-otherwise, a warning is issued. Earlier versions uploaded the image to the instance with ssh.
-_--ssh-key-pair_, _--private-key-file_, _--user_, _--ssh-timeout_,
-_--channel-timeout_, _--security-group-ids_ and _--use-private-ip_ are
-deprecated with all methods, a warning is issued and they are ignored. The
-matching entries in the configuration file are not used anymore.
+otherwise, a warning is issued. _--ssh-key-pair_, _--private-key-file_,
+_--user_, _--ssh-timeout_, _--channel-timeout_, _--security-group-ids_ and
+_--use-private-ip_ are deprecated with all methods, a warning is issued and
+they are ignored. The matching entries in the configuration file are not used
+anymore.
 
 Para-virtual images are no longer supported, only HVM images can be created.
 A _--virt-type_ other than _hvm_ is rejected with an error. _--boot-kernel_

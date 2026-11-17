@@ -399,7 +399,8 @@ def parse_args(args):
     )
 
     help_msg = 'Number of threads writing blocks of the image to the '
-    help_msg += 'snapshot in parallel, default 8 (Optional)'
+    help_msg += 'snapshot in parallel, default 8. A value lower than 1 is '
+    help_msg += 'replaced by 1 with a warning (Optional)'
     parser.add_argument(
         '--upload-workers',
         default=8,
@@ -412,7 +413,8 @@ def parse_args(args):
     help_msg = 'Number of attempts to write a block of the image to the '
     help_msg += 'snapshot before giving up, default 8. Failed attempts are '
     help_msg += 'retried with an increasing delay, useful for slow networks '
-    help_msg += '(Optional)'
+    help_msg += 'A value lower than 1 is replaced by the default with a '
+    help_msg += 'warning (Optional)'
     parser.add_argument(
         '--upload-retries',
         default=8,
@@ -423,7 +425,8 @@ def parse_args(args):
     )
     help_msg = 'Timeout in seconds to wait for a response when writing a '
     help_msg += 'block of the image, default 300. Increase for slow '
-    help_msg += 'networks (Optional)'
+    help_msg += 'networks. A value lower than 1 is replaced by the default '
+    help_msg += 'with a warning (Optional)'
     parser.add_argument(
         '--upload-timeout',
         default=300,
@@ -506,27 +509,41 @@ def check_required_arguments_and_constraints(args, logger):
 
 # ----------------------------------------------------------------------------
 def check_upload_workers(args, logger):
-    """This function checks that at least one upload worker is requested"""
+    """This function checks that at least one upload worker is requested.
+    Make a best effort and use 1 worker with a warning otherwise, the upload
+    works with a single worker"""
     if args.uploadWorkers < 1:
-        logger.error('The number of upload workers must be at least 1')
-        sys.exit(1)
+        logger.warning(
+            'The number of upload workers must be at least 1, got %d, '
+            'using 1 upload worker' % args.uploadWorkers
+        )
+        args.uploadWorkers = 1
 
 
 # ----------------------------------------------------------------------------
 def check_upload_retries(args, logger):
     """This function checks that at least one attempt to write a block is
-    allowed"""
+    allowed. Make a best effort and use the default of 8 with a warning
+    otherwise"""
     if args.uploadRetries < 1:
-        logger.error('The number of upload retries must be at least 1')
-        sys.exit(1)
+        logger.warning(
+            'The number of upload retries must be at least 1, got %d, '
+            'using the default 8' % args.uploadRetries
+        )
+        args.uploadRetries = 8
 
 
 # ----------------------------------------------------------------------------
 def check_upload_timeout(args, logger):
-    """This function checks that the upload timeout is a positive value"""
+    """This function checks that the upload timeout is a positive value.
+    Make a best effort and use the default of 300 seconds with a warning
+    otherwise"""
     if args.uploadTimeout < 1:
-        logger.error('The upload timeout must be at least 1 second')
-        sys.exit(1)
+        logger.warning(
+            'The upload timeout must be at least 1 second, got %d, '
+            'using the default 300 seconds' % args.uploadTimeout
+        )
+        args.uploadTimeout = 300
 
 
 # ----------------------------------------------------------------------------
@@ -580,9 +597,8 @@ def warn_deprecated_arguments(args, logger):
     ]
     if ignored:
         logger.warning(
-            'The following options are deprecated and ignored, the image is '
-            'uploaded with the EBS direct APIs and no ssh connection is '
-            'needed: %s' % ', '.join(ignored)
+            'The following options are deprecated and ignored: %s'
+            % ', '.join(ignored)
         )
 
 
@@ -933,7 +949,7 @@ def get_root_swap_arguments(
 ):
     """Function to get the arguments of the EC2ImageUploader that describe the
     donor instance, only the root swap method needs one. The donor instance
-    provides the meta data of the new image, it is not accessed
+    provides the meta data for the new image, it is not accessed
     """
     ami_id = args.amiID
     running_id = args.runningID
