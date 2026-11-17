@@ -37,9 +37,15 @@ from ec2imgutils.ec2imgutilsExceptions import EC2UploadImgException
 
 
 # Time in minutes after which AWS cancels a snapshot started with the EBS
-# direct APIs if it is not completed, valid range is 10 to 4320
+# direct APIs if it is not completed, valid range is 10 to 4320. 24 hours
+# leave enough time to upload a large image over a slow link, including
+# retries, and stay well below the maximum of 3 days. The value is far above
+# the minimum of 10 minutes, a slow upload is not cancelled. If an upload dies
+# without cleaning up, AWS cancels the orphaned snapshot after a day.
 SNAPSHOT_TIMEOUT_MINUTES = 1440
-# Amount of raw image data between two progress indicator dots (debug mode)
+# Amount of raw image data between two progress indicator dots (debug mode).
+# 128 MiB are 256 blocks of 512 KiB, a whole number of blocks. A 10 GiB image
+# prints about 80 dots, this shows progress without flooding the output.
 PROGRESS_STEP_BYTES = 128 * 1024 * 1024
 # The EBS direct APIs use a fixed block size of 512 KiB, the value is in
 # bytes. It is not read from the StartSnapshot response on purpose. A
@@ -48,13 +54,30 @@ PROGRESS_STEP_BYTES = 128 * 1024 * 1024
 # rejects the blocks with a ValidationException and the upload fails.
 EBS_BLOCK_SIZE = 524288
 # Writing a block is retried with an exponential backoff and full jitter,
-# these are the base and the upper limit of the wait in seconds
+# these are the base and the upper limit of the wait in seconds.
+# The base of 2 starts with a short wait, the first retry waits 4 seconds at
+# most. This covers a brief network glitch without stalling the upload, the
+# wait doubles with every attempt. The limit of 60 seconds keeps a high
+# --upload-retries value from putting the workers to sleep for minutes. It is
+# reached at the 5th attempt (4, 8, 16, 32, 60 instead of 64) and is long
+# enough for the throttling of the service to ease. With the default of 8
+# attempts the wait adds up to 240 seconds at most. The full jitter spreads
+# the retries of the upload workers so they do not hit the service together.
 RETRY_BACKOFF_BASE = 2
 RETRY_BACKOFF_MAX = 60
-# Timeout in seconds to establish the connection to the EBS direct API
+# Timeout in seconds to establish the connection to the EBS direct API. The
+# default of botocore is 60 seconds. 30 seconds are plenty for the TCP and TLS
+# handshake with a regional endpoint and an unreachable endpoint is given up
+# sooner, the retry logic can then take over. This is not the same as
+# upload_timeout, that is the time to wait for the response while a block of
+# 512 KiB is written and is set with --upload-timeout.
 CONNECT_TIMEOUT = 30
 # Maximum number of block indexes named in a verification error message
 MAX_REPORTED_BLOCKS = 20
+# Defaults for the number of attempts to write a block and for the time in
+# seconds to wait for the response when writing a block
+DEFAULT_UPLOAD_RETRIES = 8
+DEFAULT_UPLOAD_TIMEOUT = 300
 # Page size to list the blocks of a snapshot, valid range is 100 to 10000
 LIST_BLOCKS_PAGE_SIZE = 10000
 # Errors that cannot be fixed by sending the same request again. All other
@@ -85,29 +108,14 @@ class _TransientBlockError(Exception):
        this."""
 
 
-def _read_exactly(stream, size):
-    """Read size bytes from the stream, a shorter result means the end of the
-       stream was reached"""
-    chunks = []
-    remaining = size
-    while remaining:
-        chunk = stream.read(remaining)
-        if not chunk:
-            break
-        chunks.append(chunk)
-        remaining -= len(chunk)
-
-    return b''.join(chunks)
-
-
 class EC2ImageUploader(EC2ImgUtils):
     """Upload the given image to Amazon EC2
 
     By default the image is written to a new EBS snapshot with the EBS direct
-    APIs, no EC2 instance is needed for the upload. The root swap method
-    additionally uses a donor instance (called helper instance in the code),
-    it provides the meta data of the new image and gets a root volume that is
-    created from the uploaded image. The donor instance is not accessed."""
+    APIs. The root swap method requires a donor instance (called helper
+    instance in the code), it provides the meta data for the new image and
+    gets a root volume that is created from the uploaded image. The donor
+    instance is not accessed."""
 
     def __init__(self,
                  access_key=None,
@@ -146,8 +154,8 @@ class EC2ImageUploader(EC2ImgUtils):
                  imds_support=None,
                  image_tags=None,
                  upload_workers=8,
-                 upload_retries=8,
-                 upload_timeout=300,
+                 upload_retries=DEFAULT_UPLOAD_RETRIES,
+                 upload_timeout=DEFAULT_UPLOAD_TIMEOUT,
                  write_zero_blocks=False,
                  verify_snapshot=False,
                  keep_snapshot_on_verify_failure=False
@@ -201,10 +209,7 @@ class EC2ImageUploader(EC2ImgUtils):
         self.keep_snapshot_on_verify_failure = bool(
             keep_snapshot_on_verify_failure
         )
-        try:
-            self.upload_workers = int(upload_workers)
-        except (TypeError, ValueError):
-            self.upload_workers = 0
+        self.upload_workers = self._get_upload_workers(upload_workers)
 
         if image_virt_type != 'hvm':
             raise EC2UploadImgException(
@@ -225,15 +230,11 @@ class EC2ImageUploader(EC2ImgUtils):
             channel_timeout=channel_timeout != 900,
             use_private_ip=use_private_ip
         )
-        if self.upload_workers < 1:
-            raise EC2UploadImgException(
-                'upload_workers must be an integer greater than 0'
-            )
         self.upload_retries = self._positive_int(
-            upload_retries, 'upload_retries'
+            upload_retries, 'upload_retries', DEFAULT_UPLOAD_RETRIES
         )
         self.upload_timeout = self._positive_int(
-            upload_timeout, 'upload_timeout'
+            upload_timeout, 'upload_timeout', DEFAULT_UPLOAD_TIMEOUT
         )
         if sriov_type and sriov_type != 'simple':
             raise EC2UploadImgException(
@@ -256,23 +257,42 @@ class EC2ImageUploader(EC2ImgUtils):
         ignored = sorted(name for name, value in arguments.items() if value)
         if ignored:
             self.log.warning(
-                'The following arguments are deprecated and ignored, the '
-                'image is uploaded with the EBS direct APIs and no ssh '
-                'connection is needed: %s' % ', '.join(ignored)
+                'The following arguments are deprecated and ignored: %s'
+                % ', '.join(ignored)
             )
 
     # ---------------------------------------------------------------------
-    @staticmethod
-    def _positive_int(value, name):
-        """Return the value as integer, it must be greater than 0"""
+    def _get_upload_workers(self, value):
+        """Return the number of upload workers as integer. Make a best effort
+           and use 1 worker with a warning if the value is not an integer
+           greater than 0, the upload works with a single worker"""
+        try:
+            workers = int(value)
+        except (TypeError, ValueError):
+            workers = 0
+        if workers < 1:
+            self.log.warning(
+                'upload_workers must be an integer greater than 0, got '
+                '"%s", using 1 upload worker' % value
+            )
+            workers = 1
+        return workers
+
+    # ---------------------------------------------------------------------
+    def _positive_int(self, value, name, default):
+        """Return the value as integer. Make a best effort and use the
+           default with a warning if the value is not an integer greater
+           than 0"""
         try:
             number = int(value)
         except (TypeError, ValueError):
             number = 0
         if number < 1:
-            raise EC2UploadImgException(
-                '%s must be an integer greater than 0' % name
+            self.log.warning(
+                '%s must be an integer greater than 0, got "%s", using the '
+                'default %d' % (name, value, default)
             )
+            number = default
 
         return number
 
@@ -515,10 +535,15 @@ class EC2ImageUploader(EC2ImgUtils):
         """Create a volume, optionally from a snapshot"""
         if self.aborted:
             return
+        # The volume is temporary, it is swapped into the donor instance to
+        # create the image from it. The block device map passed to
+        # create_image sets the volume type of the image, see
+        # --backing-store. gp3 is the default type in EC2 and does not
+        # require a value for the IOPS, as io1 and io2 do.
         volume_args = {
             'Size': int(size),
             'AvailabilityZone': self.zone,
-            'VolumeType': 'gp2'
+            'VolumeType': 'gp3'
         }
         if snapshot_id:
             volume_args['SnapshotId'] = snapshot_id
@@ -868,7 +893,7 @@ class EC2ImageUploader(EC2ImgUtils):
             ebs = self._connect_ebs()
             snapshot_id = self._start_snapshot(ebs)
             digests = self._upload_snapshot_blocks(
-                ebs, snapshot_id, EBS_BLOCK_SIZE, source, member_name
+                ebs, snapshot_id, source, member_name
             )
             if self.aborted:
                 self._clean_up()
@@ -1148,14 +1173,14 @@ class EC2ImageUploader(EC2ImgUtils):
 
     # ---------------------------------------------------------------------
     def _upload_snapshot_blocks(
-        self, ebs, snapshot_id, block_size, source, member_name=None
+        self, ebs, snapshot_id, source, member_name=None
     ):
         """Upload the raw image data to the snapshot using multiple threads.
            Blocks containing only zeros are not written. Returns the
            checksums of the written blocks by block index. The member name
            is the raw image in the source if it is a tar archive."""
-        max_blocks = (self.root_volume_size * 1024 ** 3) // block_size
-        zero_block = bytes(block_size)
+        max_blocks = (self.root_volume_size * 1024 ** 3) // EBS_BLOCK_SIZE
+        zero_block = bytes(EBS_BLOCK_SIZE)
         max_pending = self.upload_workers * 2
         digests = {}
         pending = set()
@@ -1178,7 +1203,9 @@ class EC2ImageUploader(EC2ImgUtils):
                 with self._open_raw_image(source, member_name) as stream:
                     index = 0
                     while not self.aborted:
-                        data = _read_exactly(stream, block_size)
+                        # The stream is a buffered reader of a file, a short
+                        # result is only returned at the end of the file
+                        data = stream.read(EBS_BLOCK_SIZE)
                         if not data:
                             break
                         if index >= max_blocks:
@@ -1189,8 +1216,8 @@ class EC2ImageUploader(EC2ImgUtils):
                                 msg % self.root_volume_size
                             )
                         bytes_read += len(data)
-                        if len(data) < block_size:
-                            data = data.ljust(block_size, b'\0')
+                        if len(data) < EBS_BLOCK_SIZE:
+                            data = data.ljust(EBS_BLOCK_SIZE, b'\0')
                         blocks_read += 1
                         if self.write_zero_blocks or data != zero_block:
                             pending.add(pool.submit(
@@ -1236,7 +1263,7 @@ class EC2ImageUploader(EC2ImgUtils):
         self.log.info(
             'Blocks of %d bytes: %d read, %d written, %d zero blocks '
             'skipped' % (
-                block_size, blocks_read, len(digests), zero_blocks_skipped
+                EBS_BLOCK_SIZE, blocks_read, len(digests), zero_blocks_skipped
             )
         )
 

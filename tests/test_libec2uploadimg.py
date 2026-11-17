@@ -730,6 +730,12 @@ def test_create_block_device_map_aborted(
 BLOCK_SIZE = 524288
 
 
+@pytest.fixture
+def small_blocks(monkeypatch):
+    """Use blocks of 1 KiB to keep the data of a test small"""
+    monkeypatch.setattr(ec2upimg, 'EBS_BLOCK_SIZE', 1024)
+
+
 class FakeEBS:
     """Stand-in for the boto3 ebs client"""
 
@@ -839,12 +845,11 @@ def _write_raw_image(path):
     return data
 
 
-def test_instantiation_upload_workers_error():
-    with pytest.raises(EC2UploadImgException) as exc:
-        _make_uploader(upload_workers=0)
-    assert 'upload_workers' in str(exc.value)
-    with pytest.raises(EC2UploadImgException):
-        _make_uploader(upload_workers='many')
+@pytest.mark.parametrize('value', [0, -2, 'many', None])
+def test_instantiation_upload_workers_invalid(value, caplog):
+    uploader = _make_uploader(upload_workers=value)
+    assert uploader.upload_workers == 1
+    assert 'using 1 upload worker' in caplog.text
 
 
 def test_instantiation_upload_workers():
@@ -1061,7 +1066,7 @@ def test_upload_snapshot_blocks(tmp_path):
 
     uploader = _make_uploader(upload_workers=2)
     digests = uploader._upload_snapshot_blocks(
-        ebs, 'snap-1234', BLOCK_SIZE, str(source)
+        ebs, 'snap-1234', str(source)
     )
 
     # The all zero block is skipped, the last block is padded
@@ -1078,7 +1083,7 @@ def test_upload_snapshot_blocks(tmp_path):
         assert digests[index] == _sha(data)
 
 
-def test_upload_snapshot_blocks_many_blocks(tmp_path):
+def test_upload_snapshot_blocks_many_blocks(tmp_path, small_blocks):
     # More blocks than in flight limit to exercise the wait loop
     source = tmp_path / 'image.raw'
     source.write_bytes(
@@ -1088,14 +1093,14 @@ def test_upload_snapshot_blocks_many_blocks(tmp_path):
 
     uploader = _make_uploader(upload_workers=2)
     digests = uploader._upload_snapshot_blocks(
-        ebs, 'snap-1234', 1024, str(source)
+        ebs, 'snap-1234', str(source)
     )
 
     assert sorted(digests) == list(range(50))
     assert sorted(ebs.blocks) == list(range(50))
 
 
-def test_upload_snapshot_blocks_too_large(tmp_path):
+def test_upload_snapshot_blocks_too_large(tmp_path, small_blocks):
     source = tmp_path / 'image.raw'
     source.write_bytes(b'\x01' * 3000)
     ebs = FakeEBS(block_size=1024)
@@ -1105,12 +1110,12 @@ def test_upload_snapshot_blocks_too_large(tmp_path):
     uploader.root_volume_size = 2048 / 1024 ** 3
     with pytest.raises(EC2UploadImgException) as exc:
         uploader._upload_snapshot_blocks(
-            ebs, 'snap-1234', 1024, str(source)
+            ebs, 'snap-1234', str(source)
         )
     assert 'larger than the root volume size' in str(exc.value)
 
 
-def test_upload_snapshot_blocks_exact_fit(tmp_path):
+def test_upload_snapshot_blocks_exact_fit(tmp_path, small_blocks):
     source = tmp_path / 'image.raw'
     source.write_bytes(b'\x01' * 2048)
     ebs = FakeEBS(block_size=1024)
@@ -1118,7 +1123,7 @@ def test_upload_snapshot_blocks_exact_fit(tmp_path):
     uploader = _make_uploader()
     uploader.root_volume_size = 2048 / 1024 ** 3
     digests = uploader._upload_snapshot_blocks(
-        ebs, 'snap-1234', 1024, str(source)
+        ebs, 'snap-1234', str(source)
     )
     assert sorted(digests) == [0, 1]
 
@@ -1161,7 +1166,7 @@ def test_upload_snapshot_blocks_failure_stops_retrying_workers(tmp_path):
         with patch('ec2imgutils.ec2uploadimg.time.sleep', sleep):
             with pytest.raises(RuntimeError):
                 uploader._upload_snapshot_blocks(
-                    _RetryingEBS(), 'snap-1234', BLOCK_SIZE, str(source)
+                    _RetryingEBS(), 'snap-1234', str(source)
                 )
 
     # The worker gave up when the failure was seen, the full backoff of all
@@ -1178,7 +1183,7 @@ def test_upload_snapshot_blocks_stop_flag_is_reset(tmp_path):
     uploader._workers_stopped.set()
 
     digests = uploader._upload_snapshot_blocks(
-        FakeEBS(), 'snap-1234', BLOCK_SIZE, str(source)
+        FakeEBS(), 'snap-1234', str(source)
     )
 
     assert sorted(digests) == [0, 2, 3]
@@ -1215,7 +1220,7 @@ def test_verify_snapshot_failure_stops_retrying_workers(tmp_path):
     ebs = FakeEBS()
     uploader = _make_uploader(upload_workers=2)
     digests = uploader._upload_snapshot_blocks(
-        ebs, 'snap-1234', BLOCK_SIZE, str(source)
+        ebs, 'snap-1234', str(source)
     )
     retrying = threading.Event()
 
@@ -1246,7 +1251,7 @@ def test_upload_snapshot_blocks_put_failure(tmp_path):
     uploader = _make_uploader(upload_workers=1)
     with pytest.raises(RuntimeError):
         uploader._upload_snapshot_blocks(
-            ebs, 'snap-1234', BLOCK_SIZE, str(source)
+            ebs, 'snap-1234', str(source)
         )
 
 
@@ -1685,7 +1690,7 @@ def test_create_volume(
         call().create_volume(
             Size=10,
             AvailabilityZone='myZone',
-            VolumeType='gp2'
+            VolumeType='gp3'
         ),
         call(),
         call().get_waiter('volume_available'),
@@ -2227,10 +2232,14 @@ def test_instantiation_upload_retries_and_timeout():
 
 @pytest.mark.parametrize('option', ['upload_retries', 'upload_timeout'])
 @pytest.mark.parametrize('value', [0, -1, 'many', None])
-def test_instantiation_upload_retries_and_timeout_error(option, value):
-    with pytest.raises(EC2UploadImgException) as exc:
-        _make_uploader(**{option: value})
-    assert option in str(exc.value)
+def test_instantiation_upload_retries_and_timeout_invalid(
+    option, value, caplog
+):
+    uploader = _make_uploader(**{option: value})
+    assert getattr(uploader, option) == (
+        8 if option == 'upload_retries' else 300
+    )
+    assert 'using the default' in caplog.text
 
 
 def _client_error(code=None, status=400, message='failed'):
@@ -2423,7 +2432,7 @@ def test_upload_snapshot_blocks_recovers_from_errors(tmp_path, no_sleep):
     uploader = _make_uploader(upload_workers=3, upload_retries=3)
 
     digests = uploader._upload_snapshot_blocks(
-        ebs, 'snap-1234', BLOCK_SIZE, str(source)
+        ebs, 'snap-1234', str(source)
     )
 
     assert sorted(digests) == [0, 2, 3]
@@ -2962,7 +2971,7 @@ def test_create_volume_from_snapshot(
     ec2.create_volume.assert_called_once_with(
         Size=12,
         AvailabilityZone='myZone',
-        VolumeType='gp2',
+        VolumeType='gp3',
         SnapshotId='snap-1'
     )
     assert uploader.created_volumes == [{'VolumeId': 'vol-1'}]
@@ -3147,7 +3156,7 @@ def test_create_image_use_root_swap_complete_flow(
         'delete_volume', 'delete_snapshot', 'create_tags'
     ]
     ec2.create_volume.assert_called_once_with(
-        Size=10, AvailabilityZone='zone-a', VolumeType='gp2',
+        Size=10, AvailabilityZone='zone-a', VolumeType='gp3',
         SnapshotId='snap-1234'
     )
     ec2.attach_volume.assert_called_once_with(
@@ -3494,7 +3503,7 @@ def test_upload_snapshot_blocks_write_zero_blocks(tmp_path, caplog):
 
     uploader = _make_uploader(upload_workers=2, write_zero_blocks=True)
     digests = uploader._upload_snapshot_blocks(
-        ebs, 'snap-1234', BLOCK_SIZE, str(source)
+        ebs, 'snap-1234', str(source)
     )
 
     assert sorted(ebs.blocks) == [0, 1, 2, 3]
@@ -3511,7 +3520,7 @@ def test_upload_snapshot_blocks_logs_skipped_zero_blocks(tmp_path, caplog):
 
     uploader = _make_uploader(upload_workers=2)
     uploader._upload_snapshot_blocks(
-        FakeEBS(), 'snap-1234', BLOCK_SIZE, str(source)
+        FakeEBS(), 'snap-1234', str(source)
     )
 
     assert '4 read, 3 written, 1 zero blocks skipped' in caplog.text
@@ -3524,7 +3533,7 @@ def test_write_zero_blocks_complete_snapshot_count(tmp_path):
         ebs = FakeEBS()
         uploader = _make_uploader(write_zero_blocks=write_zero)
         digests = uploader._upload_snapshot_blocks(
-            ebs, 'snap-1234', BLOCK_SIZE, str(source)
+            ebs, 'snap-1234', str(source)
         )
         uploader._complete_snapshot(ebs, 'snap-1234', digests)
         assert ebs.completed[0]['ChangedBlocksCount'] == count
@@ -3537,7 +3546,7 @@ def test_all_zero_image_completes_without_checksum(tmp_path):
     uploader = _make_uploader()
 
     digests = uploader._upload_snapshot_blocks(
-        ebs, 'snap-1234', BLOCK_SIZE, str(source)
+        ebs, 'snap-1234', str(source)
     )
     uploader._complete_snapshot(ebs, 'snap-1234', digests)
 
@@ -3554,7 +3563,7 @@ def test_all_zero_image_with_zero_blocks_sends_checksum(tmp_path):
     uploader = _make_uploader(write_zero_blocks=True)
 
     digests = uploader._upload_snapshot_blocks(
-        ebs, 'snap-1234', BLOCK_SIZE, str(source)
+        ebs, 'snap-1234', str(source)
     )
     uploader._complete_snapshot(ebs, 'snap-1234', digests)
 
@@ -3609,7 +3618,7 @@ def _uploaded(tmp_path, **kwargs):
     ebs = FakeEBS(**kwargs)
     uploader = _make_uploader(upload_workers=2, verify_snapshot=True)
     digests = uploader._upload_snapshot_blocks(
-        ebs, 'snap-1234', BLOCK_SIZE, str(source)
+        ebs, 'snap-1234', str(source)
     )
 
     return uploader, ebs, digests
@@ -3630,7 +3639,7 @@ def test_verify_snapshot_ok_with_zero_blocks(tmp_path):
     source = tmp_path / 'image.raw'
     ebs = FakeEBS()
     digests = uploader._upload_snapshot_blocks(
-        ebs, 'snap-1234', BLOCK_SIZE, str(source)
+        ebs, 'snap-1234', str(source)
     )
 
     assert uploader._verify_snapshot(ebs, 'snap-1234', digests) == []
@@ -3644,13 +3653,13 @@ def test_verify_snapshot_pagination(tmp_path):
     assert ebs.get_calls == 3
 
 
-def test_verify_snapshot_many_blocks(tmp_path):
+def test_verify_snapshot_many_blocks(tmp_path, small_blocks):
     source = tmp_path / 'image.raw'
     source.write_bytes(b''.join(bytes([i + 1]) * 1024 for i in range(50)))
     ebs = FakeEBS(block_size=1024, page_size=7)
     uploader = _make_uploader(upload_workers=2)
     digests = uploader._upload_snapshot_blocks(
-        ebs, 'snap-1234', 1024, str(source)
+        ebs, 'snap-1234', str(source)
     )
 
     assert uploader._verify_snapshot(ebs, 'snap-1234', digests) == []
@@ -3695,13 +3704,13 @@ def test_verify_snapshot_wrong_service_checksum(tmp_path):
     assert '1 (3)' in problems[0]
 
 
-def test_verify_snapshot_reports_all_and_caps_list(tmp_path):
+def test_verify_snapshot_reports_all_and_caps_list(tmp_path, small_blocks):
     source = tmp_path / 'image.raw'
     source.write_bytes(b''.join(bytes([i + 1]) * 1024 for i in range(30)))
     ebs = FakeEBS(block_size=1024)
     uploader = _make_uploader()
     digests = uploader._upload_snapshot_blocks(
-        ebs, 'snap-1234', 1024, str(source)
+        ebs, 'snap-1234', str(source)
     )
     for index in range(25):
         ebs.corrupt[index] = b'\x00' * 1023 + b'\x01'
@@ -3805,13 +3814,13 @@ def test_list_snapshot_blocks_pages_without_abort():
     assert sorted(tokens) == [0, 1, 2, 3, 4]
 
 
-def test_verify_snapshot_abort_reports_no_problems(tmp_path):
+def test_verify_snapshot_abort_reports_no_problems(tmp_path, small_blocks):
     source = tmp_path / 'image.raw'
     source.write_bytes(b''.join(bytes([i + 1]) * 1024 for i in range(6)))
     ebs = FakeEBS(block_size=1024, page_size=2)
     uploader = _make_uploader()
     digests = uploader._upload_snapshot_blocks(
-        ebs, 'snap-1234', 1024, str(source)
+        ebs, 'snap-1234', str(source)
     )
     original = ebs.list_snapshot_blocks
 
