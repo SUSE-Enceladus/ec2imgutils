@@ -944,10 +944,13 @@ def get_root_swap_arguments(
             logger.error('Could not determine helper AMI-ID')
             sys.exit(1)
 
-    inst_type = get_inst_type(args, config, region, logger)
-    if not inst_type:
-        logger.error('Could not determine the instance type')
-        sys.exit(1)
+    # No instance is launched for a running donor, the type is not needed
+    inst_type = None
+    if not running_id:
+        inst_type = get_inst_type(args, config, region, logger)
+        if not inst_type:
+            logger.error('Could not determine the instance type')
+            sys.exit(1)
 
     vpc_subnet_id = get_vpc_subnet_id(
         args,
@@ -1031,6 +1034,12 @@ def get_uploader(
 
 
 # ----------------------------------------------------------------------------
+def log_aborted(logger):
+    """Tell that nothing was created, the upload was aborted"""
+    logger.warning('The upload was aborted, no snapshot or image created')
+
+
+# ----------------------------------------------------------------------------
 def upload_image_to_region(
         args,
         region,
@@ -1065,19 +1074,24 @@ def upload_image_to_region(
         if not aborted:
             if args.snapOnly:
                 snapshot = uploader.create_snapshot(args.source)
-                msg = 'Created snapshot: {}'.format(
-                    str(snapshot['SnapshotId'])
-                )
-                logger.info(msg)
-            elif args.rootSwapMethod:
-                ami = uploader.create_image_use_root_swap(args.source)
-                logger.info('Created image: {}'.format(str(ami)))
-            elif args.useSnap:
-                ami = uploader.create_image_from_snapshot(args.source)
-                logger.info('Created image: {}'.format(str(ami)))
+                if snapshot:
+                    msg = 'Created snapshot: {}'.format(
+                        str(snapshot['SnapshotId'])
+                    )
+                    logger.info(msg)
+                else:
+                    log_aborted(logger)
             else:
-                ami = uploader.create_image(args.source)
-                logger.info('Created image: {}'.format(str(ami)))
+                if args.rootSwapMethod:
+                    ami = uploader.create_image_use_root_swap(args.source)
+                elif args.useSnap:
+                    ami = uploader.create_image_from_snapshot(args.source)
+                else:
+                    ami = uploader.create_image(args.source)
+                if ami:
+                    logger.info('Created image: {}'.format(str(ami)))
+                else:
+                    log_aborted(logger)
     except EC2UploadImgException as e:
         print_ex(logger, e)
         errors += 1

@@ -191,6 +191,9 @@ class EC2ImageUploader(EC2ImgUtils):
         self.temporary_snapshot_ids = []
         self.helper_instance = None
         self.aborted = False
+        # Set if a block failed for good, the other workers stop retrying.
+        # It is separate from aborted, that is set by the user.
+        self._workers_stopped = threading.Event()
         self.image_tags = image_tags
         self.pending_snapshot_id = None
         self.write_zero_blocks = bool(write_zero_blocks)
@@ -811,18 +814,26 @@ class EC2ImageUploader(EC2ImgUtils):
     # ---------------------------------------------------------------------
     def _complete_snapshot(self, ebs, snapshot_id, digests):
         """Seal the snapshot, the checksum is the SHA256 of the concatenated
-           raw block checksums in ascending block index order"""
-        aggregate = hashlib.sha256()
-        for index in sorted(digests):
-            aggregate.update(digests[index])
+           raw block checksums in ascending block index order. Without
+           written blocks there is nothing to aggregate and the checksum
+           arguments are left out"""
+        complete_args = {
+            'SnapshotId': snapshot_id,
+            'ChangedBlocksCount': len(digests)
+        }
+        if digests:
+            aggregate = hashlib.sha256()
+            for index in sorted(digests):
+                aggregate.update(digests[index])
+            complete_args.update({
+                'Checksum': base64.b64encode(aggregate.digest()).decode(
+                    'ascii'
+                ),
+                'ChecksumAlgorithm': 'SHA256',
+                'ChecksumAggregationMethod': 'LINEAR'
+            })
         self.log.debug('Completing snapshot: {}'.format(snapshot_id))
-        ebs.complete_snapshot(
-            SnapshotId=snapshot_id,
-            ChangedBlocksCount=len(digests),
-            Checksum=base64.b64encode(aggregate.digest()).decode('ascii'),
-            ChecksumAlgorithm='SHA256',
-            ChecksumAggregationMethod='LINEAR'
-        )
+        ebs.complete_snapshot(**complete_args)
         # From here on the snapshot is sealed by AWS, nothing to abort
         self.pending_snapshot_id = None
 
@@ -872,6 +883,14 @@ class EC2ImageUploader(EC2ImgUtils):
         self._wait_for_snapshot(snapshot_id)
         if self.verify_snapshot and not self.aborted:
             self._check_snapshot(snapshot_id, digests)
+        if self.aborted:
+            # The snapshot is completed and no longer pending, the upload
+            # was aborted while waiting for it or verifying it. A temporary
+            # snapshot is deleted by the clean up.
+            if not temporary:
+                self._delete_snapshot(snapshot_id)
+            self._clean_up()
+            return
 
         return {'SnapshotId': snapshot_id}
 
@@ -1054,10 +1073,14 @@ class EC2ImageUploader(EC2ImgUtils):
     # ---------------------------------------------------------------------
     def _wait_before_retry(self, attempt):
         """Wait with an exponential backoff and full jitter, the wait ends
-           early if the upload gets aborted"""
+           early if the upload gets aborted or the workers are stopped"""
         limit = min(RETRY_BACKOFF_MAX, RETRY_BACKOFF_BASE * 2 ** attempt)
         remaining = random.uniform(0, limit)
-        while remaining > 0 and not self.aborted:
+        while (
+            remaining > 0 and
+            not self.aborted and
+            not self._workers_stopped.is_set()
+        ):
             step = min(remaining, 1)
             time.sleep(step)
             remaining -= step
@@ -1094,7 +1117,8 @@ class EC2ImageUploader(EC2ImgUtils):
                 if (
                     not self._is_retryable_error(error) or
                     attempt == self.upload_retries or
-                    self.aborted
+                    self.aborted or
+                    self._workers_stopped.is_set()
                 ):
                     if not self._is_retryable_error(error):
                         raise
@@ -1145,6 +1169,7 @@ class EC2ImageUploader(EC2ImgUtils):
                 index, digest = future.result()
                 digests[index] = digest
 
+        self._workers_stopped.clear()
         self.log.debug('Uploading image file: {}'.format(source))
         with concurrent.futures.ThreadPoolExecutor(
             max_workers=self.upload_workers
@@ -1193,9 +1218,16 @@ class EC2ImageUploader(EC2ImgUtils):
                             print('.', end=' ')
                             sys.stdout.flush()
                             next_progress += PROGRESS_STEP_BYTES
-                done, pending = concurrent.futures.wait(pending)
+                # Return at the first failure, the others are stopped
+                done, pending = concurrent.futures.wait(
+                    pending,
+                    return_when=concurrent.futures.FIRST_EXCEPTION
+                )
                 collect(done)
             except BaseException:
+                # Let the workers that are retrying give up at once, the
+                # pool waits for them when it is left
+                self._workers_stopped.set()
                 for future in pending:
                     future.cancel()
                 raise
@@ -1229,7 +1261,11 @@ class EC2ImageUploader(EC2ImgUtils):
                 self._log_block_failure(index, attempt, error, action)
                 if not self._is_retryable_error(error):
                     raise
-                if attempt == self.upload_retries or self.aborted:
+                if (
+                    attempt == self.upload_retries or
+                    self.aborted or
+                    self._workers_stopped.is_set()
+                ):
                     subject = (
                         'block %d' % index if index is not None
                         else 'the blocks'
@@ -1302,6 +1338,7 @@ class EC2ImageUploader(EC2ImgUtils):
            uploaded data. Returns a list of the problems found, it is empty
            if the snapshot matches. Reading the snapshot may fail with an
            exception, this is not a verification result"""
+        self._workers_stopped.clear()
         self.log.debug('Verifying snapshot: {}'.format(snapshot_id))
         tokens = self._list_snapshot_blocks(ebs, snapshot_id)
         if self.aborted:
@@ -1345,9 +1382,16 @@ class EC2ImageUploader(EC2ImgUtils):
                             return_when=concurrent.futures.FIRST_COMPLETED
                         )
                         collect(done)
-                done, pending = concurrent.futures.wait(pending)
+                # Return at the first failure, the others are stopped
+                done, pending = concurrent.futures.wait(
+                    pending,
+                    return_when=concurrent.futures.FIRST_EXCEPTION
+                )
                 collect(done)
             except BaseException:
+                # Let the workers that are retrying give up at once, the
+                # pool waits for them when it is left
+                self._workers_stopped.set()
                 for future in pending:
                     future.cancel()
                 raise
@@ -1427,6 +1471,11 @@ class EC2ImageUploader(EC2ImgUtils):
             return
 
         ami = self._register_image(snapshot)
+        if not ami:
+            # Aborted before the image was registered, the snapshot was
+            # created by this upload and is of no use
+            self._delete_snapshot(snapshot['SnapshotId'])
+            return
         self._tag_image(ami)
 
         return ami
@@ -1445,6 +1494,10 @@ class EC2ImageUploader(EC2ImgUtils):
 
         snapshot = response['Snapshots'][0]
         ami = self._register_image(snapshot)
+        if not ami:
+            # Aborted before the image was registered, the snapshot is not
+            # ours and is left alone
+            return
         self._tag_image(ami)
 
         return ami
@@ -1506,15 +1559,16 @@ class EC2ImageUploader(EC2ImgUtils):
         self._detach_volume(current_root_volume)
         self._attach_volume(target_root_volume, device_id)
         self.log.debug('Creating new image')
-        helper_dev_map = self._get_root_device_mapping()
-        backing_store = self._get_volume_type()
+        # The root device is the one that was replaced. DeleteOnTermination
+        # is not taken from the attached volume, attach_volume sets it to
+        # False. Like the default upload, the volumes of instances launched
+        # from the image are deleted with the instance.
         block_device_map = {
-            'DeviceName': helper_dev_map['DeviceName'],
+            'DeviceName': device_id,
             'Ebs': {
-                'DeleteOnTermination':
-                helper_dev_map['Ebs']['DeleteOnTermination'],
+                'DeleteOnTermination': True,
                 'VolumeSize': self.root_volume_size,
-                'VolumeType': backing_store
+                'VolumeType': self._get_volume_type()
             }
         }
         ami = self._connect().create_image(

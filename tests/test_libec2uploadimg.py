@@ -33,6 +33,7 @@ import pytest
 import sys
 import tarfile
 import threading
+import time
 
 
 from botocore.stub import Stubber
@@ -1122,6 +1123,121 @@ def test_upload_snapshot_blocks_exact_fit(tmp_path):
     assert sorted(digests) == [0, 1]
 
 
+class _RetryingEBS(FakeEBS):
+    """Block 0 fails for good after block 2 started to retry for ever"""
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.retrying = threading.Event()
+
+    def put_snapshot_block(self, **kwargs):
+        if kwargs['BlockIndex'] == 0:
+            assert self.retrying.wait(10)
+            raise RuntimeError('permanent failure')
+        self.retrying.set()
+        raise botocore.exceptions.EndpointConnectionError(endpoint_url='x')
+
+
+def _counting_sleep():
+    sleeps = []
+    real_sleep = time.sleep
+
+    def sleep(seconds):
+        sleeps.append(seconds)
+        real_sleep(0.001)
+
+    return sleeps, sleep
+
+
+def test_upload_snapshot_blocks_failure_stops_retrying_workers(tmp_path):
+    source = tmp_path / 'image.raw'
+    _write_raw_image(source)
+    sleeps, sleep = _counting_sleep()
+    uploader = _make_uploader(upload_workers=2)
+
+    # A retry wait of 30 seconds, without the stop it takes 30 steps and
+    # there are 8 attempts
+    with patch('ec2imgutils.ec2uploadimg.random.uniform', return_value=30):
+        with patch('ec2imgutils.ec2uploadimg.time.sleep', sleep):
+            with pytest.raises(RuntimeError):
+                uploader._upload_snapshot_blocks(
+                    _RetryingEBS(), 'snap-1234', BLOCK_SIZE, str(source)
+                )
+
+    # The worker gave up when the failure was seen, the full backoff of all
+    # attempts would be more than 200 steps
+    assert len(sleeps) < 60
+    assert uploader._workers_stopped.is_set()
+    assert not uploader.aborted
+
+
+def test_upload_snapshot_blocks_stop_flag_is_reset(tmp_path):
+    source = tmp_path / 'image.raw'
+    _write_raw_image(source)
+    uploader = _make_uploader(upload_workers=2)
+    uploader._workers_stopped.set()
+
+    digests = uploader._upload_snapshot_blocks(
+        FakeEBS(), 'snap-1234', BLOCK_SIZE, str(source)
+    )
+
+    assert sorted(digests) == [0, 2, 3]
+    assert not uploader._workers_stopped.is_set()
+
+
+def test_wait_before_retry_ends_if_workers_stopped():
+    uploader = _make_uploader()
+    uploader._workers_stopped.set()
+    with patch('ec2imgutils.ec2uploadimg.random.uniform', return_value=30):
+        with patch('ec2imgutils.ec2uploadimg.time.sleep') as sleep_mock:
+            uploader._wait_before_retry(3)
+    sleep_mock.assert_not_called()
+
+
+def test_retry_block_request_gives_up_if_workers_stopped(no_sleep):
+    uploader = _make_uploader()
+    uploader._workers_stopped.set()
+    request = MagicMock(
+        side_effect=botocore.exceptions.EndpointConnectionError(
+            endpoint_url='x'
+        )
+    )
+
+    with pytest.raises(EC2UploadImgException):
+        uploader._retry_block_request(0, 'Reading', request)
+
+    assert request.call_count == 1
+
+
+def test_verify_snapshot_failure_stops_retrying_workers(tmp_path):
+    source = tmp_path / 'image.raw'
+    _write_raw_image(source)
+    ebs = FakeEBS()
+    uploader = _make_uploader(upload_workers=2)
+    digests = uploader._upload_snapshot_blocks(
+        ebs, 'snap-1234', BLOCK_SIZE, str(source)
+    )
+    retrying = threading.Event()
+
+    def get_block(**kwargs):
+        if kwargs['BlockIndex'] == 0:
+            assert retrying.wait(10)
+            raise RuntimeError('permanent failure')
+        retrying.set()
+        raise botocore.exceptions.EndpointConnectionError(endpoint_url='x')
+
+    ebs.get_snapshot_block = get_block
+    sleeps, sleep = _counting_sleep()
+
+    with patch('ec2imgutils.ec2uploadimg.random.uniform', return_value=30):
+        with patch('ec2imgutils.ec2uploadimg.time.sleep', sleep):
+            with pytest.raises(RuntimeError):
+                uploader._verify_snapshot(ebs, 'snap-1234', digests)
+
+    assert len(sleeps) < 60
+    assert uploader._workers_stopped.is_set()
+
+
 def test_upload_snapshot_blocks_put_failure(tmp_path):
     source = tmp_path / 'image.raw'
     _write_raw_image(source)
@@ -1224,8 +1340,11 @@ def test_complete_snapshot_no_blocks():
     ebs = FakeEBS()
     uploader = _make_uploader()
     uploader._complete_snapshot(ebs, 'snap-1234', {})
-    assert ebs.completed[0]['ChangedBlocksCount'] == 0
-    assert ebs.completed[0]['Checksum'] == _b64(_sha(b''))
+    # No blocks, no checksum to send
+    assert ebs.completed == [
+        {'SnapshotId': 'snap-1234', 'ChangedBlocksCount': 0}
+    ]
+    assert uploader.pending_snapshot_id is None
 
 
 def test_ebs_block_size_is_fixed():
@@ -2047,6 +2166,54 @@ def test_invalid_imds_value():
     assert msg in str(e)
 
 
+@pytest.mark.parametrize('donor_flag', [True, False])
+@patch('ec2imgutils.ec2uploadimg.EC2ImageUploader._attach_volume')
+@patch('ec2imgutils.ec2uploadimg.EC2ImageUploader._detach_volume')
+@patch('ec2imgutils.ec2uploadimg.EC2ImageUploader._show_progress')
+@patch('ec2imgutils.ec2uploadimg.EC2ImageUploader._create_image_root_volume')
+@patch('ec2imgutils.ec2uploadimg.EC2ImageUploader._connect')
+@patch('ec2imgutils.ec2uploadimg.EC2ImageUploader._check_virt_type_consistent')
+def test_create_image_use_root_swap_delete_on_termination(
+    check_virt_type_mock,
+    connect_mock,
+    create_root_volume_mock,
+    show_progress_mock,
+    detach_volume_mock,
+    attach_volume_mock,
+    donor_flag
+):
+    create_root_volume_mock.return_value = {'VolumeId': 'vol-new'}
+    ec2 = connect_mock.return_value
+
+    def donor(volume_id, flag):
+        return {'Reservations': [{'Instances': [{
+            'RootDeviceName': '/dev/sda1',
+            'BlockDeviceMappings': [{
+                'DeviceName': '/dev/sda1',
+                'Ebs': {'VolumeId': volume_id, 'DeleteOnTermination': flag}
+            }]
+        }]}]}
+
+    # Before the swap the donor reports its own setting, afterwards the
+    # volume attached by attach_volume reports False
+    ec2.describe_instances.side_effect = [
+        donor('vol-old', donor_flag),
+        donor('vol-new', False)
+    ]
+    ec2.create_image.return_value = {'ImageId': 'ami-1'}
+
+    uploader = _make_uploader()
+    uploader.wait_count = 0
+    uploader.helper_instance = {'InstanceId': 'i-donor'}
+    uploader.create_image_use_root_swap('source')
+
+    block_device_map = ec2.create_image.call_args[1]['BlockDeviceMappings']
+    assert block_device_map[0]['DeviceName'] == '/dev/sda1'
+    assert block_device_map[0]['Ebs']['DeleteOnTermination'] is True
+    # The donor is described once, to find the root volume
+    assert ec2.describe_instances.call_count == 1
+
+
 # -----------------------------------------------------------------------------
 # Tests for the retry of writing blocks and the related options
 def test_instantiation_upload_retries_and_timeout():
@@ -2587,6 +2754,132 @@ def test_create_snapshot_keeps_snapshot_by_default(
 
     assert uploader.temporary_snapshot_ids == []
     ec2.delete_snapshot.assert_not_called()
+
+
+def _abort_snapshot_setup(connect_mock, tmp_path, **kwargs):
+    source = tmp_path / 'image.raw'
+    _write_raw_image(source)
+    ebs = FakeEBS()
+    ec2 = MagicMock()
+    connect_mock.side_effect = (
+        lambda service='ec2', config=None: ebs if service == 'ebs' else ec2
+    )
+    return str(source), ec2, _make_uploader(**kwargs)
+
+
+@patch('ec2imgutils.ec2uploadimg.EC2ImageUploader._wait_for_snapshot')
+@patch('ec2imgutils.ec2uploadimg.EC2ImageUploader._check_image_exists')
+@patch('ec2imgutils.ec2uploadimg.EC2ImageUploader._connect')
+def test_create_snapshot_abort_while_waiting_deletes_snapshot(
+    connect_mock, check_image_exists_mock, wait_mock, tmp_path
+):
+    source, ec2, uploader = _abort_snapshot_setup(connect_mock, tmp_path)
+
+    def abort(snapshot_id):
+        uploader.aborted = True
+
+    wait_mock.side_effect = abort
+
+    assert uploader.create_snapshot(source) is None
+    # The completed snapshot is deleted once
+    ec2.delete_snapshot.assert_called_once_with(SnapshotId='snap-1234')
+
+
+@patch('ec2imgutils.ec2uploadimg.EC2ImageUploader._wait_for_snapshot')
+@patch('ec2imgutils.ec2uploadimg.EC2ImageUploader._check_image_exists')
+@patch('ec2imgutils.ec2uploadimg.EC2ImageUploader._connect')
+def test_create_snapshot_abort_while_verifying_deletes_snapshot(
+    connect_mock, check_image_exists_mock, wait_mock, tmp_path
+):
+    source, ec2, uploader = _abort_snapshot_setup(
+        connect_mock, tmp_path, verify_snapshot=True
+    )
+
+    def abort(*args):
+        uploader.aborted = True
+        return []
+
+    with patch.object(uploader, '_verify_snapshot', side_effect=abort):
+        assert uploader.create_snapshot(source) is None
+
+    ec2.delete_snapshot.assert_called_once_with(SnapshotId='snap-1234')
+
+
+@patch('ec2imgutils.ec2uploadimg.EC2ImageUploader._wait_for_snapshot')
+@patch('ec2imgutils.ec2uploadimg.EC2ImageUploader._check_image_exists')
+@patch('ec2imgutils.ec2uploadimg.EC2ImageUploader._connect')
+def test_create_snapshot_abort_temporary_snapshot_deleted_once(
+    connect_mock, check_image_exists_mock, wait_mock, tmp_path
+):
+    source, ec2, uploader = _abort_snapshot_setup(connect_mock, tmp_path)
+
+    def abort(snapshot_id):
+        uploader.aborted = True
+
+    wait_mock.side_effect = abort
+
+    result = uploader._create_snapshot_from_image(source, temporary=True)
+
+    assert result is None
+    ec2.delete_snapshot.assert_called_once_with(SnapshotId='snap-1234')
+    assert uploader.temporary_snapshot_ids == []
+
+
+@patch('ec2imgutils.ec2uploadimg.EC2ImageUploader._wait_for_snapshot')
+@patch('ec2imgutils.ec2uploadimg.EC2ImageUploader._check_image_exists')
+@patch('ec2imgutils.ec2uploadimg.EC2ImageUploader._connect')
+def test_create_image_abort_while_waiting_registers_nothing(
+    connect_mock, check_image_exists_mock, wait_mock, tmp_path
+):
+    source, ec2, uploader = _abort_snapshot_setup(connect_mock, tmp_path)
+
+    def abort(snapshot_id):
+        uploader.aborted = True
+
+    wait_mock.side_effect = abort
+
+    assert uploader.create_image(source) is None
+    ec2.register_image.assert_not_called()
+    ec2.create_tags.assert_not_called()
+    ec2.delete_snapshot.assert_called_once_with(SnapshotId='snap-1234')
+
+
+@patch('ec2imgutils.ec2uploadimg.EC2ImageUploader._delete_snapshot')
+@patch('ec2imgutils.ec2uploadimg.EC2ImageUploader._tag_image')
+@patch('ec2imgutils.ec2uploadimg.EC2ImageUploader._register_image')
+@patch('ec2imgutils.ec2uploadimg.EC2ImageUploader.create_snapshot')
+def test_create_image_abort_before_registration(
+    create_snapshot_mock,
+    register_image_mock,
+    tag_image_mock,
+    delete_snapshot_mock
+):
+    create_snapshot_mock.return_value = {'SnapshotId': 'snap-1'}
+    register_image_mock.return_value = None
+
+    assert _make_uploader().create_image('source') is None
+
+    tag_image_mock.assert_not_called()
+    delete_snapshot_mock.assert_called_once_with('snap-1')
+
+
+@patch('ec2imgutils.ec2uploadimg.EC2ImageUploader._delete_snapshot')
+@patch('ec2imgutils.ec2uploadimg.EC2ImageUploader._tag_image')
+@patch('ec2imgutils.ec2uploadimg.EC2ImageUploader._register_image')
+@patch('ec2imgutils.ec2uploadimg.EC2ImageUploader._connect')
+def test_create_image_from_snapshot_aborted(
+    connect_mock, register_image_mock, tag_image_mock, delete_snapshot_mock
+):
+    connect_mock.return_value.describe_snapshots.return_value = {
+        'Snapshots': [{'SnapshotId': 'snap-1'}]
+    }
+    register_image_mock.return_value = None
+
+    assert _make_uploader().create_image_from_snapshot('snap-1') is None
+
+    tag_image_mock.assert_not_called()
+    # The snapshot was given by the user, it must stay
+    delete_snapshot_mock.assert_not_called()
 
 
 @patch('ec2imgutils.ec2uploadimg.EC2ImageUploader._connect')
@@ -3235,6 +3528,40 @@ def test_write_zero_blocks_complete_snapshot_count(tmp_path):
         )
         uploader._complete_snapshot(ebs, 'snap-1234', digests)
         assert ebs.completed[0]['ChangedBlocksCount'] == count
+
+
+def test_all_zero_image_completes_without_checksum(tmp_path):
+    source = tmp_path / 'image.raw'
+    source.write_bytes(bytes(2 * BLOCK_SIZE))
+    ebs = FakeEBS()
+    uploader = _make_uploader()
+
+    digests = uploader._upload_snapshot_blocks(
+        ebs, 'snap-1234', BLOCK_SIZE, str(source)
+    )
+    uploader._complete_snapshot(ebs, 'snap-1234', digests)
+
+    assert not ebs.blocks
+    assert ebs.completed == [
+        {'SnapshotId': 'snap-1234', 'ChangedBlocksCount': 0}
+    ]
+
+
+def test_all_zero_image_with_zero_blocks_sends_checksum(tmp_path):
+    source = tmp_path / 'image.raw'
+    source.write_bytes(bytes(2 * BLOCK_SIZE))
+    ebs = FakeEBS()
+    uploader = _make_uploader(write_zero_blocks=True)
+
+    digests = uploader._upload_snapshot_blocks(
+        ebs, 'snap-1234', BLOCK_SIZE, str(source)
+    )
+    uploader._complete_snapshot(ebs, 'snap-1234', digests)
+
+    complete = ebs.completed[0]
+    assert complete['ChangedBlocksCount'] == 2
+    assert complete['ChecksumAlgorithm'] == 'SHA256'
+    assert complete['ChecksumAggregationMethod'] == 'LINEAR'
 
 
 def test_new_upload_options_default():
