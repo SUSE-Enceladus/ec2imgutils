@@ -121,29 +121,18 @@ class EC2ImageUploader(EC2ImgUtils):
                  access_key=None,
                  backing_store='ssd',
                  billing_codes=None,
-                 bootkernel=None,
-                 config=None,
                  ena_support=False,
                  image_arch='x86_64',
                  image_description='AWS EC2 AMI',
                  image_name='default',
-                 image_virt_type='hvm',
-                 inst_user_name=None,
                  launch_ami=None,
                  launch_inst_type='m1.small',
                  region=None,
                  root_volume_size=10,
                  running_id=None,
                  secret_key=None,
-                 security_group_ids='',
                  session_token=None,
                  sriov_type=None,
-                 ssh_key_pair_name=None,
-                 ssh_key_private_key_file=None,
-                 ssh_timeout=300,
-                 channel_timeout=900,
-                 use_grub2=False,
-                 use_private_ip=False,
                  vpc_subnet_id='',
                  use_enclave=False,
                  wait_count=1,
@@ -211,25 +200,6 @@ class EC2ImageUploader(EC2ImgUtils):
         )
         self.upload_workers = self._get_upload_workers(upload_workers)
 
-        if image_virt_type != 'hvm':
-            raise EC2UploadImgException(
-                'Only hvm images are supported, the virtualization type '
-                '"%s" is no longer supported' % image_virt_type
-            )
-        if bootkernel or use_grub2:
-            self.log.warning(
-                'The bootkernel and use_grub2 arguments are deprecated and '
-                'ignored, para-virtual images are no longer supported'
-            )
-        self._warn_deprecated_arguments(
-            inst_user_name=inst_user_name,
-            security_group_ids=security_group_ids,
-            ssh_key_pair_name=ssh_key_pair_name,
-            ssh_key_private_key_file=ssh_key_private_key_file,
-            ssh_timeout=ssh_timeout != 300,
-            channel_timeout=channel_timeout != 900,
-            use_private_ip=use_private_ip
-        )
         self.upload_retries = self._positive_int(
             upload_retries, 'upload_retries', DEFAULT_UPLOAD_RETRIES
         )
@@ -249,16 +219,6 @@ class EC2ImageUploader(EC2ImgUtils):
         if imds_support and imds_support not in imds_versions:
             raise EC2UploadImgException(
                 'imds_support must be one of %s' % str(imds_versions)
-            )
-
-    def _warn_deprecated_arguments(self, **arguments):
-        """Warn about the arguments that were only used for the upload with
-           ssh, the image is uploaded with the EBS direct APIs"""
-        ignored = sorted(name for name, value in arguments.items() if value)
-        if ignored:
-            self.log.warning(
-                'The following arguments are deprecated and ignored: %s'
-                % ', '.join(ignored)
             )
 
     # ---------------------------------------------------------------------
