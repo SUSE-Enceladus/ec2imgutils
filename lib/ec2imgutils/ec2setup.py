@@ -16,13 +16,7 @@
 # along with ec2imgutils.ase.  If not, see <http://www.gnu.org/licenses/>.
 
 import logging
-import os
 import random
-import datetime
-
-from tempfile import mkstemp, mkdtemp
-
-from botocore.exceptions import ClientError
 
 from ec2imgutils.ec2imgutils import EC2ImgUtils
 
@@ -51,89 +45,14 @@ class EC2Setup(EC2ImgUtils):
         self.session_token = session_token
 
         self.internet_gateway_id = ''
-        self.key_pair_name = ''
         self.route_table_id = ''
-        self.security_group_id = ''
-        self.ssh_private_key_file = ''
-        self.temp_dir = ''
         self.vpc_subnet_id = ''
         self.vpc_id = ''
 
     # ---------------------------------------------------------------------
     def clean_up(self):
-        if self.key_pair_name:
-            self._remove_upload_key_pair()
-        if self.security_group_id:
-            self._remove_security_group()
         if self.vpc_id:
             self._remove_vpc()
-
-    # ---------------------------------------------------------------------
-    def create_security_group(self, vpc_id=None):
-        self.log.debug('Creating temporary security group')
-        group_description = 'ec2uploadimg created %s' % datetime.datetime.now()
-        if not vpc_id:
-            vpc_id = self.vpc_id
-        # Avoid name collisions
-        group_created = False
-        response = None
-        while not group_created:
-            group_name = 'ec2uploadimg-%s' % (random.randint(1, 100))
-            try:
-                response = self._connect().create_security_group(
-                    GroupName=group_name, Description=group_description,
-                    VpcId=vpc_id
-                )
-            except ClientError as e:
-                if not e.response['Error']['Code'] == 'InvalidGroup.Duplicate':
-                    raise e
-                # Generate a new group name and try again
-                continue
-            group_created = True
-        self.security_group_id = response['GroupId']
-        self.log.debug(
-            'Temporary Security Group Created %s in vpc %s'
-            % (self.security_group_id, vpc_id)
-        )
-        self._connect().authorize_security_group_ingress(
-            GroupId=self.security_group_id,
-            IpPermissions=[
-                {'IpProtocol': 'tcp',
-                 'FromPort': 22,
-                 'ToPort': 22,
-                 'IpRanges': [{'CidrIp': '0.0.0.0/0'}]}
-            ])
-
-        self.log.debug(
-            "Successfully allowed incoming SSH port 22 for security "
-            "group %s in %s" % (self.security_group_id, self.vpc_id)
-        )
-        return self.security_group_id
-
-    # ---------------------------------------------------------------------
-    def create_upload_key_pair(self, key_name='temporary_ec2_uploadkey'):
-        self.log.debug('Creating temporary key pair')
-        dir_path = os.path.expanduser('~/')
-        if not os.access(dir_path, os.W_OK):
-            dir_path = mkdtemp()
-            self.temp_dir = dir_path
-        fd, location = mkstemp(prefix='temporary_ec2_uploadkey.',
-                               suffix='.key', dir=dir_path)
-        self.key_pair_name = os.path.basename(location)
-        self.ssh_private_key_file = location
-        secret_key_content = self._connect().create_key_pair(
-            KeyName=self.key_pair_name
-        )
-        self.log.debug(
-            'Successfully created key pair: {}'.format(self.key_pair_name)
-        )
-        with open(location, 'w') as localfile:
-            localfile.write(secret_key_content['KeyMaterial'])
-        self.log.debug(
-            'Successfully wrote secret key key file to {}'.format(location)
-        )
-        os.close(fd)
-        return self.key_pair_name, self.ssh_private_key_file
 
     # ---------------------------------------------------------------------
     def create_vpc_subnet(self):
@@ -194,31 +113,6 @@ class EC2Setup(EC2ImgUtils):
         )
         self.log.debug(
             "Successfully created VPC subnet with id %s" % self.vpc_subnet_id
-        )
-
-    # ---------------------------------------------------------------------
-    def _remove_security_group(self):
-        self._connect().delete_security_group(
-            GroupId=self.security_group_id
-        )
-        self.log.debug(
-            'Successfully deleted security group %s' % self.security_group_id
-        )
-
-    # ---------------------------------------------------------------------
-    def _remove_upload_key_pair(self):
-        self.log.debug(
-            'Deleting temporary key pair {}'.format(self.key_pair_name)
-        )
-        self._connect().delete_key_pair(
-            KeyName=self.key_pair_name)
-        if os.path.isfile(self.ssh_private_key_file):
-            os.remove(self.ssh_private_key_file)
-        if self.temp_dir:
-            os.rmdir(self.temp_dir)
-        self.log.debug(
-            'Successfully deleted temporary key %s'
-            % self.ssh_private_key_file
         )
 
     # ---------------------------------------------------------------------
