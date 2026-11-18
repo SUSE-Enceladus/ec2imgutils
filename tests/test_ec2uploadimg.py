@@ -53,8 +53,6 @@ test_cli_args_data = [
       "ssd",
       "--billing-codes",
       "testBillingCodes",
-      "--boot-kernel",
-      "testAkiID",
       "--boot-mode",
       "uefi",
       "--description",
@@ -64,7 +62,6 @@ test_cli_args_data = [
       "--ena-support",
       "--file",
       "/path/to/configuration/file",
-      "--grub2",
       "--imds-support",
       "2.0",
       "--instance-id",
@@ -73,37 +70,22 @@ test_cli_args_data = [
       "x86_64",
       "--name",
       "testImageName",
-      "--private-key-file",
-      "testPrivateKeyFile",
       "--regions",
       "region1,region2,region3",
       "--root-volume-size",
       "33",
-      "--ssh-key-pair",
-      "testSshKeyPair",
       "--secret-key",
       "testAwsSecretKey",
-      "--security-group-ids",
-      "testSG1,testSG2",
       "--session-token",
       "testSessionToken",
       "--snaponly",
       "--sriov-support",
-      "--ssh-timeout",
-      "257",
-      "--channel-timeout",
-      "834",
       "--tpm-support",
       "2.0",
       "--type",
       "testType",
-      "--user",
-      "testUser",
-      "--use-private-ip",
       "--use-root-swap",
       "--use-snapshot",
-      "--virt-type",
-      "testVirtType",
       "--verbose",
       "--vpc-subnet-id",
       "testVpcSubnetId",
@@ -124,31 +106,22 @@ def test_args(cli_args):
     assert parsed_args.accessKey == "testAccId"
     assert parsed_args.backingStore == "ssd"
     assert parsed_args.billingCodes == "testBillingCodes"
-    assert parsed_args.akiID == "testAkiID"
     assert parsed_args.bootMode == "uefi"
     assert parsed_args.descript == "This is a test description for the image"
     assert parsed_args.amiID == "testAWSAmiId"
     assert parsed_args.ena is True
     assert parsed_args.configFilePath == "/path/to/configuration/file"
-    assert parsed_args.grub2 is True
     assert parsed_args.runningID == "testInstanceId"
     assert parsed_args.arch == "x86_64"
     assert parsed_args.imgName == "testImageName"
-    assert parsed_args.privateKey == "testPrivateKeyFile"
     assert parsed_args.regions == "region1,region2,region3"
     assert parsed_args.rootVolSize == "33"
-    assert parsed_args.sshName == "testSshKeyPair"
     assert parsed_args.secretKey == "testAwsSecretKey"
-    assert parsed_args.securityGroupIds == "testSG1,testSG2"
     assert parsed_args.sessionToken == "testSessionToken"
     assert parsed_args.snapOnly is True
     assert parsed_args.sriov is True
-    assert parsed_args.sshTimeout == 257
-    assert parsed_args.channelTimeout == 834
     assert parsed_args.tpm == "2.0"
     assert parsed_args.instType == "testType"
-    assert parsed_args.sshUser == "testUser"
-    assert parsed_args.usePrivateIP is True
     assert parsed_args.rootSwapMethod is True
     assert parsed_args.verbose == 1
     assert parsed_args.vpcSubnetId == "testVpcSubnetId"
@@ -170,8 +143,6 @@ test_cli_args_data = [
       "ssd",
       "--billing-codes",
       "testBillingCodes",
-      "--boot-kernel",
-      "testAkiID",
       "--boot-mode",
       "uefi",
       "--description",
@@ -181,42 +152,26 @@ test_cli_args_data = [
       "--ena-support",
       "--file",
       "/path/to/configuration/file",
-      "--grub2",
       "--imds-support",
       "v2.0",
       "--machine",
       "x86_64",
       "--name",
       "testImageName",
-      "--private-key-file",
-      "testPrivateKeyFile",
       "--regions",
       "region1",
       "--root-volume-size",
       "33",
-      "--ssh-key-pair",
-      "testSshKeyPair",
       "--secret-key",
       "testAwsSecretKey",
-      "--security-group-ids",
-      "testSG1,testSG2",
       "--session-token",
       "testSessionToken",
       "--sriov-support",
-      "--ssh-timeout",
-      "257",
-      "--channel-timeout",
-      "834",
       "--tpm-support",
       "v2.0",
       "--type",
       "testType",
-      "--user",
-      "testUser",
-      "--use-private-ip",
       "--use-snapshot",
-      "--virt-type",
-      "hvm",
       "--verbose",
       "--vpc-subnet-id",
       "testVpcSubnetId",
@@ -240,30 +195,21 @@ def test_args_check(cli_args):
     assert parsed_args.accessKey == "testAccId"
     assert parsed_args.backingStore == "ssd"
     assert parsed_args.billingCodes == "testBillingCodes"
-    assert parsed_args.akiID == "testAkiID"
     assert parsed_args.bootMode == "uefi"
     assert parsed_args.descript == "This is a test description for the image"
     assert parsed_args.amiID == "testAWSAmiId"
     assert parsed_args.ena is True
     assert parsed_args.configFilePath == "/path/to/configuration/file"
-    assert parsed_args.grub2 is True
     assert parsed_args.arch == "x86_64"
     assert parsed_args.imgName == "testImageName"
-    assert parsed_args.privateKey == "testPrivateKeyFile"
     assert parsed_args.regions == "region1"
     assert parsed_args.rootVolSize == "33"
-    assert parsed_args.sshName == "testSshKeyPair"
     assert parsed_args.secretKey == "testAwsSecretKey"
-    assert parsed_args.securityGroupIds == "testSG1,testSG2"
     assert parsed_args.sessionToken == "testSessionToken"
     assert parsed_args.snapOnly is False
     assert parsed_args.sriov is True
-    assert parsed_args.sshTimeout == 257
-    assert parsed_args.channelTimeout == 834
     assert parsed_args.tpm == "v2.0"
     assert parsed_args.instType == "testType"
-    assert parsed_args.sshUser == "testUser"
-    assert parsed_args.usePrivateIP is True
     assert parsed_args.rootSwapMethod is False
     assert parsed_args.verbose == 1
     assert parsed_args.useEnclave is True
@@ -348,19 +294,6 @@ def test_all_arm64_images_to_support_ENA():
 
 
 # --------------------------------------------------------------------
-# Tests for check_sriov_image_is_hvm function
-def test_check_sriov_image_is_hvm():
-
-    class Args:
-        sriov = True
-        virtType = "not_hvm"
-    myArgs = Args()
-    with pytest.raises(SystemExit) as excinfo:
-        ec2uploadimg.check_sriov_image_is_hvm(myArgs, logger)
-    assert excinfo.value.code == 1
-
-
-# --------------------------------------------------------------------
 # Tests for check_amiID_or_runningID_provided function
 def test_check_amiID_or_runningID_provided():
 
@@ -422,7 +355,6 @@ def test_check_regions_parameter():
     class Args:
         regions = 'region1,region2,region3'
         amiID = 'testAmiID'
-        akiID = ''
         runningID = ''
         vpcSubnetId = ''
         rootSwapMethod = True
@@ -437,7 +369,6 @@ def test_check_regions_parameter3():
     class Args:
         regions = 'region1,region2,region3'
         amiID = ''
-        akiID = ''
         runningID = 'testRunningID'
         vpcSubnetId = ''
         rootSwapMethod = True
@@ -452,7 +383,6 @@ def test_check_regions_parameter4():
     class Args:
         regions = 'region1,region2,region3'
         amiID = ''
-        akiID = ''
         runningID = ''
         vpcSubnetId = 'testVpcSubnetId'
         rootSwapMethod = True
@@ -609,20 +539,6 @@ def test_get_root_volume_size2():
 
 
 # --------------------------------------------------------------------
-# Tests for get_access_key functions
-def test_check_ena_image_is_hvm():
-
-    class Args:
-        ena = True
-        virtType = "notHVM"
-
-    myArgs = Args()
-    with pytest.raises(SystemExit) as excinfo:
-        ec2uploadimg.check_ena_image_is_hvm(myArgs, logger)
-    assert excinfo.value.code == 1
-
-
-# --------------------------------------------------------------------
 # Tests for get_amiID
 @patch('ec2uploadimg.utils.get_from_config')
 def test_get_amiID(get_from_config_mock):
@@ -631,7 +547,6 @@ def test_get_amiID(get_from_config_mock):
     class Args:
         accountName = 'testAccountName'
         arch = 'x86_64'
-        akiID = None
 
     myArgs = Args()
     amiID = ec2uploadimg.get_amiID(myArgs, None, "region1", logger)
@@ -860,24 +775,14 @@ def test_main_happy_path_snapOnly(
         "x86_64",
         "--name",
         "testImageName",
-        "--private-key-file",
-        data_path + os.sep + 'invalid.cfg',
         "--regions",
         "region1",
         "--secret-key",
         "testAwsSecretKey",
-        "--security-group-ids",
-        "testSG1,testSG2",
         "--snaponly",
-        "--ssh-key-pair",
-        "testSshKeyPair",
         "--type",
         "testType",
-        "--user",
-        "testUser",
         "--verbose",
-        "--virt-type",
-        "hvm",
         data_path + os.sep + 'complete.cfg'
     ]
     ec2uploadimg.main(cli_args)
@@ -909,7 +814,6 @@ def test_main_aborted_upload(EC2ImageUploader_mock, extra, method, caplog):
         "--regions", "region1",
         "--secret-key", "testAwsSecretKey",
         "--type", "testType",
-        "--virt-type", "hvm"
     ] + extra + [data_path + os.sep + 'complete.cfg']
     # Aborting is not an error, the exit code stays 0
     ec2uploadimg.main(cli_args)
@@ -944,24 +848,14 @@ def test_main_happy_path_rootSwapMethod(
         "x86_64",
         "--name",
         "testImageName",
-        "--private-key-file",
-        data_path + os.sep + 'invalid.cfg',
         "--regions",
         "region1",
         "--secret-key",
         "testAwsSecretKey",
-        "--security-group-ids",
-        "testSG1,testSG2",
-        "--ssh-key-pair",
-        "testSshKeyPair",
         "--type",
         "testType",
-        "--user",
-        "testUser",
         "--use-root-swap",
         "--verbose",
-        "--virt-type",
-        "hvm",
         data_path + os.sep + 'complete.cfg'
     ]
     ec2uploadimg.main(cli_args)
@@ -993,24 +887,14 @@ def test_main_happy_path_useSnap(
         "x86_64",
         "--name",
         "testImageName",
-        "--private-key-file",
-        data_path + os.sep + 'invalid.cfg',
         "--regions",
         "region1",
         "--secret-key",
         "testAwsSecretKey",
-        "--security-group-ids",
-        "testSG1,testSG2",
-        "--ssh-key-pair",
-        "testSshKeyPair",
         "--type",
         "testType",
-        "--user",
-        "testUser",
         "--use-snapshot",
         "--verbose",
-        "--virt-type",
-        "hvm",
         data_path + os.sep + 'complete.cfg'
     ]
     ec2uploadimg.main(cli_args)
@@ -1042,23 +926,13 @@ def test_main_happy_path_other(
         "x86_64",
         "--name",
         "testImageName",
-        "--private-key-file",
-        data_path + os.sep + 'invalid.cfg',
         "--regions",
         "region1",
         "--secret-key",
         "testAwsSecretKey",
-        "--security-group-ids",
-        "testSG1,testSG2",
-        "--ssh-key-pair",
-        "testSshKeyPair",
         "--type",
         "testType",
-        "--user",
-        "testUser",
         "--verbose",
-        "--virt-type",
-        "hvm",
         data_path + os.sep + 'complete.cfg'
     ]
     ec2uploadimg.main(cli_args)
@@ -1093,17 +967,9 @@ def test_failed_upload(
         "region1",
         "--secret-key",
         "testAwsSecretKey",
-        "--security-group-ids",
-        "testSG1,testSG2",
-        "--ssh-key-pair",
-        "testSshKeyPair",
         "--type",
         "testType",
-        "--user",
-        "testUser",
         "--verbose",
-        "--virt-type",
-        "hvm",
         data_path + os.sep + 'complete.cfg'
     ]
     with pytest.raises(SystemExit) as excinfo:
@@ -1134,10 +1000,6 @@ def test_main_unable_to_get_access_keys(
         "region1",
         "--secret-key",
         "testAwsSecretKey",
-        "--user",
-        "testUser",
-        "--virt-type",
-        "hvm",
         data_path + os.sep + 'complete.cfg'
     ]
     with pytest.raises(SystemExit) as excinfo:
@@ -1170,11 +1032,7 @@ def test_main_unable_to_get_secret_keys(
         "region1",
         "--secret-key",
         "testAwsSecretKey",
-        "--user",
-        "testUser",
         "--use-root-swap",
-        "--virt-type",
-        "hvm",
         data_path + os.sep + 'complete.cfg'
     ]
     with pytest.raises(SystemExit) as excinfo:
@@ -1203,11 +1061,7 @@ def test_main_unable_to_get_amiID(
         "testImageName",
         "--regions",
         "region1",
-        "--user",
-        "testUser",
         "--use-root-swap",
-        "--virt-type",
-        "hvm",
         data_path + os.sep + 'complete.cfg'
     ]
     with pytest.raises(SystemExit) as excinfo:
@@ -1216,7 +1070,7 @@ def test_main_unable_to_get_amiID(
 
 
 @patch('ec2uploadimg.utils.get_from_config')
-def test_main_unable_to_get_bootkernel_hvm(
+def test_main_unable_to_get_inst_type(
     get_from_config_mock
 ):
 
@@ -1236,11 +1090,7 @@ def test_main_unable_to_get_bootkernel_hvm(
         "testImageName",
         "--regions",
         "region1",
-        "--user",
-        "testUser",
         "--use-root-swap",
-        "--virt-type",
-        "hvm",
         data_path + os.sep + 'complete.cfg'
     ]
     with pytest.raises(SystemExit) as excinfo:
@@ -1281,28 +1131,13 @@ def test_check_upload_workers_invalid(value, caplog):
     assert 'using 1 upload worker' in caplog.text
 
 
-def test_ssh_timeouts_have_no_parser_default():
-    # Needed to tell if the options were given, defaults are applied for
-    # the root swap method
-    args = _parse()
-    assert args.sshTimeout is None
-    assert args.channelTimeout is None
-
-
 def test_warn_root_swap_only_arguments_none_given(caplog):
     ec2uploadimg.warn_root_swap_only_arguments(_parse(), logger)
     assert 'deprecated' not in caplog.text
 
 
 def test_warn_root_swap_only_arguments_root_swap(caplog):
-    args = _parse(['--use-root-swap', '--ec2-ami', 'ami-1', '--user', 'root'])
-    ec2uploadimg.warn_root_swap_only_arguments(args, logger)
-    assert 'deprecated' not in caplog.text
-
-
-def test_boot_kernel_not_deprecated(caplog):
-    # The boot kernel is used when registering the image
-    args = _parse(['--boot-kernel', 'aki-1', '--grub2', '--virt-type', 'para'])
+    args = _parse(['--use-root-swap', '--ec2-ami', 'ami-1'])
     ec2uploadimg.warn_root_swap_only_arguments(args, logger)
     assert 'deprecated' not in caplog.text
 
@@ -1327,7 +1162,6 @@ def test_check_regions_parameter_error_message(caplog):
     with pytest.raises(SystemExit):
         ec2uploadimg.check_regions_parameter(args, logger)
     assert '--vpc-subnet-id' in caplog.text
-    assert '--boot-kernel' not in caplog.text
 
 
 @patch('ec2uploadimg.utils.get_from_config')
@@ -1354,15 +1188,13 @@ def test_get_uploader_default_needs_no_helper_instance(
     assert kwargs['access_key'] == 'access'
     assert kwargs['secret_key'] == 'secret'
     for helper_arg in (
-        'launch_ami', 'launch_inst_type', 'running_id', 'inst_user_name',
-        'ssh_key_pair_name', 'ssh_key_private_key_file', 'vpc_subnet_id',
-        'security_group_ids'
+        'launch_ami', 'launch_inst_type', 'running_id', 'vpc_subnet_id'
     ):
         assert helper_arg not in kwargs
 
 
 @patch('ec2uploadimg.ec2upimg.EC2ImageUploader')
-def test_main_default_upload_without_ssh_or_ami_config(
+def test_main_default_upload_without_ami_config(
     EC2ImageUploader_mock,
     caplog
 ):
@@ -1507,72 +1339,6 @@ def test_keep_snapshot_with_verify_no_warning(caplog):
 
 
 # --------------------------------------------------------------------
-# Tests for the dropped para-virtual support
-def test_virt_type_hvm_accepted(caplog):
-    args = _parse(['--virt-type', 'hvm'])
-    ec2uploadimg.check_virt_type(args, logger)
-    ec2uploadimg.warn_para_virtual_arguments(args, logger)
-    assert caplog.text == ''
-
-
-def test_default_virt_type_accepted():
-    ec2uploadimg.check_virt_type(_parse(), logger)
-
-
-@pytest.mark.parametrize('value', ['para', 'paravirtual'])
-def test_virt_type_para_rejected(value, caplog):
-    with pytest.raises(SystemExit) as excinfo:
-        ec2uploadimg.check_virt_type(_parse(['--virt-type', value]), logger)
-    assert excinfo.value.code == 1
-    assert 'Only hvm images are supported' in caplog.text
-
-
-def test_virt_type_checked_with_all_constraints():
-    args = _parse(['--virt-type', 'para'])
-    args.source = data_path + os.sep + 'complete.cfg'
-    with pytest.raises(SystemExit):
-        ec2uploadimg.check_required_arguments_and_constraints(args, logger)
-
-
-def test_warn_para_virtual_arguments(caplog):
-    args = _parse(['--boot-kernel', 'aki-1', '--grub2'])
-    ec2uploadimg.warn_para_virtual_arguments(args, logger)
-    assert 'deprecated and ignored' in caplog.text
-    assert '--boot-kernel' in caplog.text
-    assert '--grub2' in caplog.text
-
-
-def test_warn_para_virtual_arguments_with_root_swap(caplog):
-    args = _parse(['--use-root-swap', '--grub2'])
-    ec2uploadimg.warn_para_virtual_arguments(args, logger)
-    assert '--grub2' in caplog.text
-
-
-def test_boot_kernel_option_needs_no_config_or_region_restriction():
-    args = _parse(['--boot-kernel', 'aki-1', '--grub2'])
-    args.regions = 'region1,region2'
-    ec2uploadimg.check_regions_parameter(args, logger)
-
-
-@patch('ec2uploadimg.utils.get_from_config')
-@patch('ec2uploadimg.ec2upimg.EC2ImageUploader')
-def test_get_uploader_ignores_boot_kernel(
-    EC2ImageUploader_mock,
-    get_from_config_mock
-):
-    args = _parse(['--boot-kernel', 'aki-1', '--grub2'])
-
-    ec2uploadimg.get_uploader(
-        args, 'region1', None, 'access', 'secret', MagicMock(), logger
-    )
-
-    get_from_config_mock.assert_not_called()
-    kwargs = EC2ImageUploader_mock.call_args[1]
-    for removed in ('bootkernel', 'image_virt_type', 'use_grub2'):
-        assert removed not in kwargs
-
-
-# --------------------------------------------------------------------
 # Tests for the root swap method with the EBS direct upload
 def test_warn_root_swap_only_arguments(caplog):
     args = _parse([
@@ -1595,47 +1361,6 @@ def test_warn_root_swap_only_arguments(caplog):
         assert option in caplog.text
 
 
-SSH_OPTIONS = [
-    '--ssh-key-pair', 'key',
-    '--private-key-file', 'file',
-    '--user', 'root',
-    '--ssh-timeout', '10',
-    '--channel-timeout', '10',
-    '--security-group-ids', 'sg-1',
-    '--use-private-ip'
-]
-
-
-@pytest.mark.parametrize('extra', [[], ['--use-root-swap']])
-def test_warn_deprecated_ssh_arguments(extra, caplog):
-    ec2uploadimg.warn_deprecated_arguments(_parse(extra + SSH_OPTIONS), logger)
-
-    assert 'deprecated and ignored' in caplog.text
-    for _, option in ec2uploadimg.DEPRECATED_OPTIONS:
-        assert option in caplog.text
-
-
-@pytest.mark.parametrize('extra', [[], ['--use-root-swap']])
-def test_warn_deprecated_ssh_arguments_none_given(extra, caplog):
-    ec2uploadimg.warn_deprecated_arguments(_parse(extra), logger)
-    assert 'deprecated' not in caplog.text
-
-
-def test_ssh_options_are_checked_with_all_constraints(caplog):
-    args = _parse(['--use-root-swap'] + SSH_OPTIONS)
-    args.source = data_path + os.sep + 'complete.cfg'
-    ec2uploadimg.check_required_arguments_and_constraints(args, logger)
-    assert '--ssh-key-pair' in caplog.text
-
-
-def test_removed_ssh_functions_are_gone():
-    for name in (
-        'get_key_pair_name_and_ssh_private_key_file', 'get_ssh_user',
-        'get_security_group_ids'
-    ):
-        assert not hasattr(ec2uploadimg, name)
-
-
 @patch('ec2uploadimg.ec2upimg.EC2ImageUploader')
 def test_get_uploader_root_swap_passes_donor_arguments(
     EC2ImageUploader_mock
@@ -1646,7 +1371,7 @@ def test_get_uploader_root_swap_passes_donor_arguments(
         '--type', 't3.micro',
         '--vpc-subnet-id', 'subnet-1',
         '--use-enclave'
-    ] + SSH_OPTIONS)
+    ])
     setup = MagicMock()
 
     ec2uploadimg.get_uploader(
@@ -1660,20 +1385,11 @@ def test_get_uploader_root_swap_passes_donor_arguments(
     assert kwargs['vpc_subnet_id'] == 'subnet-1'
     assert kwargs['use_enclave'] is True
     assert kwargs['upload_workers'] == 8
-    for ignored in (
-        'ssh_key_pair_name', 'ssh_key_private_key_file', 'inst_user_name',
-        'security_group_ids', 'use_private_ip', 'ssh_timeout',
-        'channel_timeout'
-    ):
-        assert ignored not in kwargs
-    # No temporary key pair or security group is created
-    setup.create_upload_key_pair.assert_not_called()
-    setup.create_security_group.assert_not_called()
 
 
 @patch('ec2uploadimg.utils.get_from_config')
 @patch('ec2uploadimg.ec2upimg.EC2ImageUploader')
-def test_get_uploader_root_swap_needs_no_ssh_config(
+def test_get_uploader_root_swap_reads_donor_config(
     EC2ImageUploader_mock,
     get_from_config_mock
 ):
