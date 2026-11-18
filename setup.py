@@ -44,6 +44,7 @@ if __name__ == '__main__':
         long_description_content_type="text/markdown",
         url='https://github.com/SUSE-Enceladus/ec2imgutils',
         license='GPLv3+',
+        python_requires='>=3.6',
         install_requires=requirements,
         extras_require={
             'dev': dev_requirements
@@ -71,11 +72,14 @@ if __name__ == '__main__':
             'GNU General Public License v3 or later (GPLv3+)',
             'Programming Language :: Python',
             'Programming Language :: Python :: 3',
-            'Programming Language :: Python :: 3.4',
-            'Programming Language :: Python :: 3.5',
             'Programming Language :: Python :: 3.6',
             'Programming Language :: Python :: 3.7',
             'Programming Language :: Python :: 3.8',
+            'Programming Language :: Python :: 3.9',
+            'Programming Language :: Python :: 3.10',
+            'Programming Language :: Python :: 3.11',
+            'Programming Language :: Python :: 3.12',
+            'Programming Language :: Python :: 3.13',
             'Programming Language :: Python :: Implementation :: CPython',
             'Programming Language :: Python :: Implementation :: PyPy',
         ]
