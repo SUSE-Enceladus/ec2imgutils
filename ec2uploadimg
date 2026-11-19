@@ -41,19 +41,6 @@ ROOT_SWAP_ONLY_OPTIONS = (
     ('useEnclave', '--use-enclave'),
     ('vpcSubnetId', '--vpc-subnet-id')
 )
-# Options that were used to upload the image to the donor instance with ssh.
-# The image is uploaded with the EBS direct APIs, the donor instance is not
-# accessed. The options have no effect with any method and are ignored.
-DEPRECATED_OPTIONS = (
-    ('channelTimeout', '--channel-timeout'),
-    ('privateKey', '--private-key-file'),
-    ('securityGroupIds', '--security-group-ids'),
-    ('sshName', '--ssh-key-pair'),
-    ('sshTimeout', '--ssh-timeout'),
-    ('sshUser', '--user'),
-    ('usePrivateIP', '--use-private-ip')
-)
-
 # Global variables
 aborted = False
 logger = None
@@ -123,13 +110,6 @@ def parse_args(args):
         help='The BillingProduct codes, only available to some accounts',
         metavar='BILLING_CODES'
     )
-    parser.add_argument(
-        '--boot-kernel',
-        dest='akiID',
-        help='Deprecated and ignored, para-virtual images are no longer '
-             'supported (Optional)',
-        metavar='AWS_AKI_ID'
-    )
     help_msg = 'Set the boot mode for the image, legacy-bios, uefi, '
     help_msg += 'or uefi-preferred (Optional)'
     parser.add_argument(
@@ -167,14 +147,6 @@ def parse_args(args):
         dest='configFilePath',
         help='Path to configuration file, default ~/.ec2utils.conf (Optional)',
         metavar='CONFIG_FILE'
-    )
-    parser.add_argument(
-        '--grub2',
-        action='store_true',
-        default=False,
-        dest='grub2',
-        help='Deprecated and ignored, para-virtual images are no longer '
-             'supported (Optional)'
     )
     help_msg = 'Provide valid json or a file name of a list of dicts '
     help_msg += 'each dict having a "Key" and "Value" assignment '
@@ -219,13 +191,6 @@ def parse_args(args):
         required=True
     )
     parser.add_argument(
-        '-p', '--private-key-file',
-        dest='privateKey',
-        help='Deprecated and ignored, the image is uploaded without ssh '
-             '(Optional)',
-        metavar='PRIVATE_KEY'
-    )
-    parser.add_argument(
         '-r', '--regions',
         dest='regions',
         help='Comma separated list of regions for image upload',
@@ -239,26 +204,10 @@ def parse_args(args):
         metavar='ROOT_VOLUME_SIZE',
     )
     parser.add_argument(
-        '--ssh-key-pair',
-        dest='sshName',
-        help='Deprecated and ignored, the image is uploaded without ssh '
-             '(Optional)',
-        metavar='AWS_KEY_PAIR_NAME'
-    )
-    parser.add_argument(
         '-s', '--secret-key',
         dest='secretKey',
         help='AWS secret access key (Optional)',
         metavar='AWS_SECRET_KEY'
-    )
-    help_msg = 'Deprecated and ignored, the image is uploaded without ssh '
-    help_msg += '(Optional)'
-    parser.add_argument(
-        '--security-group-ids',
-        default='',
-        dest='securityGroupIds',
-        help=help_msg,
-        metavar='AWS_SECURITY_GROUP_IDS'
     )
     parser.add_argument(
         '--session-token',
@@ -284,26 +233,6 @@ def parse_args(args):
         'source',
         help='The path to the image source file'
     )
-    help_msg = 'Deprecated and ignored, the image is uploaded without ssh '
-    help_msg += '(Optional)'
-    parser.add_argument(
-        '--ssh-timeout',
-        default=None,
-        dest='sshTimeout',
-        help=help_msg,
-        metavar='SSH_TIME_OUT',
-        type=int
-    )
-    help_msg = 'Deprecated and ignored, the image is uploaded without ssh '
-    help_msg += '(Optional)'
-    parser.add_argument(
-        '--channel-timeout',
-        default=None,
-        dest='channelTimeout',
-        help=help_msg,
-        metavar='CHANNEL_TIME_OUT',
-        type=int
-    )
     help_msg = 'The image supports NitroTPM, supported values 2.0/v2.0'
     help_msg += ' (Optional)'
     parser.add_argument(
@@ -319,21 +248,6 @@ def parse_args(args):
         help='Instance type of the donor instance. Only used with '
              '--use-root-swap, ignored otherwise (Optional)',
         metavar='AWS_UPLOAD_INST_TYPE'
-    )
-    parser.add_argument(
-        '-u', '--user',
-        dest='sshUser',
-        help='Deprecated and ignored, the image is uploaded without ssh '
-             '(Optional)',
-        metavar='AWS_INSTANCE_USER'
-    )
-    parser.add_argument(
-        '--use-private-ip',
-        action='store_true',
-        default=False,
-        dest='usePrivateIP',
-        help='Deprecated and ignored, the image is uploaded without ssh '
-             '(Optional)'
     )
     parser.add_argument(
         '--use-snapshot',
@@ -352,15 +266,6 @@ def parse_args(args):
              'is uploaded with the EBS direct APIs. A donor instance, that '
              'provides the meta data of the image, gets the new root volume '
              'and the image is created from it (Optional)'
-    )
-    help_msg = 'The virtualization type, only hvm is supported, default hvm '
-    help_msg += '(Optional)'
-    parser.add_argument(
-        '-V', '--virt-type',
-        default='hvm',
-        dest='virtType',
-        help=help_msg,
-        metavar='AWS_VIRT_TYPE'
     )
     help_msg = 'Enable verbose output (Optional). Multiple -v options increase'
     help_msg += ' the verbosity. The maximum is 2.'
@@ -488,12 +393,9 @@ def check_required_arguments_and_constraints(args, logger):
     """This function is used to assure the additional requirements over
     arguments (which ones are mandatory, etc.) are met.
     """
-    check_virt_type(args, logger)
     check_snapshot_arguments(args, logger)
     check_supported_arch_argument(args, logger)
     all_arm64_images_to_support_ENA(args, logger)
-    check_sriov_image_is_hvm(args, logger)
-    check_ena_image_is_hvm(args, logger)
     check_amiID_or_runningID_provided(args, logger)
     check_regions_parameter(args, logger)
     check_tpm_support_has_allowed_boot_options(args, logger)
@@ -502,9 +404,7 @@ def check_required_arguments_and_constraints(args, logger):
     check_upload_retries(args, logger)
     check_upload_timeout(args, logger)
     check_keep_snapshot_option(args, logger)
-    warn_deprecated_arguments(args, logger)
     warn_root_swap_only_arguments(args, logger)
-    warn_para_virtual_arguments(args, logger)
 
 
 # ----------------------------------------------------------------------------
@@ -554,51 +454,6 @@ def check_keep_snapshot_option(args, logger):
         logger.warning(
             '--keep-snapshot-on-verify-failure has no effect without '
             '--verify-snapshot'
-        )
-
-
-# ----------------------------------------------------------------------------
-def check_virt_type(args, logger):
-    """This function rejects virtualization types other than hvm,
-    para-virtual images are no longer supported and ignoring the option would
-    create a different image than requested
-    """
-    if args.virtType != 'hvm':
-        logger.error(
-            'Only hvm images are supported, the virtualization type "%s" '
-            'is no longer supported' % args.virtType
-        )
-        sys.exit(1)
-
-
-# ----------------------------------------------------------------------------
-def warn_para_virtual_arguments(args, logger):
-    """This function warns about the arguments that were only used for
-    para-virtual images, they are ignored"""
-    ignored = [
-        option for attr, option in (
-            ('akiID', '--boot-kernel'), ('grub2', '--grub2')
-        ) if getattr(args, attr, None)
-    ]
-    if ignored:
-        logger.warning(
-            'The following options are deprecated and ignored, para-virtual '
-            'images are no longer supported: %s' % ', '.join(ignored)
-        )
-
-
-# ----------------------------------------------------------------------------
-def warn_deprecated_arguments(args, logger):
-    """This function warns about the arguments that were used to upload the
-    image with ssh, they have no effect anymore"""
-    ignored = [
-        option for attr, option in DEPRECATED_OPTIONS
-        if getattr(args, attr, None)
-    ]
-    if ignored:
-        logger.warning(
-            'The following options are deprecated and ignored: %s'
-            % ', '.join(ignored)
         )
 
 
@@ -711,26 +566,6 @@ def all_arm64_images_to_support_ENA(args, logger):
         if not args.ena:
             logger.info('Enabling ENA support, required by arm64')
             args.ena = True
-
-
-# ----------------------------------------------------------------------------
-def check_sriov_image_is_hvm(args, logger):
-    """This function checks that if sriov option is included, virtualization
-    type has to be 'hvm'
-    """
-    if args.sriov and args.virtType != 'hvm':
-        logger.error('SRIOV support is only possible with HVM images')
-        sys.exit(1)
-
-
-# ----------------------------------------------------------------------------
-def check_ena_image_is_hvm(args, logger):
-    """This function checks that if ena option is included, virtualization
-    type has to be 'hvm'
-    """
-    if args.ena and args.virtType != 'hvm':
-        logger.error('ENA is only possible with HVM images')
-        sys.exit(1)
 
 
 # ----------------------------------------------------------------------------

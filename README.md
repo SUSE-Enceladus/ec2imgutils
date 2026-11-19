@@ -1,5 +1,3 @@
-[![Build Status](https://www.travis-ci.com/SUSE-Enceladus/ec2imgutils.svg?branch=master)](https://www.travis-ci.com/SUSE-Enceladus/ec2imgutils)
-
 ec2imgutils
 ===========
 
@@ -111,7 +109,7 @@ of images.
 > ec2removeimg --account example --image-name-match v15
 ```
 
-See the [man pages](man/man1/ec2uploadimg.1) for more information.
+See the [man pages](man/man1/ec2removeimg.1) for more information.
 
 ```
 man ec2removeimg
@@ -170,15 +168,7 @@ stopped and terminated once its root volume is replaced. The donor instance
 and the temporary snapshot are removed afterwards. _--ec2-ami_,
 _--instance-id_, _--type_, _--vpc-subnet-id_ and _--use-enclave_ configure the
 donor instance. They are only used with _--use-root-swap_ and are ignored
-otherwise, a warning is issued. _--ssh-key-pair_, _--private-key-file_,
-_--user_, _--ssh-timeout_, _--channel-timeout_, _--security-group-ids_ and
-_--use-private-ip_ are deprecated with all methods, a warning is issued and
-they are ignored. The matching entries in the configuration file are not used
-anymore.
-
-Para-virtual images are no longer supported, only HVM images can be created.
-A _--virt-type_ other than _hvm_ is rejected with an error. _--boot-kernel_
-and _--grub2_ are deprecated, a warning is issued and they are ignored.
+otherwise, a warning is issued.
 
 #### Usage
 

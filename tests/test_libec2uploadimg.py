@@ -481,9 +481,6 @@ def test_clean_up(
 ):
 
     # Mocks
-    ssh_client = MagicMock()
-    ssh_client.close.return_value = None
-
     ec2 = MagicMock()
     ec2.terminate_instances.return_value = None
     ec2.get_waiter().wait.return_value = None
@@ -499,7 +496,6 @@ def test_clean_up(
         wait_count=1,
         log_callback=logger
     )
-    uploader.ssh_client = ssh_client
     uploader.instance_ids = 'instance1,instance2'
     uploader.default_sleep = 0.1
     uploader.created_volumes = None
@@ -529,9 +525,6 @@ def test_clean_up_volumes(
 ):
 
     # Mocks
-    ssh_client = MagicMock()
-    ssh_client.close.return_value = None
-
     ec2 = MagicMock()
     ec2.terminate_instances.return_value = None
     ec2.delete_volume.return_value = None
@@ -558,7 +551,6 @@ def test_clean_up_volumes(
         wait_count=1,
         log_callback=logger
     )
-    uploader.ssh_client = ssh_client
     uploader.instance_ids = 'instance1,instance2'
     uploader.default_sleep = 0.1
     volumes2 = [
@@ -595,9 +587,6 @@ def test_clean_up_wait_exception(
 ):
 
     # Mocks
-    ssh_client = MagicMock()
-    ssh_client.close.return_value = None
-
     ec2 = MagicMock()
     ec2.terminate_instances.return_value = None
 
@@ -615,7 +604,6 @@ def test_clean_up_wait_exception(
         wait_count=1,
         log_callback=logger
     )
-    uploader.ssh_client = ssh_client
     uploader.instance_ids = 'instance1,instance2'
     uploader.default_sleep = 0.1
     uploader.created_volumes = None
@@ -2471,37 +2459,15 @@ def test_create_snapshot_retries_exhausted_deletes_snapshot(
 
 
 # -----------------------------------------------------------------------------
-# Tests for the dropped para-virtual support
+# Tests for the hvm only image registration
 def test_determine_root_device():
     assert _make_uploader()._determine_root_device() == '/dev/sda1'
-
-
-@pytest.mark.parametrize('virt_type', ['paravirtual', 'para', 'other'])
-def test_instantiation_virt_type_error(virt_type):
-    with pytest.raises(EC2UploadImgException) as exc:
-        _make_uploader(image_virt_type=virt_type)
-    assert 'Only hvm images are supported' in str(exc.value)
-
-
-def test_instantiation_virt_type_hvm(caplog):
-    uploader = _make_uploader(image_virt_type='hvm')
-    assert uploader.image_virt_type == 'hvm'
-    assert 'deprecated' not in caplog.text
-
-
-@pytest.mark.parametrize('argument', [
-    {'bootkernel': 'aki-1'}, {'use_grub2': True}
-])
-def test_instantiation_deprecated_arguments(argument, caplog):
-    uploader = _make_uploader(**argument)
-    assert 'deprecated and ignored' in caplog.text
-    assert uploader.image_virt_type == 'hvm'
 
 
 @patch('ec2imgutils.ec2uploadimg.EC2ImageUploader._connect')
 def test_register_image_never_sends_kernel(connect_mock):
     connect_mock().register_image.return_value = {'ImageId': 'ami-1'}
-    uploader = _make_uploader(bootkernel='aki-1')
+    uploader = _make_uploader()
 
     uploader._register_image({'SnapshotId': 'snap-1'})
 
@@ -2509,24 +2475,6 @@ def test_register_image_never_sends_kernel(connect_mock):
     assert kwargs['VirtualizationType'] == 'hvm'
     assert kwargs['RootDeviceName'] == '/dev/sda1'
     assert 'KernelId' not in kwargs
-
-
-def test_constructor_accepts_all_previous_arguments():
-    """The signature of the uploader is backwards compatible"""
-    _make_uploader(
-        access_key='key', backing_store='ssd', billing_codes='code',
-        bootkernel=None, config=None, ena_support=False, image_arch='x86_64',
-        image_description='desc', image_name='name', image_virt_type='hvm',
-        inst_user_name='root', launch_ami='ami-1',
-        launch_inst_type='t2.micro', region='us-east-1',
-        root_volume_size=10, running_id=None, secret_key='secret',
-        security_group_ids='sg-1', session_token=None, sriov_type=None,
-        ssh_key_pair_name='key', ssh_key_private_key_file='file',
-        ssh_timeout=300, channel_timeout=900, use_grub2=False,
-        use_private_ip=False, vpc_subnet_id='subnet-1', use_enclave=False,
-        wait_count=1, log_level=logging.INFO, log_callback=logger,
-        boot_mode=None, tpm_support=None, imds_support=None, image_tags=None
-    )
 
 
 # -----------------------------------------------------------------------------
@@ -3022,7 +2970,7 @@ def test_launch_helper_instance(
 @patch('ec2imgutils.ec2uploadimg.EC2ImageUploader._show_progress')
 @patch('ec2imgutils.ec2uploadimg.EC2ImageUploader._set_zone_to_use')
 @patch('ec2imgutils.ec2uploadimg.EC2ImageUploader._connect')
-def test_launch_helper_instance_without_ssh_arguments(
+def test_launch_helper_instance_without_ssh_resources(
     connect_mock,
     set_zone_mock,
     show_progress_mock
@@ -3035,10 +2983,7 @@ def test_launch_helper_instance_without_ssh_arguments(
 
     uploader = _make_uploader(
         launch_ami='ami-donor',
-        vpc_subnet_id='',
-        ssh_key_pair_name='key',
-        security_group_ids='sg-1',
-        use_private_ip=False
+        vpc_subnet_id=''
     )
     uploader.zone = 'myZone'
     with patch.object(uploader, '_check_wait_status', return_value=2):
@@ -3054,39 +2999,6 @@ def test_launch_helper_instance_aborted():
     uploader = _root_swap_uploader()
     uploader.aborted = True
     assert uploader._launch_helper_instance() is None
-
-
-@pytest.mark.parametrize('argument,value', [
-    ('inst_user_name', 'root'),
-    ('security_group_ids', 'sg-1'),
-    ('ssh_key_pair_name', 'key'),
-    ('ssh_key_private_key_file', '/key'),
-    ('ssh_timeout', 10),
-    ('channel_timeout', 10),
-    ('use_private_ip', True)
-])
-def test_instantiation_ssh_arguments_deprecated(argument, value, caplog):
-    uploader = _make_uploader(**{argument: value})
-    assert 'deprecated and ignored' in caplog.text
-    assert argument in caplog.text
-    assert not hasattr(uploader, 'ssh_client')
-
-
-def test_instantiation_default_ssh_arguments_no_warning(caplog):
-    _make_uploader(ssh_timeout=300, channel_timeout=900, security_group_ids='')
-    assert 'deprecated' not in caplog.text
-
-
-def test_removed_ssh_code_is_gone():
-    for name in (
-        '_establish_ssh_connection', '_execute_ssh_command',
-        '_end_ssh_session', '_upload_image', '_unpack_image',
-        '_dump_root_fs', '_find_device_name', '_format_storage_volume',
-        '_create_storage_volume', '_create_target_root_volume',
-        '_check_security_groups_exist', '_get_next_disk_id'
-    ):
-        assert not hasattr(ec2upimg.EC2ImageUploader, name)
-    assert not hasattr(ec2upimg, 'paramiko')
 
 
 @patch('ec2imgutils.ec2uploadimg.time.sleep')

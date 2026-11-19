@@ -56,16 +56,8 @@ the image is also uploaded with the EBS direct APIs. The new image is then
 created from a donor instance, that provides the metadata of the image, as
 described with that option. The options that configure the donor instance are
 only used with that method and are ignored otherwise, a warning is issued.
-Earlier versions uploaded the image with ssh. The options for the ssh
-connection are deprecated with all methods, a warning is issued and they are
-ignored.
 .PP
-Para-virtual images are no longer supported, only HVM images can be created.
-The
-.I --boot-kernel
-and
-.I --grub2
-options are deprecated and ignored.
+Only HVM images are supported.
 .SH OPTIONS
 .IP "-a --account ACCOUNT_NAME"
 Specifies the account to use to connect to EC2. The account is specified
@@ -115,14 +107,6 @@ storage class. Default value is
 Specifies the billing product codes to apply to the image during
 registration. This functionality is restricted to specific accounts
 within EC2.
-.IP "--boot-kernel AWS_AKI_ID"
-Deprecated and ignored. Para-virtual images are no longer supported, so no
-boot kernel is needed. The
-.I aki_i386,
-.I aki_x86_64
-and
-.I g2_aki_x86_64
-values in the configuration file are not used anymore.
 .IP "--boot-mode"
 Optionally specify the boot mode for the image. Accepted values are
 .I legacy-bios,
@@ -149,8 +133,6 @@ option for a given region in the configuration file.
 .IP "-f --file CONFIG_FILE"
 Specifies the configuration file to use. The default is
 .I ~/.ec2utils.conf
-.IP "--grub2"
-Deprecated and ignored. Para-virtual images are no longer supported.
 .IP "--image-tags"
 Optionally specify tags that should be applied to the image once it has been
 uploaded. The value for the argument is a valid json string representing
@@ -187,23 +169,17 @@ volume is replaced and the instance is stopped and, when the image has been
 created, terminated.
 .IP "-n --name IMAGE_NAME"
 Specifies the name of the AMI to be registered.
-.IP "-p --private-key-file PRIVATE_KEY"
-Deprecated and ignored, the image is uploaded without ssh.
 .IP "-r --regions EC2_REGIONS"
 A comma separated list of Amazon EC2 regions, or a single region.
 .IP "--root-volume-size"
 Specify the size in GB of the new root volume for the AMI being created. It
 is recommended to keep the root volume size to 10GB or less.
-.IP "--ssh-key-pair AWS_KEY_PAIR_NAME"
-Deprecated and ignored, the image is uploaded without ssh.
 .IP "-s --secret-key AWS_SECRET_KEY"
 Specifies the AWS secret access key and overrides the value given for the
 .I account
 with the
 .I secret_access_key
 in the configuration file.
-.IP "--security-group-ids AWS_SECURITY_GROUP_IDS"
-Deprecated and ignored, the image is uploaded without ssh.
 .IP "--session-token AWS_SESSION_TOKEN"
 Specifies the AWS session token. Only necessary when using temporary credentials.
 .IP "--snaponly"
@@ -216,10 +192,6 @@ The snapshotID is specified as the source variable.
 .IP "--sriov-support"
 Enable SRIOV support for HVM images. This implies that the appropriate
 driver has to be included in the image.
-.IP "--ssh-timeout SSH_TIME_OUT"
-Deprecated and ignored, the image is uploaded without ssh.
-.IP "--channel-timeout CHANNEL_TIME_OUT"
-Deprecated and ignored, the image is uploaded without ssh.
 .IP "--tpm-support"
 Optionally specify the version of the TPM implementation the OS in the image
 supports. This option can only be used if
@@ -238,10 +210,6 @@ Specifies the instance type to launch for the donor instance. This value
 overrides the value given with the
 .I instance_type
 option for a given region in the configuration file.
-.IP "-u --user AWS_INSTANCE_USER"
-Deprecated and ignored, the image is uploaded without ssh.
-.IP "--use-private-ip"
-Deprecated and ignored, the image is uploaded without ssh.
 .IP "--upload-workers UPLOAD_WORKERS"
 Specifies the number of threads that write blocks of the image to the
 snapshot in parallel. The default is 8. A higher number may speed up the
@@ -319,12 +287,6 @@ Creating the volume from the snapshot additionally requires the EC2 actions
 .I ec2:DescribeVolumes
 and
 .I ec2:CreateImage.
-.IP "-V --virt-type AWS_VIRT_TYPE"
-Only
-.I hvm
-is supported, which is the default. Any other value, such as
-.I para,
-causes an error as para-virtual images are no longer supported.
 .IP "--vpc-subnet-id VPC_SUBNET_ID"
 Only used with
 .I --use-root-swap,

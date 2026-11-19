@@ -194,14 +194,14 @@ def test_get_from_config_region_override():
        is overridden ina a region"""
     config_file = data_path + os.sep + 'complete.cfg'
     config = ec2utils.get_config(config_file)
-    expected = 'east-region'
-    ssh_key_name = ec2utils.get_from_config(
+    expected = 'm1.small'
+    instance_type = ec2utils.get_from_config(
         'tester',
         config,
         'us-east-1',
-        'ssh_key_name',
-        '--ssh-key-pair')
-    assert expected == ssh_key_name
+        'instance_type',
+        '--type')
+    assert expected == instance_type
 
 
 def test_get_from_config_invalid_account_name():
@@ -214,8 +214,8 @@ def test_get_from_config_invalid_account_name():
             'foo',
             config,
             None,
-            'ssh_key_name',
-            '--ssh-key-pair')
+            'instance_type',
+            '--type')
 
 
 def test_get_from_config_no_account_name():
@@ -228,8 +228,8 @@ def test_get_from_config_no_account_name():
             None,
             config,
             None,
-            'ssh_key_name',
-            '--ssh-key-pair')
+            'instance_type',
+            '--type')
 
 
 def test_get_regions_from_cmd():

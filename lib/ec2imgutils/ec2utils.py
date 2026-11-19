@@ -230,7 +230,7 @@ def _basic_account_check(config, command_args):
     """Basic check for account presense."""
     account = command_args.accountName
     if not account:
-        msg = 'Cannot determine ssh key, no account given and not specified '
+        msg = 'Cannot determine account, no account given and not specified '
         msg += 'on command line'
         raise EC2AccountException(msg)
     acctName = generate_config_account_name(account)
